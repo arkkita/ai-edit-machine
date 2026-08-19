@@ -1,0 +1,239 @@
+{
+  "$defs": {
+    "EvidenceSourceType": {
+      "enum": [
+        "PRIMARY_RELEASE",
+        "OFFICIAL_CLIP",
+        "PLATFORM_SIGNAL",
+        "ARTICLE",
+        "METADATA"
+      ],
+      "title": "EvidenceSourceType",
+      "type": "string"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v2/canonical/evidence-source.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Trusted normalized source identity and policy record.",
+  "properties": {
+    "author_or_channel": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Author Or Channel"
+    },
+    "canonical_url": {
+      "format": "uri",
+      "maxLength": 2083,
+      "minLength": 1,
+      "title": "Canonical Url",
+      "type": "string"
+    },
+    "content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "deletion_required_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Deletion Required At"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expires At"
+    },
+    "independence_group": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Independence Group",
+      "type": "string"
+    },
+    "page_published_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Page Published At"
+    },
+    "policy_class": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Policy Class",
+      "type": "string"
+    },
+    "provider": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Provider",
+      "type": "string"
+    },
+    "provider_record_id": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider Record Id"
+    },
+    "purge_due_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Purge Due At"
+    },
+    "query": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Query",
+      "type": "string"
+    },
+    "refresh_due_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Refresh Due At"
+    },
+    "retrieved_at": {
+      "format": "date-time",
+      "title": "Retrieved At",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "2.0.0",
+      "default": "2.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_created_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Created At"
+    },
+    "source_id": {
+      "format": "uuid4",
+      "title": "Source Id",
+      "type": "string"
+    },
+    "source_type": {
+      "$ref": "#/$defs/EvidenceSourceType"
+    },
+    "source_updated_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Updated At"
+    },
+    "title": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "window_end": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Window End"
+    },
+    "window_start": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Window Start"
+    }
+  },
+  "required": [
+    "source_id",
+    "provider",
+    "source_type",
+    "canonical_url",
+    "title",
+    "retrieved_at",
+    "query",
+    "policy_class",
+    "content_sha256",
+    "independence_group"
+  ],
+  "title": "EvidenceSourceRecordV2",
+  "type": "object"
+}

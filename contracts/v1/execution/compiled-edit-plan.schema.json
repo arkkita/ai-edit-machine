@@ -1,0 +1,756 @@
+{
+  "$defs": {
+    "AssetClockMapping": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_origin": {
+          "$ref": "#/$defs/MediaPoint"
+        },
+        "audio_stream_index": {
+          "minimum": 0,
+          "title": "Audio Stream Index",
+          "type": "integer"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "mapping_id": {
+          "format": "uuid4",
+          "title": "Mapping Id",
+          "type": "string"
+        },
+        "resolution_evidence_id": {
+          "format": "uuid4",
+          "title": "Resolution Evidence Id",
+          "type": "string"
+        },
+        "resolver_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Resolver Id",
+          "type": "string"
+        },
+        "source_media_id": {
+          "format": "uuid4",
+          "title": "Source Media Id",
+          "type": "string"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "video_origin": {
+          "$ref": "#/$defs/MediaPoint"
+        },
+        "video_stream_index": {
+          "minimum": 0,
+          "title": "Video Stream Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mapping_id",
+        "source_media_id",
+        "source_sha256",
+        "video_stream_index",
+        "audio_stream_index",
+        "video_origin",
+        "audio_origin",
+        "resolver_id",
+        "resolution_evidence_id",
+        "confidence"
+      ],
+      "title": "AssetClockMapping",
+      "type": "object"
+    },
+    "AudioAccent": {
+      "enum": [
+        "NONE",
+        "SOURCE_HIT",
+        "SONG_HIT"
+      ],
+      "title": "AudioAccent",
+      "type": "string"
+    },
+    "BoundaryKind": {
+      "enum": [
+        "DECODED_VIDEO_FRAME",
+        "USER_CONFIRMED_VIDEO_FRAME",
+        "DECODED_AUDIO_SAMPLE"
+      ],
+      "title": "BoundaryKind",
+      "type": "string"
+    },
+    "ClipAudioPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "clock_mapping": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AssetClockMapping"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "policy": {
+          "$ref": "#/$defs/ClipAudioPolicy"
+        },
+        "source_range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResolvedMediaRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "policy"
+      ],
+      "title": "ClipAudioPlan",
+      "type": "object"
+    },
+    "ClipAudioPolicy": {
+      "enum": [
+        "MUTE_SOURCE",
+        "KEEP_SOURCE",
+        "DUCK_UNDER_SONG"
+      ],
+      "title": "ClipAudioPolicy",
+      "type": "string"
+    },
+    "ClipPlan": {
+      "additionalProperties": false,
+      "description": "Trusted compiled clip. Only M0-calibrated presets are executable.",
+      "properties": {
+        "audio": {
+          "$ref": "#/$defs/ClipAudioPlan"
+        },
+        "clip_id": {
+          "format": "uuid4",
+          "title": "Clip Id",
+          "type": "string"
+        },
+        "crop": {
+          "$ref": "#/$defs/CropPlan"
+        },
+        "evidence_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "order": {
+          "minimum": 0,
+          "title": "Order",
+          "type": "integer"
+        },
+        "rationale": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/ClipRole"
+        },
+        "song_beat_anchor_id": {
+          "anyOf": [
+            {
+              "format": "uuid4",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Song Beat Anchor Id"
+        },
+        "source_handle_after_pts": {
+          "minimum": 0,
+          "title": "Source Handle After Pts",
+          "type": "integer"
+        },
+        "source_handle_before_pts": {
+          "minimum": 0,
+          "title": "Source Handle Before Pts",
+          "type": "integer"
+        },
+        "source_range": {
+          "$ref": "#/$defs/ResolvedMediaRange"
+        },
+        "timeline_end_frame": {
+          "exclusiveMinimum": 0,
+          "title": "Timeline End Frame",
+          "type": "integer"
+        },
+        "timeline_start_frame": {
+          "minimum": 0,
+          "title": "Timeline Start Frame",
+          "type": "integer"
+        },
+        "transition_after": {
+          "anyOf": [
+            {
+              "const": "CLEAN_CUT",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transition After"
+        },
+        "transition_preset_version": {
+          "anyOf": [
+            {
+              "const": "CLEAN_CUT@1",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transition Preset Version"
+        },
+        "velocity_preset": {
+          "const": "STATIC",
+          "default": "STATIC",
+          "title": "Velocity Preset",
+          "type": "string"
+        },
+        "velocity_preset_version": {
+          "const": "STATIC@1",
+          "default": "STATIC@1",
+          "title": "Velocity Preset Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "clip_id",
+        "order",
+        "role",
+        "source_range",
+        "source_handle_before_pts",
+        "source_handle_after_pts",
+        "timeline_start_frame",
+        "timeline_end_frame",
+        "audio",
+        "evidence_ids",
+        "rationale"
+      ],
+      "title": "ClipPlan",
+      "type": "object"
+    },
+    "ClipRole": {
+      "enum": [
+        "INTRO_DIALOGUE",
+        "INTRO_REACTION",
+        "HANDOFF",
+        "MONTAGE",
+        "PAYOFF",
+        "ENDING"
+      ],
+      "title": "ClipRole",
+      "type": "string"
+    },
+    "CropPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "const": "CENTER",
+          "default": "CENTER",
+          "title": "Mode",
+          "type": "string"
+        },
+        "preset_version": {
+          "const": "CENTER@1",
+          "default": "CENTER@1",
+          "title": "Preset Version",
+          "type": "string"
+        }
+      },
+      "title": "CropPlan",
+      "type": "object"
+    },
+    "EndingPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "duration_frames": {
+          "minimum": 0,
+          "title": "Duration Frames",
+          "type": "integer"
+        },
+        "preset": {
+          "$ref": "#/$defs/EndingPreset"
+        }
+      },
+      "required": [
+        "preset",
+        "duration_frames"
+      ],
+      "title": "EndingPlan",
+      "type": "object"
+    },
+    "EndingPreset": {
+      "enum": [
+        "END_ON_IMAGE",
+        "END_TO_BLACK",
+        "END_TITLE_BLACK"
+      ],
+      "title": "EndingPreset",
+      "type": "string"
+    },
+    "MediaPoint": {
+      "additionalProperties": false,
+      "properties": {
+        "frame_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame Index"
+        },
+        "pts": {
+          "title": "Pts",
+          "type": "integer"
+        },
+        "time_base": {
+          "$ref": "#/$defs/Rational"
+        }
+      },
+      "required": [
+        "pts",
+        "time_base"
+      ],
+      "title": "MediaPoint",
+      "type": "object"
+    },
+    "PlanValidationReport": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/ValidationCheck"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Checks",
+          "type": "array"
+        },
+        "compiler_run_id": {
+          "format": "uuid4",
+          "title": "Compiler Run Id",
+          "type": "string"
+        },
+        "compiler_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Compiler Version",
+          "type": "string"
+        },
+        "input_fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Input Fingerprint",
+          "type": "string"
+        },
+        "status": {
+          "const": "PASSED",
+          "default": "PASSED",
+          "title": "Status",
+          "type": "string"
+        },
+        "validated_at": {
+          "format": "date-time",
+          "title": "Validated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "compiler_run_id",
+        "compiler_version",
+        "validated_at",
+        "input_fingerprint",
+        "checks"
+      ],
+      "title": "PlanValidationReport",
+      "type": "object"
+    },
+    "Rational": {
+      "additionalProperties": false,
+      "properties": {
+        "denominator": {
+          "exclusiveMinimum": 0,
+          "title": "Denominator",
+          "type": "integer"
+        },
+        "numerator": {
+          "exclusiveMinimum": 0,
+          "title": "Numerator",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "numerator",
+        "denominator"
+      ],
+      "title": "Rational",
+      "type": "object"
+    },
+    "ResolvedBoundary": {
+      "additionalProperties": false,
+      "properties": {
+        "boundary_kind": {
+          "$ref": "#/$defs/BoundaryKind"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "point": {
+          "$ref": "#/$defs/MediaPoint"
+        },
+        "resolution_evidence_id": {
+          "format": "uuid4",
+          "title": "Resolution Evidence Id",
+          "type": "string"
+        },
+        "resolver_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Resolver Id",
+          "type": "string"
+        },
+        "source_media_id": {
+          "format": "uuid4",
+          "title": "Source Media Id",
+          "type": "string"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "stream_index": {
+          "minimum": 0,
+          "title": "Stream Index",
+          "type": "integer"
+        },
+        "stream_signature_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Stream Signature Sha256",
+          "type": "string"
+        },
+        "stream_type": {
+          "$ref": "#/$defs/StreamType"
+        }
+      },
+      "required": [
+        "source_media_id",
+        "source_sha256",
+        "stream_signature_sha256",
+        "stream_index",
+        "stream_type",
+        "point",
+        "boundary_kind",
+        "resolver_id",
+        "resolution_evidence_id",
+        "confidence"
+      ],
+      "title": "ResolvedBoundary",
+      "type": "object"
+    },
+    "ResolvedMediaRange": {
+      "additionalProperties": false,
+      "description": "One exact stream range; transcript and beat times are anchors, not authorities.",
+      "properties": {
+        "asset_clock_mapping_id": {
+          "format": "uuid4",
+          "title": "Asset Clock Mapping Id",
+          "type": "string"
+        },
+        "end": {
+          "$ref": "#/$defs/ResolvedBoundary"
+        },
+        "start": {
+          "$ref": "#/$defs/ResolvedBoundary"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "asset_clock_mapping_id"
+      ],
+      "title": "ResolvedMediaRange",
+      "type": "object"
+    },
+    "SignedRational": {
+      "additionalProperties": false,
+      "properties": {
+        "denominator": {
+          "exclusiveMinimum": 0,
+          "title": "Denominator",
+          "type": "integer"
+        },
+        "numerator": {
+          "title": "Numerator",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "numerator",
+        "denominator"
+      ],
+      "title": "SignedRational",
+      "type": "object"
+    },
+    "SongHandoffPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "accent": {
+          "$ref": "#/$defs/AudioAccent",
+          "default": "NONE"
+        },
+        "beat_id": {
+          "format": "uuid4",
+          "title": "Beat Id",
+          "type": "string"
+        },
+        "beat_point": {
+          "$ref": "#/$defs/MediaPoint"
+        },
+        "dialogue_tail_frames": {
+          "minimum": 0,
+          "title": "Dialogue Tail Frames",
+          "type": "integer"
+        },
+        "music_pre_lap_frames": {
+          "minimum": 0,
+          "title": "Music Pre Lap Frames",
+          "type": "integer"
+        },
+        "policy": {
+          "const": "DIALOGUE_TO_SONG_CUT_V1@1",
+          "default": "DIALOGUE_TO_SONG_CUT_V1@1",
+          "title": "Policy",
+          "type": "string"
+        },
+        "quantization_error": {
+          "$ref": "#/$defs/SignedRational"
+        },
+        "resolved_timeline_frame": {
+          "minimum": 0,
+          "title": "Resolved Timeline Frame",
+          "type": "integer"
+        },
+        "song_fade_in_frames": {
+          "minimum": 0,
+          "title": "Song Fade In Frames",
+          "type": "integer"
+        },
+        "song_map_id": {
+          "format": "uuid4",
+          "title": "Song Map Id",
+          "type": "string"
+        },
+        "song_source_range": {
+          "$ref": "#/$defs/ResolvedMediaRange"
+        },
+        "song_timeline_start_frame": {
+          "minimum": 0,
+          "title": "Song Timeline Start Frame",
+          "type": "integer"
+        },
+        "source_fade_out_frames": {
+          "minimum": 0,
+          "title": "Source Fade Out Frames",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "song_map_id",
+        "beat_id",
+        "song_source_range",
+        "song_timeline_start_frame",
+        "beat_point",
+        "resolved_timeline_frame",
+        "quantization_error",
+        "dialogue_tail_frames",
+        "music_pre_lap_frames",
+        "source_fade_out_frames",
+        "song_fade_in_frames"
+      ],
+      "title": "SongHandoffPlan",
+      "type": "object"
+    },
+    "StreamType": {
+      "enum": [
+        "VIDEO",
+        "AUDIO"
+      ],
+      "title": "StreamType",
+      "type": "string"
+    },
+    "ValidationCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Code",
+          "type": "string"
+        },
+        "detail": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Detail",
+          "type": "string"
+        },
+        "passed": {
+          "const": true,
+          "title": "Passed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "passed",
+        "detail"
+      ],
+      "title": "ValidationCheck",
+      "type": "object"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v1/execution/compiled-edit-plan.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Execution input emitted only by trusted deterministic compiler code.",
+  "properties": {
+    "clips": {
+      "items": {
+        "$ref": "#/$defs/ClipPlan"
+      },
+      "maxItems": 500,
+      "minItems": 1,
+      "title": "Clips",
+      "type": "array"
+    },
+    "concept": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Concept",
+      "type": "string"
+    },
+    "conform_policy": {
+      "const": "EXACT_OR_ONE_OUTPUT_FRAME",
+      "default": "EXACT_OR_ONE_OUTPUT_FRAME",
+      "title": "Conform Policy",
+      "type": "string"
+    },
+    "ending": {
+      "$ref": "#/$defs/EndingPlan"
+    },
+    "expected_duration_frames": {
+      "exclusiveMinimum": 0,
+      "title": "Expected Duration Frames",
+      "type": "integer"
+    },
+    "grammar_id": {
+      "const": "DIALOGUE_DROP_EDIT_V1",
+      "default": "DIALOGUE_DROP_EDIT_V1",
+      "title": "Grammar Id",
+      "type": "string"
+    },
+    "grammar_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Grammar Version",
+      "type": "string"
+    },
+    "output_aspect": {
+      "$ref": "#/$defs/Rational"
+    },
+    "output_frame_rate": {
+      "$ref": "#/$defs/Rational"
+    },
+    "parent_plan_id": {
+      "anyOf": [
+        {
+          "format": "uuid4",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent Plan Id"
+    },
+    "plan_id": {
+      "format": "uuid4",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "preset_registry_version": {
+      "const": "m0-safe-1",
+      "default": "m0-safe-1",
+      "title": "Preset Registry Version",
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "song_handoff": {
+      "$ref": "#/$defs/SongHandoffPlan"
+    },
+    "validation_report": {
+      "$ref": "#/$defs/PlanValidationReport"
+    }
+  },
+  "required": [
+    "plan_id",
+    "revision",
+    "concept",
+    "output_frame_rate",
+    "song_handoff",
+    "ending",
+    "expected_duration_frames",
+    "clips",
+    "validation_report"
+  ],
+  "title": "CompiledEditPlan",
+  "type": "object"
+}

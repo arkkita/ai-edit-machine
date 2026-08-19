@@ -1,0 +1,450 @@
+{
+  "$defs": {
+    "CastIdentityFactV2": {
+      "additionalProperties": false,
+      "properties": {
+        "character_name": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Character Name",
+          "type": "string"
+        },
+        "performer_name": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Performer Name",
+          "type": "string"
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Show Or Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "show_or_title",
+        "character_name",
+        "performer_name"
+      ],
+      "title": "CastIdentityFactV2",
+      "type": "object"
+    },
+    "EpisodeLocatorFactV2": {
+      "additionalProperties": false,
+      "properties": {
+        "episode_number": {
+          "maximum": 9999,
+          "minimum": 1,
+          "title": "Episode Number",
+          "type": "integer"
+        },
+        "episode_title": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Title"
+        },
+        "season_number": {
+          "maximum": 9999,
+          "minimum": 0,
+          "title": "Season Number",
+          "type": "integer"
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Show Or Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "show_or_title",
+        "season_number",
+        "episode_number"
+      ],
+      "title": "EpisodeLocatorFactV2",
+      "type": "object"
+    },
+    "EvidenceClaimKind": {
+      "enum": [
+        "WHY_NOW",
+        "VIEWER_DISCUSSION",
+        "EPISODE_IDENTITY",
+        "QUOTE",
+        "SCENE_CONTEXT",
+        "OFFICIAL_CLIP",
+        "CAST_IDENTITY"
+      ],
+      "title": "EvidenceClaimKind",
+      "type": "string"
+    },
+    "ExcerptType": {
+      "enum": [
+        "SHORT_QUOTE",
+        "PARAPHRASE",
+        "UNVERIFIED_QUOTE_LEAD"
+      ],
+      "title": "ExcerptType",
+      "type": "string"
+    },
+    "MediaIdentityV2": {
+      "additionalProperties": false,
+      "properties": {
+        "episode_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Number"
+        },
+        "episode_title": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Title"
+        },
+        "media_kind": {
+          "$ref": "#/$defs/MediaKind"
+        },
+        "season_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Season Number"
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Show Or Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "media_kind",
+        "show_or_title"
+      ],
+      "title": "MediaIdentityV2",
+      "type": "object"
+    },
+    "MediaKind": {
+      "enum": [
+        "TV_EPISODE",
+        "TV_SERIES",
+        "FILM",
+        "TRAILER",
+        "OFFICIAL_CLIP"
+      ],
+      "title": "MediaKind",
+      "type": "string"
+    },
+    "QuoteFactV2": {
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context"
+        },
+        "episode_locator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EpisodeLocatorFactV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "exact_text": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Exact Text",
+          "type": "string"
+        },
+        "media_identity": {
+          "$ref": "#/$defs/MediaIdentityV2"
+        },
+        "speaker": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Speaker",
+          "type": "string"
+        }
+      },
+      "required": [
+        "exact_text",
+        "speaker",
+        "media_identity"
+      ],
+      "title": "QuoteFactV2",
+      "type": "object"
+    },
+    "SceneMomentFactV2": {
+      "additionalProperties": false,
+      "properties": {
+        "characters": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Characters",
+          "type": "array"
+        },
+        "description": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "episode_locator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EpisodeLocatorFactV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "relationship_or_topic": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Relationship Or Topic"
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Show Or Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "show_or_title",
+        "description"
+      ],
+      "title": "SceneMomentFactV2",
+      "type": "object"
+    },
+    "VerificationState": {
+      "enum": [
+        "PRIMARY_VERIFIED",
+        "SECONDARY_CORROBORATED",
+        "LEAD_ONLY",
+        "STALE",
+        "RETRACTED"
+      ],
+      "title": "VerificationState",
+      "type": "string"
+    },
+    "WhyNowEventFactV2": {
+      "additionalProperties": false,
+      "properties": {
+        "event_kind": {
+          "$ref": "#/$defs/WhyNowEventKind"
+        },
+        "media_identity": {
+          "$ref": "#/$defs/MediaIdentityV2"
+        }
+      },
+      "required": [
+        "event_kind",
+        "media_identity"
+      ],
+      "title": "WhyNowEventFactV2",
+      "type": "object"
+    },
+    "WhyNowEventKind": {
+      "enum": [
+        "EPISODE_RELEASE",
+        "FILM_RELEASE",
+        "TRAILER_RELEASE",
+        "OFFICIAL_CLIP_RELEASE"
+      ],
+      "title": "WhyNowEventKind",
+      "type": "string"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v2/canonical/evidence-claim.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One claim joined to exactly one normalized evidence source.",
+  "properties": {
+    "cast_fact": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CastIdentityFactV2"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "claim_id": {
+      "format": "uuid4",
+      "title": "Claim Id",
+      "type": "string"
+    },
+    "claim_kind": {
+      "$ref": "#/$defs/EvidenceClaimKind"
+    },
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "episode_locator": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EpisodeLocatorFactV2"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "event_or_release_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Event Or Release At"
+    },
+    "excerpt_type": {
+      "$ref": "#/$defs/ExcerptType"
+    },
+    "quote_fact": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/QuoteFactV2"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "scene_fact": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SceneMomentFactV2"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "schema_version": {
+      "const": "2.0.0",
+      "default": "2.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_id": {
+      "format": "uuid4",
+      "title": "Source Id",
+      "type": "string"
+    },
+    "supports_why_now": {
+      "title": "Supports Why Now",
+      "type": "boolean"
+    },
+    "text": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    },
+    "verification": {
+      "$ref": "#/$defs/VerificationState"
+    },
+    "why_now_event": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WhyNowEventFactV2"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "claim_id",
+    "source_id",
+    "claim_kind",
+    "excerpt_type",
+    "text",
+    "verification",
+    "confidence",
+    "supports_why_now",
+    "content_sha256"
+  ],
+  "title": "EvidenceClaimRecordV2",
+  "type": "object"
+}

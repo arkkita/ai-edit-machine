@@ -1,0 +1,50 @@
+[package]
+name = "ai-edit-machine-desktop"
+version = "0.1.0"
+description = "Trusted Windows desktop boundary for AI Edit Machine"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+build = "build.rs"
+
+[lib]
+name = "ai_edit_machine_desktop_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+hex = "=0.4.3"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+sha2 = "=0.10.9"
+tauri-build = { version = "=2.6.3", features = [] }
+
+[dependencies]
+hex = "=0.4.3"
+rusqlite = { version = "=0.40.1", features = ["bundled"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+sha2 = "=0.10.9"
+tauri = { version = "=2.11.5", default-features = false, features = ["wry"] }
+thiserror = "=2.0.17"
+uuid = { version = "=1.18.1", features = ["serde", "v4"] }
+windows-sys = { version = "=0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security_Credentials",
+  "Win32_System_JobObjects",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_SystemInformation",
+  "Win32_System_Threading",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+zeroize = { version = "=1.8.2", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = "=3.23.0"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = "symbols"

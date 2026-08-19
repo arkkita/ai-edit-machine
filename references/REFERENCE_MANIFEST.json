@@ -1,0 +1,32 @@
+{
+  "manifest_version": "1.0.0",
+  "audited_at": "2026-08-15T00:00:00-07:00",
+  "source_location_note": "Supplied outside the repository under Documents/Codex/Ai-Edit-Machine/References; originals remain untouched.",
+  "assets": [
+    {
+      "relative_path": "Style/tiktok_7637159222106393878_576p.mp4",
+      "role": "STYLE_REFERENCE",
+      "sha256": "2b0c5009e1f5ba05caffa617b27bbc194c513bbf6a7df8946e8e3029ebb432fb"
+    },
+    {
+      "relative_path": "Style/tiktok_7668861927111527703_576p.mp4",
+      "role": "STYLE_REFERENCE",
+      "sha256": "62a14fcdcd3e9d27da14a3e4fe7eb665f14dc4e7c8c0b192349781eec25473e4"
+    },
+    {
+      "relative_path": "Style/tiktok_7668899659435363606_576p.mp4",
+      "role": "STYLE_REFERENCE",
+      "sha256": "38d61c9f634c7bfc41d9c3a4244bdd0811cdb6fff54d60d7b20369842f6fb138"
+    },
+    {
+      "relative_path": "After effects CC/CC.aep",
+      "role": "AFTER_EFFECTS_LOOK",
+      "sha256": "739ae13787a9153042cab31b4a18cb70fdb0184034fd6299994efde0c20e7b44"
+    },
+    {
+      "relative_path": "Topaz/THE ONE.json",
+      "role": "LEGACY_TOPAZ_PRESET",
+      "sha256": "8af10debc7e72c81edf2f73df492a9af48ef63c7407119d856076006e5eb99be"
+    }
+  ]
+}

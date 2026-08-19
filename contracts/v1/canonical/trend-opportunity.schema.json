@@ -1,0 +1,178 @@
+{
+  "$defs": {
+    "EvidenceGate": {
+      "enum": [
+        "PASSED",
+        "LOW_CONFIDENCE"
+      ],
+      "title": "EvidenceGate",
+      "type": "string"
+    },
+    "EvidenceRole": {
+      "enum": [
+        "PRIMARY_WHY_NOW",
+        "QUALITATIVE_SIGNAL",
+        "QUOTE_PROOF",
+        "CONTEXT"
+      ],
+      "title": "EvidenceRole",
+      "type": "string"
+    },
+    "MediaKind": {
+      "enum": [
+        "TV_EPISODE",
+        "TV_SERIES",
+        "FILM",
+        "TRAILER",
+        "OFFICIAL_CLIP"
+      ],
+      "title": "MediaKind",
+      "type": "string"
+    },
+    "OpportunityEvidenceReference": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "format": "uuid4",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "independence_group": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Independence Group",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/EvidenceRole"
+        },
+        "supports_why_now": {
+          "title": "Supports Why Now",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "claim_id",
+        "role",
+        "independence_group",
+        "supports_why_now"
+      ],
+      "title": "OpportunityEvidenceReference",
+      "type": "object"
+    },
+    "OpportunityFocus": {
+      "additionalProperties": false,
+      "properties": {
+        "characters": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Characters",
+          "type": "array"
+        },
+        "relationship_or_topic": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Relationship Or Topic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "relationship_or_topic"
+      ],
+      "title": "OpportunityFocus",
+      "type": "object"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v1/canonical/trend-opportunity.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Canonical persisted opportunity with trusted, preallocated UUIDv4 IDs.",
+  "properties": {
+    "caveats": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Caveats",
+      "type": "array"
+    },
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "creative_hook": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Creative Hook",
+      "type": "string"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/OpportunityEvidenceReference"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "title": "Evidence",
+      "type": "array"
+    },
+    "evidence_gate": {
+      "$ref": "#/$defs/EvidenceGate"
+    },
+    "focus": {
+      "$ref": "#/$defs/OpportunityFocus"
+    },
+    "footage_request_id": {
+      "format": "uuid4",
+      "title": "Footage Request Id",
+      "type": "string"
+    },
+    "media_kind": {
+      "$ref": "#/$defs/MediaKind"
+    },
+    "opportunity_id": {
+      "format": "uuid4",
+      "title": "Opportunity Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "why_now": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Why Now",
+      "type": "string"
+    }
+  },
+  "required": [
+    "media_kind",
+    "title",
+    "focus",
+    "why_now",
+    "creative_hook",
+    "evidence",
+    "evidence_gate",
+    "confidence",
+    "opportunity_id",
+    "footage_request_id"
+  ],
+  "title": "TrendOpportunity",
+  "type": "object"
+}

@@ -1,0 +1,504 @@
+{
+  "$defs": {
+    "FootageQuoteStatus": {
+      "enum": [
+        "VERIFIED",
+        "PARAPHRASE",
+        "UNVERIFIED_LEAD"
+      ],
+      "title": "FootageQuoteStatus",
+      "type": "string"
+    },
+    "FootageQuoteV2": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "format": "uuid4",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "likely_context": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Likely Context"
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speaker"
+        },
+        "status": {
+          "$ref": "#/$defs/FootageQuoteStatus"
+        },
+        "text": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "text",
+        "claim_id"
+      ],
+      "title": "FootageQuoteV2",
+      "type": "object"
+    },
+    "FootageVerificationLevel": {
+      "enum": [
+        "VERIFIED",
+        "STRONGLY_SUPPORTED",
+        "LIKELY_INFERRED",
+        "UNKNOWN"
+      ],
+      "title": "FootageVerificationLevel",
+      "type": "string"
+    },
+    "IntroMaterialLeadV2": {
+      "additionalProperties": false,
+      "properties": {
+        "intro_lead_id": {
+          "format": "uuid4",
+          "title": "Intro Lead Id",
+          "type": "string"
+        },
+        "moment_description": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Moment Description",
+          "type": "string"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FootageQuoteV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source_key": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "title": "Source Key",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "verification_level": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        },
+        "why_it_might_lead_into_montage": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Why It Might Lead Into Montage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_key",
+        "moment_description",
+        "why_it_might_lead_into_montage",
+        "verification_level",
+        "intro_lead_id"
+      ],
+      "title": "IntroMaterialLeadV2",
+      "type": "object"
+    },
+    "NaturalFootageRequestV2": {
+      "additionalProperties": false,
+      "properties": {
+        "alternative": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alternative"
+        },
+        "best": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Best",
+          "type": "string"
+        },
+        "minimum": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Minimum",
+          "type": "string"
+        },
+        "optional_improvement": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Optional Improvement"
+        }
+      },
+      "required": [
+        "best",
+        "minimum"
+      ],
+      "title": "NaturalFootageRequestV2",
+      "type": "object"
+    },
+    "RequestedSourceV2": {
+      "additionalProperties": false,
+      "properties": {
+        "acquisition_effort": {
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Acquisition Effort",
+          "type": "integer"
+        },
+        "asset_kind": {
+          "$ref": "#/$defs/SourceAcquisitionKind"
+        },
+        "characters": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Characters",
+          "type": "array"
+        },
+        "episode_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Number"
+        },
+        "episode_title": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Title"
+        },
+        "priority": {
+          "maximum": 30,
+          "minimum": 1,
+          "title": "Priority",
+          "type": "integer"
+        },
+        "purposes": {
+          "items": {
+            "$ref": "#/$defs/SourcePurpose"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Purposes",
+          "type": "array"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FootageQuoteV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "relationship_or_topic": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Relationship Or Topic"
+        },
+        "replaces_required_source_keys": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{1,63}$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Replaces Required Source Keys",
+          "type": "array"
+        },
+        "requested_source_id": {
+          "format": "uuid4",
+          "title": "Requested Source Id",
+          "type": "string"
+        },
+        "scene_or_moment": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Scene Or Moment",
+          "type": "string"
+        },
+        "search_queries": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Search Queries",
+          "type": "array"
+        },
+        "season_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Season Number"
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Show Or Title",
+          "type": "string"
+        },
+        "source_key": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "title": "Source Key",
+          "type": "string"
+        },
+        "source_quality_summary": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Source Quality Summary",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "verification_level": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        },
+        "why_it_matters_emotionally": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Why It Matters Emotionally",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_key",
+        "priority",
+        "acquisition_effort",
+        "asset_kind",
+        "show_or_title",
+        "scene_or_moment",
+        "purposes",
+        "verification_level",
+        "source_quality_summary",
+        "why_it_matters_emotionally",
+        "search_queries",
+        "requested_source_id"
+      ],
+      "title": "RequestedSourceV2",
+      "type": "object"
+    },
+    "SourceAcquisitionKind": {
+      "enum": [
+        "EPISODE",
+        "OFFICIAL_TRAILER",
+        "OFFICIAL_CLIP",
+        "SCENE_PACK",
+        "INDIVIDUAL_SCENES"
+      ],
+      "title": "SourceAcquisitionKind",
+      "type": "string"
+    },
+    "SourcePurpose": {
+      "enum": [
+        "INTRO",
+        "MONTAGE",
+        "PAYOFF",
+        "OPTIONAL_CALLBACK"
+      ],
+      "title": "SourcePurpose",
+      "type": "string"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v2/canonical/footage-request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "alternative_sources": {
+      "items": {
+        "$ref": "#/$defs/RequestedSourceV2"
+      },
+      "maxItems": 30,
+      "title": "Alternative Sources",
+      "type": "array"
+    },
+    "footage_request_id": {
+      "format": "uuid4",
+      "title": "Footage Request Id",
+      "type": "string"
+    },
+    "intro_leads": {
+      "items": {
+        "$ref": "#/$defs/IntroMaterialLeadV2"
+      },
+      "maxItems": 20,
+      "title": "Intro Leads",
+      "type": "array"
+    },
+    "minimum_useful_source_keys": {
+      "items": {
+        "pattern": "^[a-z][a-z0-9_]{1,63}$",
+        "type": "string"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "title": "Minimum Useful Source Keys",
+      "type": "array"
+    },
+    "natural_request": {
+      "$ref": "#/$defs/NaturalFootageRequestV2"
+    },
+    "opportunity_id": {
+      "format": "uuid4",
+      "title": "Opportunity Id",
+      "type": "string"
+    },
+    "optional_sources": {
+      "items": {
+        "$ref": "#/$defs/RequestedSourceV2"
+      },
+      "maxItems": 30,
+      "title": "Optional Sources",
+      "type": "array"
+    },
+    "required_sources": {
+      "items": {
+        "$ref": "#/$defs/RequestedSourceV2"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "title": "Required Sources",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "2.0.0",
+      "default": "2.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "search_queries": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "title": "Search Queries",
+      "type": "array"
+    },
+    "smallest_useful_set_reason": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Smallest Useful Set Reason",
+      "type": "string"
+    },
+    "summary": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "footage_request_id",
+    "opportunity_id",
+    "summary",
+    "natural_request",
+    "required_sources",
+    "minimum_useful_source_keys",
+    "smallest_useful_set_reason",
+    "search_queries"
+  ],
+  "title": "FootageRequestV2",
+  "type": "object"
+}

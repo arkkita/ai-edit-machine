@@ -1,0 +1,75 @@
+{
+  "annotation_version": "1.0.0",
+  "created_at": "2026-08-15T00:00:00-07:00",
+  "method": "Human visual review of deterministic FFmpeg contact sheets and four-frame-per-second handoff strips; breakpoints are editorial annotations, not scene-detector outputs.",
+  "ffmpeg_report_schema_version": "1.1.0",
+  "review_asset_commands": {
+    "contact_sheet_argv_template": [
+      "FFMPEG",
+      "-nostdin",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      "SOURCE",
+      "-vf",
+      "fps=1/2,scale=240:-2:flags=lanczos,tile=5x4:padding=4:margin=4",
+      "-frames:v",
+      "1",
+      "CONTACT_SHEET_OUTPUT"
+    ],
+    "handoff_strip_argv_template": [
+      "FFMPEG",
+      "-nostdin",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-ss",
+      "HANDOFF_WINDOW_START_SECONDS",
+      "-t",
+      "5",
+      "-i",
+      "SOURCE",
+      "-vf",
+      "fps=4,scale=240:-2:flags=lanczos,tile=5x4:padding=4:margin=4",
+      "-frames:v",
+      "1",
+      "HANDOFF_STRIP_OUTPUT"
+    ]
+  },
+  "references": [
+    {
+      "source_handle": "style-reference-A",
+      "display_name": "tiktok_7637159222106393878_576p.mp4",
+      "sha256": "2b0c5009e1f5ba05caffa617b27bbc194c513bbf6a7df8946e8e3029ebb432fb",
+      "cadence_breakpoint_seconds": 22.6,
+      "handoff_window_start_seconds": 20,
+      "contact_sheet_output": "style-reference-A-contact-sheet-v1.1.png",
+      "handoff_strip_output": "style-reference-A-handoff-strip-v1.1.png",
+      "annotation_confidence": 0.9,
+      "note": "Dialogue/context gives way to a markedly faster montage."
+    },
+    {
+      "source_handle": "style-reference-B",
+      "display_name": "tiktok_7668861927111527703_576p.mp4",
+      "sha256": "62a14fcdcd3e9d27da14a3e4fe7eb665f14dc4e7c8c0b192349781eec25473e4",
+      "cadence_breakpoint_seconds": 16.733,
+      "handoff_window_start_seconds": 14,
+      "contact_sheet_output": "style-reference-B-contact-sheet-v1.1.png",
+      "handoff_strip_output": "style-reference-B-handoff-strip-v1.1.png",
+      "annotation_confidence": 0.9,
+      "note": "Dialogue/reaction setup transitions through a short dark/blurred entry into montage."
+    },
+    {
+      "source_handle": "style-reference-C",
+      "display_name": "tiktok_7668899659435363606_576p.mp4",
+      "sha256": "38d61c9f634c7bfc41d9c3a4244bdd0811cdb6fff54d60d7b20369842f6fb138",
+      "cadence_breakpoint_seconds": 14.567,
+      "handoff_window_start_seconds": 12,
+      "contact_sheet_output": "style-reference-C-contact-sheet-v1.1.png",
+      "handoff_strip_output": "style-reference-C-handoff-strip-v1.1.png",
+      "annotation_confidence": 0.9,
+      "note": "The setup resolves into the fastest sustained montage of the three references."
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Minimal local capability for the single M1 research window.",
+  "local": true,
+  "windows": ["main"],
+  "platforms": ["windows"],
+  "permissions": [
+    "m1-research"
+  ]
+}

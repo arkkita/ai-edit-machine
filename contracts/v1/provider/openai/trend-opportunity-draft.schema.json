@@ -1,0 +1,136 @@
+{
+  "$comment": "Provider baseline only; M1 adapter conformance must verify the live API.",
+  "$defs": {
+    "EvidenceGate": {
+      "enum": [
+        "PASSED",
+        "LOW_CONFIDENCE"
+      ],
+      "type": "string"
+    },
+    "EvidenceRole": {
+      "enum": [
+        "PRIMARY_WHY_NOW",
+        "QUALITATIVE_SIGNAL",
+        "QUOTE_PROOF",
+        "CONTEXT"
+      ],
+      "type": "string"
+    },
+    "MediaKind": {
+      "enum": [
+        "TV_EPISODE",
+        "TV_SERIES",
+        "FILM",
+        "TRAILER",
+        "OFFICIAL_CLIP"
+      ],
+      "type": "string"
+    },
+    "OpportunityEvidenceReference": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "type": "string"
+        },
+        "independence_group": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/EvidenceRole"
+        },
+        "supports_why_now": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "claim_id",
+        "role",
+        "independence_group",
+        "supports_why_now"
+      ],
+      "type": "object"
+    },
+    "OpportunityFocus": {
+      "additionalProperties": false,
+      "properties": {
+        "characters": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "relationship_or_topic": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "characters",
+        "relationship_or_topic"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v1/provider/openai/trend-opportunity-draft.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Provider-authored synthesis; trusted code assigns persisted entity IDs.",
+  "properties": {
+    "caveats": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "type": "array"
+    },
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "type": "number"
+    },
+    "creative_hook": {
+      "type": "string"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/OpportunityEvidenceReference"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "type": "array"
+    },
+    "evidence_gate": {
+      "$ref": "#/$defs/EvidenceGate"
+    },
+    "focus": {
+      "$ref": "#/$defs/OpportunityFocus"
+    },
+    "media_kind": {
+      "$ref": "#/$defs/MediaKind"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "why_now": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "media_kind",
+    "title",
+    "focus",
+    "why_now",
+    "creative_hook",
+    "evidence",
+    "evidence_gate",
+    "confidence",
+    "caveats"
+  ],
+  "type": "object"
+}

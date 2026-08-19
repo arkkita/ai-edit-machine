@@ -1,0 +1,46 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.fkv
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Rust / build output
+.tools/
+node_modules/
+target/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+desktop/src-tauri/resources/worker/windows-x86_64/
+desktop/src-tauri/resources/worker/.windows-x86_64-*/
+
+# Runtime data, user projects, logs, and generated analysis
+projects/
+artifacts/
+.cache/
+cache/
+logs/
+*.log
+*.tmp
+*.partial
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

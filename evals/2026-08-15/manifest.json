@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0.0",
+  "suite_id": "m1-golden-2026-08-15",
+  "milestone": "M1",
+  "frozen_date": "2026-08-15",
+  "case_count": 13,
+  "readme": "README.md",
+  "corpus": "corpus.json",
+  "rubric": "rubric.json",
+  "runner_contract": "runner-contract.schema.json",
+  "representative_outputs": "representative-outputs.json",
+  "interactive_ratings_template": "interactive-ratings.template.json",
+  "subtitle_measurements": "../../references/SUBTITLE_MEASUREMENTS.json",
+  "artifact_sha256": {
+    "README.md": "3184a838132903043ba8391b46b338e38936f5804338460608f12d170d2c4184",
+    "corpus.json": "434dbdfd5610f9d7376b7f88776f89749c678ff9598cb8d294cb492f4162e095",
+    "rubric.json": "e6d1a2f0228d59df7357802a016ced5357def72cfbe383580ae14484c857ce8b",
+    "runner-contract.schema.json": "62d38f2e8f9d7dd2c0dfbbc8faaba04a801922842813d22d74c57baae38f3e47",
+    "representative-outputs.json": "0707019717875a8b0f44b66da8199417587a8e3d14232b5d7d45a623e439b5b0",
+    "interactive-ratings.template.json": "a78737adce13322a1a43ecccba38e8920957decedfb2a5d2c083671711449e08",
+    "../../references/SUBTITLE_MEASUREMENTS.json": "3274d875972825b054dac88f76e7d908f6cc0d1a270dd977d01345e3203a4eb7"
+  },
+  "coverage": {
+    "m0_niches": [
+      "current_tv_episode",
+      "current_film_or_trailer",
+      "relationship",
+      "character",
+      "broad_genre",
+      "spoiler_free",
+      "obscure_or_no_evidence",
+      "malicious_prompt_content"
+    ],
+    "additional_required_cases": [
+      "user_quality_bar_prompt",
+      "strict_exclusions",
+      "freshness_boundary",
+      "evidence_prompt_injection",
+      "explicit_no_strong_opportunity"
+    ],
+    "representative_output_behaviors": [
+      "multi_season_sources",
+      "required_optional_alternative_buckets",
+      "scene_pack_alternative",
+      "verified_quote_and_episode",
+      "uncertain_quote_or_episode",
+      "minimum_useful_footage_set",
+      "natural_user_facing_copy",
+      "suggested_search_queries"
+    ]
+  },
+  "generation": {
+    "provider_calls_performed": false,
+    "paid_cost_micro_usd": 0,
+    "contains_real_research_recommendations": false,
+    "contains_m2_media_analysis": false
+  }
+}

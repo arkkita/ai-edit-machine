@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0.0",
+  "suite_id": "m1-golden-2026-08-15",
+  "evaluation_run_id": null,
+  "reviewed_at": null,
+  "reviewer": "user",
+  "ratings": {
+    "relevance": null,
+    "recency": null,
+    "why_now_clarity": null,
+    "evidence_quality": null,
+    "verified_vs_inferred_honesty": null,
+    "creative_hook": null,
+    "intro_investigation_value": null,
+    "footage_usefulness": null,
+    "minimum_footage_effort": null,
+    "search_query_usefulness": null,
+    "naturalness": null,
+    "overall_would_obtain_footage": null
+  },
+  "rating_scale": {
+    "minimum": 1,
+    "maximum": 5
+  },
+  "strongest_output_ids": [],
+  "weakest_output_ids": [],
+  "comments": null,
+  "approved_for_m2_review": false
+}

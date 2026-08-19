@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-edit-machine.local/evals/m1-runner-envelope/1.0.0",
+  "title": "M1EvaluationRunnerEnvelope",
+  "oneOf": [
+    { "$ref": "#/$defs/evaluationRequest" },
+    { "$ref": "#/$defs/evaluationResult" }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "uuid4": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "evaluationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "message_type",
+        "schema_version",
+        "suite_id",
+        "case_id",
+        "mode",
+        "as_of_date",
+        "allow_paid_calls",
+        "hard_budget_micro_usd",
+        "corpus_sha256",
+        "rubric_sha256"
+      ],
+      "properties": {
+        "message_type": { "const": "EVALUATION_REQUEST" },
+        "schema_version": { "const": "1.0.0" },
+        "suite_id": { "const": "m1-golden-2026-08-15" },
+        "case_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "mode": {
+          "enum": ["OFFLINE_REPLAY", "LIVE_OPT_IN", "INTERACTIVE_REVIEW"]
+        },
+        "as_of_date": { "const": "2026-08-15" },
+        "allow_paid_calls": { "type": "boolean" },
+        "hard_budget_micro_usd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500000
+        },
+        "corpus_sha256": { "$ref": "#/$defs/sha256" },
+        "rubric_sha256": { "$ref": "#/$defs/sha256" },
+        "fixture_set_sha256": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "provider_allowlist": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "uniqueItems": true
+        }
+      }
+    },
+    "providerRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "capability",
+        "configured_model",
+        "resolved_model",
+        "cache_status",
+        "retention_mode",
+        "actual_cost_micro_usd"
+      ],
+      "properties": {
+        "provider": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "capability": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "configured_model": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "resolved_model": { "type": ["string", "null"], "maxLength": 256 },
+        "cache_status": { "enum": ["HIT", "MISS", "BYPASS", "NOT_APPLICABLE"] },
+        "retention_mode": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "request_id": { "type": ["string", "null"], "maxLength": 256 },
+        "actual_cost_micro_usd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9223372036854775807
+        }
+      }
+    },
+    "assertionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assertion", "passed", "evidence"],
+      "properties": {
+        "assertion": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "passed": { "type": "boolean" },
+        "evidence": { "type": "string", "minLength": 1, "maxLength": 4000 }
+      }
+    },
+    "dimensionScore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimension_id", "earned_points", "available_points", "rationale"],
+      "properties": {
+        "dimension_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "earned_points": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "available_points": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "rationale": { "type": "string", "minLength": 1, "maxLength": 4000 }
+      }
+    },
+    "evaluationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "message_type",
+        "schema_version",
+        "suite_id",
+        "case_id",
+        "run_id",
+        "mode",
+        "started_at",
+        "finished_at",
+        "product_contract_name",
+        "product_contract_version",
+        "product_result_status",
+        "product_result_sha256",
+        "providers",
+        "reserved_cost_micro_usd",
+        "actual_cost_micro_usd",
+        "required_behavior_results",
+        "forbidden_behavior_results",
+        "dimension_scores",
+        "weighted_score",
+        "hard_failures",
+        "passed",
+        "m2_operations_performed"
+      ],
+      "properties": {
+        "message_type": { "const": "EVALUATION_RESULT" },
+        "schema_version": { "const": "1.0.0" },
+        "suite_id": { "const": "m1-golden-2026-08-15" },
+        "case_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "run_id": { "$ref": "#/$defs/uuid4" },
+        "mode": {
+          "enum": ["OFFLINE_REPLAY", "LIVE_OPT_IN", "INTERACTIVE_REVIEW"]
+        },
+        "started_at": { "type": "string", "format": "date-time" },
+        "finished_at": { "type": "string", "format": "date-time" },
+        "product_contract_name": { "const": "research-result" },
+        "product_contract_version": { "const": "2.0.0" },
+        "product_result_status": {
+          "enum": ["OPPORTUNITIES", "NO_STRONG_OPPORTUNITY", "REFUSAL", "INCOMPLETE", "ERROR"]
+        },
+        "product_result_sha256": { "$ref": "#/$defs/sha256" },
+        "providers": {
+          "type": "array",
+          "maxItems": 30,
+          "items": { "$ref": "#/$defs/providerRun" }
+        },
+        "reserved_cost_micro_usd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9223372036854775807
+        },
+        "actual_cost_micro_usd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9223372036854775807
+        },
+        "required_behavior_results": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/assertionResult" }
+        },
+        "forbidden_behavior_results": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/assertionResult" }
+        },
+        "dimension_scores": {
+          "type": "array",
+          "minItems": 9,
+          "maxItems": 9,
+          "items": { "$ref": "#/$defs/dimensionScore" }
+        },
+        "weighted_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "hard_failures": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "uniqueItems": true
+        },
+        "passed": { "type": "boolean" },
+        "m2_operations_performed": { "const": false },
+        "notes": {
+          "type": "array",
+          "maxItems": 50,
+          "items": { "type": "string", "minLength": 1, "maxLength": 1000 }
+        }
+      }
+    }
+  }
+}

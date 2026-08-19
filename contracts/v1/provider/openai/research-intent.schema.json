@@ -1,0 +1,85 @@
+{
+  "$comment": "Provider baseline only; M1 adapter conformance must verify the live API.",
+  "$defs": {
+    "MediaKind": {
+      "enum": [
+        "TV_EPISODE",
+        "TV_SERIES",
+        "FILM",
+        "TRAILER",
+        "OFFICIAL_CLIP"
+      ],
+      "type": "string"
+    },
+    "SpoilerPolicy": {
+      "enum": [
+        "AVOID",
+        "CURRENT_EPISODE",
+        "ALLOW"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v1/provider/openai/research-intent.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "exclusions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 30,
+      "type": "array"
+    },
+    "focus_terms": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "type": "array"
+    },
+    "freshness_days": {
+      "maximum": 90,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "max_results": {
+      "maximum": 10,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "media_kinds": {
+      "items": {
+        "$ref": "#/$defs/MediaKind"
+      },
+      "maxItems": 5,
+      "minItems": 1,
+      "type": "array"
+    },
+    "query": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "type": "string"
+    },
+    "spoiler_policy": {
+      "$ref": "#/$defs/SpoilerPolicy"
+    }
+  },
+  "required": [
+    "schema_version",
+    "query",
+    "media_kinds",
+    "focus_terms",
+    "region",
+    "freshness_days",
+    "spoiler_policy",
+    "exclusions",
+    "max_results"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,251 @@
+{
+  "schema_version": "1.0.0",
+  "measurement_id": "intro-dialogue-subtitle-reference-2026-08-15",
+  "measurement_date": "2026-08-15",
+  "preset_name": "INTRO_DIALOGUE_SUBTITLE",
+  "source_references": [
+    {
+      "reference_id": "A",
+      "display_name": "tiktok_7637159222106393878_576p.mp4",
+      "source_sha256": "2b0c5009e1f5ba05caffa617b27bbc194c513bbf6a7df8946e8e3029ebb432fb",
+      "native_width": 768,
+      "native_height": 576
+    },
+    {
+      "reference_id": "C",
+      "display_name": "tiktok_7668899659435363606_576p.mp4",
+      "source_sha256": "38d61c9f634c7bfc41d9c3a4244bdd0811cdb6fff54d60d7b20369842f6fb138",
+      "native_width": 746,
+      "native_height": 576
+    }
+  ],
+  "sampled_frames": [
+    {
+      "reference_id": "A",
+      "timestamp_ms": 500,
+      "frame_artifact": "artifacts/reference-analysis/subtitle-measurement/A-0500.png",
+      "frame_sha256": "3192e4b8f1c9156288d13419a8ee624a5553c356fad1212a44ed6e200f9ad962",
+      "frame_size_bytes": 241602,
+      "native_width": 768,
+      "native_height": 576
+    },
+    {
+      "reference_id": "A",
+      "timestamp_ms": 2500,
+      "frame_artifact": "artifacts/reference-analysis/subtitle-measurement/A-2500.png",
+      "frame_sha256": "93f9c47f44ec1fe4c7ebaf62d152e130ed28b703882a7a4b65f86fedaa8e99f5",
+      "frame_size_bytes": 129326,
+      "native_width": 768,
+      "native_height": 576
+    },
+    {
+      "reference_id": "A",
+      "timestamp_ms": 4500,
+      "frame_artifact": "artifacts/reference-analysis/subtitle-measurement/A-4500.png",
+      "frame_sha256": "7f85dcc473ad5623fc3a2ec52e53d100f175ae857bd1ecb1f789a1dade23116c",
+      "frame_size_bytes": 272677,
+      "native_width": 768,
+      "native_height": 576
+    },
+    {
+      "reference_id": "A",
+      "timestamp_ms": 6500,
+      "frame_artifact": "artifacts/reference-analysis/subtitle-measurement/A-6500.png",
+      "frame_sha256": "3e501a2e42e55c5a94d629eed66846a126ff7be41d442204b6203c658d5cd6f1",
+      "frame_size_bytes": 269242,
+      "native_width": 768,
+      "native_height": 576
+    },
+    {
+      "reference_id": "A",
+      "timestamp_ms": 8500,
+      "frame_artifact": "artifacts/reference-analysis/subtitle-measurement/A-8500.png",
+      "frame_sha256": "12ede571ca955c4251462eb6b52cc608bb01378b852c7f6886c2f0123374abc9",
+      "frame_size_bytes": 178237,
+      "native_width": 768,
+      "native_height": 576
+    },
+    {
+      "reference_id": "A",
+      "timestamp_ms": 10500,
+      "frame_artifact": "artifacts/reference-analysis/subtitle-measurement/A-10500.png",
+      "frame_sha256": "a574a8e34cb6908710cecad97c86ada4891c40bc929b90a6625f75849b00230b",
+      "frame_size_bytes": 261068,
+      "native_width": 768,
+      "native_height": 576
+    },
+    {
+      "reference_id": "A",
+      "timestamp_ms": 12500,
+      "frame_artifact": "artifacts/reference-analysis/subtitle-measurement/A-12500.png",
+      "frame_sha256": "417aecff24b1a68e79411b2094f1d4e20abd3e5eefbb00f60015e3f7ccc8b710",
+      "frame_size_bytes": 298926,
+      "native_width": 768,
+      "native_height": 576
+    },
+    {
+      "reference_id": "C",
+      "timestamp_ms": 500,
+      "frame_artifact": "artifacts/reference-analysis/subtitle-measurement/C-0500.png",
+      "frame_sha256": "c4c71d7394ddba90a1dc3b1d7a0f9115a79fa7cf0d9b8eff93d3cd156bb10b72",
+      "frame_size_bytes": 219717,
+      "native_width": 746,
+      "native_height": 576
+    },
+    {
+      "reference_id": "C",
+      "timestamp_ms": 2500,
+      "frame_artifact": "artifacts/reference-analysis/subtitle-measurement/C-2500.png",
+      "frame_sha256": "fc8dbf85c972c61d9fc548835b1ea0e097ba4cb1b72a2701451145ca2411a92a",
+      "frame_size_bytes": 302456,
+      "native_width": 746,
+      "native_height": 576
+    },
+    {
+      "reference_id": "C",
+      "timestamp_ms": 4500,
+      "frame_artifact": "artifacts/reference-analysis/subtitle-measurement/C-4500.png",
+      "frame_sha256": "7e28c8cb49c25f92ee92b46738055da40da614cda2ee99435876f4be071993a0",
+      "frame_size_bytes": 256191,
+      "native_width": 746,
+      "native_height": 576
+    },
+    {
+      "reference_id": "C",
+      "timestamp_ms": 6500,
+      "frame_artifact": "artifacts/reference-analysis/subtitle-measurement/C-6500.png",
+      "frame_sha256": "d6c5d21628cb391a6dab3b051f587b91697f6d136cf32aea3a927d09396f1c98",
+      "frame_size_bytes": 298733,
+      "native_width": 746,
+      "native_height": 576
+    },
+    {
+      "reference_id": "C",
+      "timestamp_ms": 8500,
+      "frame_artifact": "artifacts/reference-analysis/subtitle-measurement/C-8500.png",
+      "frame_sha256": "3a421b9e7803b3112270079fce52da4d47bb681a299a3587002ca8bf55a40b01",
+      "frame_size_bytes": 315374,
+      "native_width": 746,
+      "native_height": 576
+    },
+    {
+      "reference_id": "C",
+      "timestamp_ms": 10500,
+      "frame_artifact": "artifacts/reference-analysis/subtitle-measurement/C-10500.png",
+      "frame_sha256": "704f949db880c505c0d795084a4dbfce70cdd83f4f0a32dae549e53b6d95f91f",
+      "frame_size_bytes": 356775,
+      "native_width": 746,
+      "native_height": 576
+    },
+    {
+      "reference_id": "C",
+      "timestamp_ms": 12500,
+      "frame_artifact": "artifacts/reference-analysis/subtitle-measurement/C-12500.png",
+      "frame_sha256": "77fe11877f8b899df964af164e0f36557b085f1f868bb7895eb0e2c1c56dbd65",
+      "frame_size_bytes": 468742,
+      "native_width": 746,
+      "native_height": 576
+    }
+  ],
+  "method": {
+    "frame_sampling": "Fourteen native-dimension PNG stills at 0.5, 2.5, 4.5, 6.5, 8.5, 10.5, and 12.5 seconds from each of references A and C.",
+    "measurement": "Reviewer-assisted glyph-ink bounding/color sampling on flattened, platform-compressed frames.",
+    "confidence_scope": "High confidence for approximate composited ink position/scale; insufficient to invert original font metrics, RGBA fill, opacity, shadow, glow, or authoring settings.",
+    "reference_b_exclusion": "Reference B uses a larger white uppercase variant and is intentionally non-canonical for INTRO_DIALOGUE_SUBTITLE."
+  },
+  "observations": {
+    "native_frame_height_pixels": 576,
+    "glyph_ink_y_pixels_approx": {
+      "minimum": 278,
+      "maximum": 299
+    },
+    "glyph_center_y_fraction_range": {
+      "minimum": 0.500,
+      "maximum": 0.504
+    },
+    "common_glyph_ink_height_pixels": {
+      "minimum": 16,
+      "maximum": 22
+    },
+    "common_glyph_ink_height_fraction": {
+      "minimum": 0.028,
+      "maximum": 0.038
+    },
+    "antialias_or_compression_fringe_height_pixels_max_approx": 28,
+    "antialias_or_compression_fringe_height_fraction_max_approx": 0.049,
+    "widest_measured_line": {
+      "reference_id": "C",
+      "x_pixels_approx": {
+        "minimum": 166,
+        "maximum": 601
+      },
+      "width_pixels_approx": 435,
+      "frame_width_pixels": 746,
+      "width_fraction_approx": 0.584
+    },
+    "selected_sample_composited_median_rgb_channel_ranges": {
+      "red": [194, 236],
+      "green": [181, 225],
+      "blue": [114, 162]
+    },
+    "selected_bright_interior_rgb_channel_ranges": {
+      "red": [242, 255],
+      "green": [209, 239],
+      "blue": [149, 183]
+    },
+    "color_interpretation": "The composites support a soft pale-yellow/cream family, but background, grading, antialiasing, shadow/glow, opacity, and compression are inseparable from the observed pixels."
+  },
+  "canonical_decision": {
+    "status": "USER_APPROVED_WITH_CALIBRATION_GATES",
+    "font_family": "Arial",
+    "font_style": "Regular",
+    "font_match_note": "Arial Regular is the approved default unless later controlled comparison identifies a demonstrably closer reproducible font.",
+    "case_transform": "LOWERCASE",
+    "event_prefix": "- ",
+    "horizontal_alignment": "CENTER",
+    "vertical_placement": "BOTTOM_SAFE_AREA",
+    "lower_safe_inset_fraction": 0.08,
+    "placement_override": {
+      "reference_observation": "A/C measured glyph centers are approximately 50.0–50.4% of frame height.",
+      "approved_behavior": "Place the text at the bottom inside an 8% lower safe inset.",
+      "reason": "Explicit user-approved product clarification; reference center placement is not canonical for this preset."
+    },
+    "target_representative_glyph_ink_height_fraction": 0.035,
+    "maximum_line_width_fraction": 0.78,
+    "maximum_lines": 2,
+    "provisional_line_advance_em": 1.15,
+    "segmentation_policy": "Prefer natural phrase, punctuation, or speaker-turn boundaries; balance two-line breaks; avoid one-word orphans; never rewrite dialogue to fit.",
+    "fill_color": {
+      "status": "CALIBRATION_REQUIRED",
+      "value": null,
+      "family": "PALE_YELLOW_CREAM"
+    },
+    "opacity": {
+      "status": "CALIBRATION_REQUIRED",
+      "value": null
+    },
+    "shadow": {
+      "status": "CALIBRATION_REQUIRED",
+      "value": null
+    },
+    "glow_or_softness": {
+      "status": "CALIBRATION_REQUIRED",
+      "value": null
+    },
+    "line_advance": {
+      "status": "PROVISIONAL_GOLDEN_REQUIRED",
+      "value_em": 1.15
+    }
+  },
+  "execution_boundary": {
+    "m1_renders_subtitles": false,
+    "model_may_override_preset_fields": false,
+    "later_renderer_must_fail_if_calibration_required_fields_are_unresolved": true,
+    "calibration_required_before": "subtitle-rendering implementation in a later approved milestone"
+  },
+  "limitations": [
+    "Flattened frames do not reveal the exact source font, fill color, alpha, shadow, glow, softness, or authoring line spacing.",
+    "The widest-line sample is evidence about observed reference scale, not a requirement that all lines occupy that width.",
+    "Sample PNGs are derived review artifacts; canonical source hashes remain the identity authority."
+  ]
+}

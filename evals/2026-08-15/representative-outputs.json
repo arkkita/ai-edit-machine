@@ -1,0 +1,345 @@
+{
+  "schema_version": "1.0.0",
+  "suite_id": "m1-golden-2026-08-15",
+  "synthetic": true,
+  "disclaimer": "All titles, episodes, quotes, claims, and IDs below are fictional contract examples. They are not entertainment research results or evidence.",
+  "outputs": [
+    {
+      "output_id": "synthetic-multi-season-verified",
+      "contract_name": "footage-request-draft",
+      "contract_version": "2.0.0",
+      "intended_case_ids": ["m0-relationship", "quality-bar-romcom-three-days"],
+      "demonstrates": [
+        "multi-season required and optional footage",
+        "scene-pack alternative",
+        "verified quote linked to a claim",
+        "source purposes and priorities",
+        "minimum useful source set",
+        "natural BEST/ALTERNATIVE/MINIMUM/OPTIONAL IMPROVEMENT copy"
+      ],
+      "payload": {
+        "schema_version": "2.0.0",
+        "summary": "The current turning point works best with its setup conversation and later payoff; an older happy scene is useful but not required.",
+        "natural_request": {
+          "best": "Give me Harbor Hearts S3E3 for the intro conversation and S3E5 for the emotional payoff.",
+          "alternative": "If finding individual episodes is awkward, give me a Mara + Theo multi-season scene pack that includes the S3 confrontation and reunion.",
+          "minimum": "At minimum, give me the S3E3 kitchen conversation and the S3E5 station-platform reunion.",
+          "optional_improvement": "An earlier happy Mara + Theo scene from S1E4 would give the montage a stronger callback."
+        },
+        "required_sources": [
+          {
+            "source_key": "s3e3_intro_conversation",
+            "priority": 1,
+            "acquisition_effort": 3,
+            "asset_kind": "EPISODE",
+            "show_or_title": "Harbor Hearts",
+            "season_number": 3,
+            "episode_number": 3,
+            "episode_title": "The Space Between",
+            "characters": ["Mara Vale", "Theo Reed"],
+            "relationship_or_topic": "Mara + Theo reconciliation",
+            "scene_or_moment": "Kitchen conversation where Mara admits she chose Theo before she knew how to say it, including his immediate reaction.",
+            "purposes": ["INTRO", "MONTAGE"],
+            "verification_level": "VERIFIED",
+            "source_quality_summary": "The episode identity, exact scene, speaker, and short quote are backed by authoritative synthetic fixture claims.",
+            "supporting_claim_ids": [
+              "0ee8d636-22ca-4af4-8588-7814b4401398",
+              "5540076a-b6f1-49fa-89e5-055ef26a3d4b"
+            ],
+            "quote": {
+              "status": "VERIFIED",
+              "text": "I chose you before I knew how to say it.",
+              "speaker": "Mara Vale",
+              "likely_context": "A private reconciliation conversation before the episode's final turn.",
+              "claim_id": "5540076a-b6f1-49fa-89e5-055ef26a3d4b"
+            },
+            "why_it_matters_emotionally": "The confession supplies a concise, recognizable setup and Theo's reaction can create the hinge into the montage.",
+            "search_queries": [
+              "Harbor Hearts season 3 episode 3 Mara Theo kitchen scene",
+              "\"I chose you before I knew how to say it\" Mara Theo",
+              "Harbor Hearts episode 3 official clip Mara Theo"
+            ],
+            "replaces_required_source_keys": []
+          },
+          {
+            "source_key": "s3e5_payoff",
+            "priority": 2,
+            "acquisition_effort": 3,
+            "asset_kind": "EPISODE",
+            "show_or_title": "Harbor Hearts",
+            "season_number": 3,
+            "episode_number": 5,
+            "episode_title": "Home Signal",
+            "characters": ["Mara Vale", "Theo Reed"],
+            "relationship_or_topic": "Mara + Theo reconciliation",
+            "scene_or_moment": "Station-platform reunion and the reaction immediately after they see each other.",
+            "purposes": ["MONTAGE", "PAYOFF"],
+            "verification_level": "VERIFIED",
+            "source_quality_summary": "The episode identity and station-platform scene are backed by an authoritative synthetic fixture claim.",
+            "supporting_claim_ids": ["a36c9738-6227-4930-b2df-754cdf2732c9"],
+            "quote": null,
+            "why_it_matters_emotionally": "It visually pays off the S3E3 confession and gives the concept a clear ending rather than a collection of unrelated romantic shots.",
+            "search_queries": [
+              "Harbor Hearts season 3 episode 5 Mara Theo station reunion",
+              "Harbor Hearts S3E5 official clip Mara Theo"
+            ],
+            "replaces_required_source_keys": []
+          }
+        ],
+        "optional_sources": [
+          {
+            "source_key": "s1e4_happy_callback",
+            "priority": 1,
+            "acquisition_effort": 3,
+            "asset_kind": "EPISODE",
+            "show_or_title": "Harbor Hearts",
+            "season_number": 1,
+            "episode_number": 4,
+            "episode_title": "Low Tide",
+            "characters": ["Mara Vale", "Theo Reed"],
+            "relationship_or_topic": "Mara + Theo earlier happiness",
+            "scene_or_moment": "An earlier boardwalk scene with relaxed eye contact and physical closeness.",
+            "purposes": ["MONTAGE", "OPTIONAL_CALLBACK"],
+            "verification_level": "STRONGLY_SUPPORTED",
+            "source_quality_summary": "Independent synthetic fixture evidence supports the episode and scene, but it remains optional to the minimum edit.",
+            "supporting_claim_ids": ["89a9ded4-e583-4a96-a567-790a0e07a194"],
+            "quote": null,
+            "why_it_matters_emotionally": "The earlier warmth would sharpen the contrast with the recent separation, but the S3 material is already sufficient.",
+            "search_queries": [
+              "Harbor Hearts season 1 episode 4 Mara Theo boardwalk scene",
+              "Mara Theo happy scenes season 1"
+            ],
+            "replaces_required_source_keys": []
+          }
+        ],
+        "alternative_sources": [
+          {
+            "source_key": "mara_theo_scene_pack",
+            "priority": 1,
+            "acquisition_effort": 2,
+            "asset_kind": "SCENE_PACK",
+            "show_or_title": "Harbor Hearts",
+            "season_number": null,
+            "episode_number": null,
+            "episode_title": null,
+            "characters": ["Mara Vale", "Theo Reed"],
+            "relationship_or_topic": "Mara + Theo multi-season relationship",
+            "scene_or_moment": "A scene pack containing the S3 confession/confrontation and reunion, with older happy moments if available.",
+            "purposes": ["INTRO", "MONTAGE", "PAYOFF", "OPTIONAL_CALLBACK"],
+            "verification_level": "LIKELY_INFERRED",
+            "source_quality_summary": "The scene-pack is an effort-saving alternative inferred from the two supported episode requests; its contents must be checked locally.",
+            "supporting_claim_ids": [
+              "0ee8d636-22ca-4af4-8588-7814b4401398",
+              "a36c9738-6227-4930-b2df-754cdf2732c9"
+            ],
+            "quote": null,
+            "why_it_matters_emotionally": "It can cover the same setup-to-payoff arc with less episode hunting, provided the named scenes are present.",
+            "search_queries": [
+              "Mara Theo scene pack",
+              "Mara Theo multi season scenes",
+              "Harbor Hearts Mara Theo scenepack"
+            ],
+            "replaces_required_source_keys": ["s3e3_intro_conversation", "s3e5_payoff"]
+          }
+        ],
+        "minimum_useful_source_keys": ["s3e3_intro_conversation", "s3e5_payoff"],
+        "smallest_useful_set_reason": "S3E3 supplies the emotional setup and S3E5 supplies the visual payoff. S1E4 improves contrast but is not needed to make the concept coherent.",
+        "intro_leads": [
+          {
+            "source_key": "s3e3_intro_conversation",
+            "moment_description": "The short confession followed by Theo's silent reaction.",
+            "quote": {
+              "status": "VERIFIED",
+              "text": "I chose you before I knew how to say it.",
+              "speaker": "Mara Vale",
+              "likely_context": "A private reconciliation conversation before the episode's final turn.",
+              "claim_id": "5540076a-b6f1-49fa-89e5-055ef26a3d4b"
+            },
+            "why_it_might_lead_into_montage": "The admission establishes the relationship thesis, while the reaction gives a natural visual and musical hinge.",
+            "verification_level": "VERIFIED",
+            "supporting_claim_ids": ["5540076a-b6f1-49fa-89e5-055ef26a3d4b"]
+          }
+        ],
+        "search_queries": [
+          "Harbor Hearts Mara Theo season 3 episode 3 scenes",
+          "Harbor Hearts Mara Theo season 3 episode 5 reunion",
+          "Mara Theo scene pack"
+        ],
+        "warnings": [
+          "This synthetic fixture demonstrates shape only; real episode and quote claims require authoritative live evidence."
+        ]
+      }
+    },
+    {
+      "output_id": "synthetic-uncertain-quote-scene-pack",
+      "contract_name": "footage-request-draft",
+      "contract_version": "2.0.0",
+      "intended_case_ids": ["quality-bar-romcom-three-days"],
+      "demonstrates": [
+        "uncertain quote and unknown episode",
+        "no fabricated certainty",
+        "scene-pack alternative",
+        "practical quoted search query",
+        "natural explanation of uncertainty"
+      ],
+      "payload": {
+        "schema_version": "2.0.0",
+        "summary": "Fans repeatedly reference a confrontation between Nova and Eli, but the fixture does not reliably establish the episode or exact wording.",
+        "natural_request": {
+          "best": "Give me the Nova + Eli confrontation scene if you recognize it; I could not reliably verify the episode yet.",
+          "alternative": "A Nova + Eli multi-season scene pack is safer than requesting a possibly wrong episode.",
+          "minimum": "Give me the confrontation, Eli's immediate reaction, and one earlier warm scene between them.",
+          "optional_improvement": "A later reconciliation scene would provide another payoff option, but it is not required."
+        },
+        "required_sources": [
+          {
+            "source_key": "nova_eli_confrontation",
+            "priority": 1,
+            "acquisition_effort": 2,
+            "asset_kind": "INDIVIDUAL_SCENES",
+            "show_or_title": "Signal at Dawn",
+            "season_number": null,
+            "episode_number": null,
+            "episode_title": null,
+            "characters": ["Nova Chen", "Eli Ward"],
+            "relationship_or_topic": "Nova + Eli trust rupture",
+            "scene_or_moment": "The confrontation fans describe, plus Eli's reaction immediately after Nova leaves.",
+            "purposes": ["INTRO", "PAYOFF"],
+            "verification_level": "LIKELY_INFERRED",
+            "source_quality_summary": "A synthetic viewer-discussion lead supports looking for this confrontation, but neither an exact episode nor authoritative dialogue is established.",
+            "supporting_claim_ids": ["2973749e-2847-4091-9ef0-803786389e49"],
+            "quote": {
+              "status": "UNVERIFIED_LEAD",
+              "text": "You only believe me when it costs you nothing.",
+              "speaker": null,
+              "likely_context": null,
+              "claim_id": "2973749e-2847-4091-9ef0-803786389e49"
+            },
+            "why_it_matters_emotionally": "If present, the accusation and reaction create a clear rupture that older scenes can answer, but local footage must verify both wording and visual value.",
+            "search_queries": [
+              "\"You only believe me when it costs you nothing\" Nova Eli",
+              "Signal at Dawn Nova Eli argument scene",
+              "Nova Eli confrontation episode"
+            ],
+            "replaces_required_source_keys": []
+          }
+        ],
+        "optional_sources": [
+          {
+            "source_key": "nova_eli_earlier_warm_scene",
+            "priority": 1,
+            "acquisition_effort": 2,
+            "asset_kind": "INDIVIDUAL_SCENES",
+            "show_or_title": "Signal at Dawn",
+            "season_number": null,
+            "episode_number": null,
+            "episode_title": null,
+            "characters": ["Nova Chen", "Eli Ward"],
+            "relationship_or_topic": "Nova + Eli earlier trust",
+            "scene_or_moment": "One clearly warm earlier scene with eye contact, touch, or relaxed conversation.",
+            "purposes": ["MONTAGE", "OPTIONAL_CALLBACK"],
+            "verification_level": "UNKNOWN",
+            "source_quality_summary": "No specific older scene is verified; this is a deliberately broad optional request whose usefulness must be confirmed from local footage.",
+            "supporting_claim_ids": [],
+            "quote": null,
+            "why_it_matters_emotionally": "It would make the rupture more legible, but research cannot name a verified episode from this fixture.",
+            "search_queries": [
+              "Nova Eli happy scenes",
+              "Nova Eli scene pack"
+            ],
+            "replaces_required_source_keys": []
+          }
+        ],
+        "alternative_sources": [
+          {
+            "source_key": "nova_eli_scene_pack",
+            "priority": 1,
+            "acquisition_effort": 2,
+            "asset_kind": "SCENE_PACK",
+            "show_or_title": "Signal at Dawn",
+            "season_number": null,
+            "episode_number": null,
+            "episode_title": null,
+            "characters": ["Nova Chen", "Eli Ward"],
+            "relationship_or_topic": "Nova + Eli multi-season relationship",
+            "scene_or_moment": "A multi-season pack containing arguments, reactions, and earlier warm moments.",
+            "purposes": ["INTRO", "MONTAGE", "PAYOFF", "OPTIONAL_CALLBACK"],
+            "verification_level": "LIKELY_INFERRED",
+            "source_quality_summary": "The pack is a lower-effort alternative inferred from the supported relationship lead; its contents and exact moment remain unverified.",
+            "supporting_claim_ids": ["2973749e-2847-4091-9ef0-803786389e49"],
+            "quote": null,
+            "why_it_matters_emotionally": "It avoids a falsely precise episode request and gives the later video system enough candidate material to locate the discussed moment.",
+            "search_queries": [
+              "Nova Eli scene pack",
+              "Signal at Dawn Nova Eli scenes",
+              "Nova Eli multi season scenepack"
+            ],
+            "replaces_required_source_keys": ["nova_eli_confrontation"]
+          }
+        ],
+        "minimum_useful_source_keys": ["nova_eli_confrontation"],
+        "smallest_useful_set_reason": "The confrontation and immediate reaction are the only essential material. Earlier warmth improves the montage but must not be treated as a blocking requirement.",
+        "intro_leads": [
+          {
+            "source_key": "nova_eli_confrontation",
+            "moment_description": "The accusation and Eli's immediate reaction are promising intro material if the supplied footage confirms them.",
+            "quote": {
+              "status": "UNVERIFIED_LEAD",
+              "text": "You only believe me when it costs you nothing.",
+              "speaker": null,
+              "likely_context": null,
+              "claim_id": "2973749e-2847-4091-9ef0-803786389e49"
+            },
+            "why_it_might_lead_into_montage": "A direct accusation could state the emotional question, and the following reaction could provide the handoff hinge.",
+            "verification_level": "LIKELY_INFERRED",
+            "supporting_claim_ids": ["2973749e-2847-4091-9ef0-803786389e49"]
+          }
+        ],
+        "search_queries": [
+          "Signal at Dawn Nova Eli argument scene",
+          "Nova Eli scene pack",
+          "\"You only believe me when it costs you nothing\" Nova Eli"
+        ],
+        "warnings": [
+          "Fans repeatedly reference the line, but the episode, exact wording, and speaker are not authoritatively verified in this fixture."
+        ]
+      }
+    },
+    {
+      "output_id": "synthetic-no-strong-opportunity",
+      "contract_name": "research-result",
+      "contract_version": "2.0.0",
+      "intended_case_ids": ["m0-obscure-no-evidence", "explicit-no-strong-opportunity"],
+      "demonstrates": [
+        "honest no-opportunity result",
+        "no padded cards",
+        "no footage request for a non-recommendation",
+        "natural refinement guidance"
+      ],
+      "payload": {
+        "schema_version": "2.0.0",
+        "run_id": "f6013da4-5ec2-4ab7-8f36-942fa1bb13fe",
+        "status": "NO_STRONG_OPPORTUNITY",
+        "intent": {
+          "schema_version": "2.0.0",
+          "query": "Find exactly five edit opportunities even if the evidence is weak.",
+          "media_kinds": ["TV_EPISODE", "FILM", "TRAILER"],
+          "focus_terms": [],
+          "region": "US",
+          "freshness_days": 14,
+          "spoiler_policy": "CURRENT_EPISODE",
+          "exclusions": [],
+          "max_results": 5
+        },
+        "opportunities": [],
+        "footage_requests": [],
+        "message": "No strong opportunity was found under these constraints. The available candidates were stale, circular, excluded, or too vague to support an honest footage request. Try a wider freshness window or name a show or relationship you already care about.",
+        "applied_exclusions": [],
+        "warnings": [
+          "No candidate had both a verified current why-now event and enough scene specificity to tell you what footage to obtain."
+        ],
+        "generated_at": "2026-08-15T12:00:00Z"
+      }
+    }
+  ]
+}

@@ -1,0 +1,206 @@
+{
+  "$comment": "Provider baseline only; M1 adapter conformance must verify the live API.",
+  "$defs": {
+    "EvidenceRole": {
+      "enum": [
+        "PRIMARY_WHY_NOW",
+        "QUALITATIVE_SIGNAL",
+        "QUOTE_PROOF",
+        "CONTEXT"
+      ],
+      "type": "string"
+    },
+    "MediaIdentityV2": {
+      "additionalProperties": false,
+      "properties": {
+        "episode_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "episode_title": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "media_kind": {
+          "$ref": "#/$defs/MediaKind"
+        },
+        "season_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "media_kind",
+        "show_or_title",
+        "season_number",
+        "episode_number",
+        "episode_title"
+      ],
+      "type": "object"
+    },
+    "MediaKind": {
+      "enum": [
+        "TV_EPISODE",
+        "TV_SERIES",
+        "FILM",
+        "TRAILER",
+        "OFFICIAL_CLIP"
+      ],
+      "type": "string"
+    },
+    "OpportunityEvidenceSelectionV2": {
+      "additionalProperties": false,
+      "description": "Provider selection; trusted code derives independence from the source join.",
+      "properties": {
+        "claim_id": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/EvidenceRole"
+        },
+        "supports_why_now": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "claim_id",
+        "role",
+        "supports_why_now"
+      ],
+      "type": "object"
+    },
+    "OpportunityFocus": {
+      "additionalProperties": false,
+      "properties": {
+        "characters": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "relationship_or_topic": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "characters",
+        "relationship_or_topic"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v2/provider/xai/trend-opportunity-draft.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Untrusted model synthesis over an exact allow-list of claim IDs.",
+  "properties": {
+    "caveats": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 20,
+      "type": "array"
+    },
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "type": "number"
+    },
+    "creative_hook": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "emotional_edit_direction": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/OpportunityEvidenceSelectionV2"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "type": "array"
+    },
+    "focus": {
+      "$ref": "#/$defs/OpportunityFocus"
+    },
+    "media_identity": {
+      "$ref": "#/$defs/MediaIdentityV2"
+    },
+    "media_kind": {
+      "$ref": "#/$defs/MediaKind"
+    },
+    "schema_version": {
+      "const": "2.0.0",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 500,
+      "minLength": 1,
+      "type": "string"
+    },
+    "what_viewers_are_discussing": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "why_now": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "media_kind",
+    "media_identity",
+    "title",
+    "focus",
+    "why_now",
+    "what_viewers_are_discussing",
+    "creative_hook",
+    "emotional_edit_direction",
+    "evidence",
+    "confidence",
+    "caveats"
+  ],
+  "type": "object"
+}

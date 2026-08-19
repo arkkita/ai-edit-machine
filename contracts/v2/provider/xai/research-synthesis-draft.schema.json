@@ -1,0 +1,691 @@
+{
+  "$comment": "Provider baseline only; M1 adapter conformance must verify the live API.",
+  "$defs": {
+    "EvidenceRole": {
+      "enum": [
+        "PRIMARY_WHY_NOW",
+        "QUALITATIVE_SIGNAL",
+        "QUOTE_PROOF",
+        "CONTEXT"
+      ],
+      "type": "string"
+    },
+    "FootageQuoteStatus": {
+      "enum": [
+        "VERIFIED",
+        "PARAPHRASE",
+        "UNVERIFIED_LEAD"
+      ],
+      "type": "string"
+    },
+    "FootageQuoteV2": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "type": "string"
+        },
+        "likely_context": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/FootageQuoteStatus"
+        },
+        "text": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "text",
+        "speaker",
+        "likely_context",
+        "claim_id"
+      ],
+      "type": "object"
+    },
+    "FootageRequestDraftV2": {
+      "additionalProperties": false,
+      "properties": {
+        "alternative_sources": {
+          "items": {
+            "$ref": "#/$defs/RequestedSourceDraftV2"
+          },
+          "maxItems": 30,
+          "type": "array"
+        },
+        "intro_leads": {
+          "items": {
+            "$ref": "#/$defs/IntroMaterialLeadDraftV2"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "minimum_useful_source_keys": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{1,63}$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array"
+        },
+        "natural_request": {
+          "$ref": "#/$defs/NaturalFootageRequestV2"
+        },
+        "optional_sources": {
+          "items": {
+            "$ref": "#/$defs/RequestedSourceDraftV2"
+          },
+          "maxItems": 30,
+          "type": "array"
+        },
+        "required_sources": {
+          "items": {
+            "$ref": "#/$defs/RequestedSourceDraftV2"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "2.0.0",
+          "type": "string"
+        },
+        "search_queries": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array"
+        },
+        "smallest_useful_set_reason": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "summary",
+        "natural_request",
+        "required_sources",
+        "optional_sources",
+        "alternative_sources",
+        "minimum_useful_source_keys",
+        "smallest_useful_set_reason",
+        "intro_leads",
+        "search_queries",
+        "warnings"
+      ],
+      "type": "object"
+    },
+    "FootageVerificationLevel": {
+      "enum": [
+        "VERIFIED",
+        "STRONGLY_SUPPORTED",
+        "LIKELY_INFERRED",
+        "UNKNOWN"
+      ],
+      "type": "string"
+    },
+    "IntroMaterialLeadDraftV2": {
+      "additionalProperties": false,
+      "properties": {
+        "moment_description": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FootageQuoteV2"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_key": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 30,
+          "type": "array"
+        },
+        "verification_level": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        },
+        "why_it_might_lead_into_montage": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_key",
+        "moment_description",
+        "quote",
+        "why_it_might_lead_into_montage",
+        "verification_level",
+        "supporting_claim_ids"
+      ],
+      "type": "object"
+    },
+    "MediaIdentityV2": {
+      "additionalProperties": false,
+      "properties": {
+        "episode_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "episode_title": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "media_kind": {
+          "$ref": "#/$defs/MediaKind"
+        },
+        "season_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "media_kind",
+        "show_or_title",
+        "season_number",
+        "episode_number",
+        "episode_title"
+      ],
+      "type": "object"
+    },
+    "MediaKind": {
+      "enum": [
+        "TV_EPISODE",
+        "TV_SERIES",
+        "FILM",
+        "TRAILER",
+        "OFFICIAL_CLIP"
+      ],
+      "type": "string"
+    },
+    "NaturalFootageRequestV2": {
+      "additionalProperties": false,
+      "properties": {
+        "alternative": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "best": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "minimum": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "optional_improvement": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "best",
+        "alternative",
+        "minimum",
+        "optional_improvement"
+      ],
+      "type": "object"
+    },
+    "OpportunityEvidenceSelectionV2": {
+      "additionalProperties": false,
+      "description": "Provider selection; trusted code derives independence from the source join.",
+      "properties": {
+        "claim_id": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/EvidenceRole"
+        },
+        "supports_why_now": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "claim_id",
+        "role",
+        "supports_why_now"
+      ],
+      "type": "object"
+    },
+    "OpportunityFocus": {
+      "additionalProperties": false,
+      "properties": {
+        "characters": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "relationship_or_topic": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "characters",
+        "relationship_or_topic"
+      ],
+      "type": "object"
+    },
+    "RequestedSourceDraftV2": {
+      "additionalProperties": false,
+      "properties": {
+        "acquisition_effort": {
+          "maximum": 5,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "asset_kind": {
+          "$ref": "#/$defs/SourceAcquisitionKind"
+        },
+        "characters": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "episode_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "episode_title": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "priority": {
+          "maximum": 30,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "purposes": {
+          "items": {
+            "$ref": "#/$defs/SourcePurpose"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "type": "array"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FootageQuoteV2"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "relationship_or_topic": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replaces_required_source_keys": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{1,63}$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "type": "array"
+        },
+        "scene_or_moment": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "search_queries": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "type": "array"
+        },
+        "season_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_key": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "type": "string"
+        },
+        "source_quality_summary": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 30,
+          "type": "array"
+        },
+        "verification_level": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        },
+        "why_it_matters_emotionally": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_key",
+        "priority",
+        "acquisition_effort",
+        "asset_kind",
+        "show_or_title",
+        "season_number",
+        "episode_number",
+        "episode_title",
+        "characters",
+        "relationship_or_topic",
+        "scene_or_moment",
+        "purposes",
+        "verification_level",
+        "source_quality_summary",
+        "supporting_claim_ids",
+        "quote",
+        "why_it_matters_emotionally",
+        "search_queries",
+        "replaces_required_source_keys"
+      ],
+      "type": "object"
+    },
+    "SourceAcquisitionKind": {
+      "enum": [
+        "EPISODE",
+        "OFFICIAL_TRAILER",
+        "OFFICIAL_CLIP",
+        "SCENE_PACK",
+        "INDIVIDUAL_SCENES"
+      ],
+      "type": "string"
+    },
+    "SourcePurpose": {
+      "enum": [
+        "INTRO",
+        "MONTAGE",
+        "PAYOFF",
+        "OPTIONAL_CALLBACK"
+      ],
+      "type": "string"
+    },
+    "SynthesisRecommendationDraftV2": {
+      "additionalProperties": false,
+      "description": "One untrusted recommendation pair produced from an evidence allow-list.",
+      "properties": {
+        "footage_request": {
+          "$ref": "#/$defs/FootageRequestDraftV2"
+        },
+        "opportunity": {
+          "$ref": "#/$defs/TrendOpportunityDraftV2"
+        }
+      },
+      "required": [
+        "opportunity",
+        "footage_request"
+      ],
+      "type": "object"
+    },
+    "TrendOpportunityDraftV2": {
+      "additionalProperties": false,
+      "description": "Untrusted model synthesis over an exact allow-list of claim IDs.",
+      "properties": {
+        "caveats": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "creative_hook": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "emotional_edit_direction": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/OpportunityEvidenceSelectionV2"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array"
+        },
+        "focus": {
+          "$ref": "#/$defs/OpportunityFocus"
+        },
+        "media_identity": {
+          "$ref": "#/$defs/MediaIdentityV2"
+        },
+        "media_kind": {
+          "$ref": "#/$defs/MediaKind"
+        },
+        "schema_version": {
+          "const": "2.0.0",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "what_viewers_are_discussing": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "why_now": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "media_kind",
+        "media_identity",
+        "title",
+        "focus",
+        "why_now",
+        "what_viewers_are_discussing",
+        "creative_hook",
+        "emotional_edit_direction",
+        "evidence",
+        "confidence",
+        "caveats"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v2/provider/xai/research-synthesis-draft.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Bounded synthesis result; canonicalization may still reject every draft.",
+  "properties": {
+    "no_strong_opportunity_reason": {
+      "anyOf": [
+        {
+          "maxLength": 1000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "recommendations": {
+      "items": {
+        "$ref": "#/$defs/SynthesisRecommendationDraftV2"
+      },
+      "maxItems": 10,
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "2.0.0",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "recommendations",
+    "no_strong_opportunity_reason"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,174 @@
+{
+  "$defs": {
+    "PriceComponent": {
+      "additionalProperties": false,
+      "description": "Trusted price-card arithmetic expressed in integer micro-USD.",
+      "properties": {
+        "category": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Category",
+          "type": "string"
+        },
+        "maximum_cost_micro_usd": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "title": "Maximum Cost Micro Usd",
+          "type": "integer"
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Quantity"
+        },
+        "unit": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "unit_price_micro_usd": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "title": "Unit Price Micro Usd",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "category",
+        "quantity",
+        "unit",
+        "unit_price_micro_usd",
+        "maximum_cost_micro_usd"
+      ],
+      "title": "PriceComponent",
+      "type": "object"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v1/execution/cost-estimate.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Trusted runtime preview/reservation input; never a provider output.",
+  "properties": {
+    "already_spent_or_reserved_micro_usd": {
+      "maximum": 9223372036854775807,
+      "minimum": 0,
+      "title": "Already Spent Or Reserved Micro Usd",
+      "type": "integer"
+    },
+    "cache_hit": {
+      "default": false,
+      "title": "Cache Hit",
+      "type": "boolean"
+    },
+    "components": {
+      "items": {
+        "$ref": "#/$defs/PriceComponent"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "title": "Components",
+      "type": "array"
+    },
+    "configured_model": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Configured Model",
+      "type": "string"
+    },
+    "currency": {
+      "const": "USD",
+      "default": "USD",
+      "title": "Currency",
+      "type": "string"
+    },
+    "estimate_id": {
+      "format": "uuid4",
+      "title": "Estimate Id",
+      "type": "string"
+    },
+    "expected_cost_micro_usd": {
+      "maximum": 9223372036854775807,
+      "minimum": 0,
+      "title": "Expected Cost Micro Usd",
+      "type": "integer"
+    },
+    "hard_limit_micro_usd": {
+      "maximum": 9223372036854775807,
+      "minimum": 0,
+      "title": "Hard Limit Micro Usd",
+      "type": "integer"
+    },
+    "maximum_cost_micro_usd": {
+      "maximum": 9223372036854775807,
+      "minimum": 0,
+      "title": "Maximum Cost Micro Usd",
+      "type": "integer"
+    },
+    "operation": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Operation",
+      "type": "string"
+    },
+    "price_card_id": {
+      "format": "uuid4",
+      "title": "Price Card Id",
+      "type": "string"
+    },
+    "privacy_notice": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Privacy Notice",
+      "type": "string"
+    },
+    "provider": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Provider",
+      "type": "string"
+    },
+    "resolved_model": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Resolved Model"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "estimate_id",
+    "operation",
+    "provider",
+    "configured_model",
+    "price_card_id",
+    "components",
+    "expected_cost_micro_usd",
+    "maximum_cost_micro_usd",
+    "hard_limit_micro_usd",
+    "already_spent_or_reserved_micro_usd",
+    "privacy_notice"
+  ],
+  "title": "CostEstimate",
+  "type": "object"
+}

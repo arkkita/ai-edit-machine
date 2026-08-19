@@ -1,0 +1,311 @@
+{
+  "$defs": {
+    "EvidenceGate": {
+      "enum": [
+        "PASSED",
+        "LOW_CONFIDENCE"
+      ],
+      "title": "EvidenceGate",
+      "type": "string"
+    },
+    "EvidenceRole": {
+      "enum": [
+        "PRIMARY_WHY_NOW",
+        "QUALITATIVE_SIGNAL",
+        "QUOTE_PROOF",
+        "CONTEXT"
+      ],
+      "title": "EvidenceRole",
+      "type": "string"
+    },
+    "MediaIdentityV2": {
+      "additionalProperties": false,
+      "properties": {
+        "episode_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Number"
+        },
+        "episode_title": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Title"
+        },
+        "media_kind": {
+          "$ref": "#/$defs/MediaKind"
+        },
+        "season_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Season Number"
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Show Or Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "media_kind",
+        "show_or_title"
+      ],
+      "title": "MediaIdentityV2",
+      "type": "object"
+    },
+    "MediaKind": {
+      "enum": [
+        "TV_EPISODE",
+        "TV_SERIES",
+        "FILM",
+        "TRAILER",
+        "OFFICIAL_CLIP"
+      ],
+      "title": "MediaKind",
+      "type": "string"
+    },
+    "OpportunityFocus": {
+      "additionalProperties": false,
+      "properties": {
+        "characters": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Characters",
+          "type": "array"
+        },
+        "relationship_or_topic": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Relationship Or Topic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "relationship_or_topic"
+      ],
+      "title": "OpportunityFocus",
+      "type": "object"
+    },
+    "OpportunityScoreV2": {
+      "additionalProperties": false,
+      "properties": {
+        "cross_source_agreement": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Cross Source Agreement",
+          "type": "number"
+        },
+        "footage_actionability": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Footage Actionability",
+          "type": "number"
+        },
+        "independent_source_count": {
+          "maximum": 30,
+          "minimum": 0,
+          "title": "Independent Source Count",
+          "type": "integer"
+        },
+        "release_freshness": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Release Freshness",
+          "type": "number"
+        },
+        "scene_specificity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Scene Specificity",
+          "type": "number"
+        },
+        "total": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Total",
+          "type": "number"
+        }
+      },
+      "required": [
+        "release_freshness",
+        "cross_source_agreement",
+        "scene_specificity",
+        "footage_actionability",
+        "independent_source_count",
+        "total"
+      ],
+      "title": "OpportunityScoreV2",
+      "type": "object"
+    },
+    "TrustedOpportunityEvidenceReferenceV2": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "format": "uuid4",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "independence_group": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Independence Group",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/EvidenceRole"
+        },
+        "supports_why_now": {
+          "title": "Supports Why Now",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "claim_id",
+        "role",
+        "supports_why_now",
+        "independence_group"
+      ],
+      "title": "TrustedOpportunityEvidenceReferenceV2",
+      "type": "object"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v2/canonical/trend-opportunity.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "caveats": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Caveats",
+      "type": "array"
+    },
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "creative_hook": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Creative Hook",
+      "type": "string"
+    },
+    "emotional_edit_direction": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Emotional Edit Direction",
+      "type": "string"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/TrustedOpportunityEvidenceReferenceV2"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "title": "Evidence",
+      "type": "array"
+    },
+    "evidence_gate": {
+      "$ref": "#/$defs/EvidenceGate"
+    },
+    "focus": {
+      "$ref": "#/$defs/OpportunityFocus"
+    },
+    "footage_request_id": {
+      "format": "uuid4",
+      "title": "Footage Request Id",
+      "type": "string"
+    },
+    "media_identity": {
+      "$ref": "#/$defs/MediaIdentityV2"
+    },
+    "media_kind": {
+      "$ref": "#/$defs/MediaKind"
+    },
+    "opportunity_id": {
+      "format": "uuid4",
+      "title": "Opportunity Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "2.0.0",
+      "default": "2.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "score": {
+      "$ref": "#/$defs/OpportunityScoreV2"
+    },
+    "title": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "what_viewers_are_discussing": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "What Viewers Are Discussing",
+      "type": "string"
+    },
+    "why_now": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Why Now",
+      "type": "string"
+    }
+  },
+  "required": [
+    "opportunity_id",
+    "footage_request_id",
+    "media_kind",
+    "media_identity",
+    "title",
+    "focus",
+    "why_now",
+    "what_viewers_are_discussing",
+    "creative_hook",
+    "emotional_edit_direction",
+    "evidence",
+    "evidence_gate",
+    "confidence",
+    "score"
+  ],
+  "title": "TrendOpportunityV2",
+  "type": "object"
+}

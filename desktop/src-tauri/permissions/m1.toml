@@ -1,0 +1,16 @@
+[[set]]
+identifier = "m1-research"
+description = "Narrow commands needed by Screens A-C and Settings/Diagnostics."
+permissions = [
+  "allow-get-diagnostics",
+  "allow-set-project-budget",
+  "allow-preview-research",
+  "allow-start-research",
+  "allow-get-research-run",
+  "allow-cancel-research",
+  "allow-open-evidence-link",
+  "allow-get-credential-status",
+  "allow-store-credential",
+  "allow-validate-credential",
+  "allow-delete-credential",
+]

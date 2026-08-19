@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-evidence-link"
+description = "Enables the open_evidence_link command without any pre-configured scope."
+commands.allow = ["open_evidence_link"]
+
+[[permission]]
+identifier = "deny-open-evidence-link"
+description = "Denies the open_evidence_link command without any pre-configured scope."
+commands.deny = ["open_evidence_link"]

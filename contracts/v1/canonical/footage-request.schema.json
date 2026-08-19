@@ -1,0 +1,184 @@
+{
+  "$defs": {
+    "FootageRequirement": {
+      "additionalProperties": false,
+      "properties": {
+        "alternatives": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Alternatives",
+          "type": "array"
+        },
+        "characters_or_relationship": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Characters Or Relationship",
+          "type": "array"
+        },
+        "media_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Media Title",
+          "type": "string"
+        },
+        "moment_description": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Moment Description",
+          "type": "string"
+        },
+        "order": {
+          "minimum": 0,
+          "title": "Order",
+          "type": "integer"
+        },
+        "quote_claim_id": {
+          "anyOf": [
+            {
+              "format": "uuid4",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quote Claim Id"
+        },
+        "quote_status": {
+          "$ref": "#/$defs/QuoteStatus",
+          "default": "NONE"
+        },
+        "quote_text": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quote Text"
+        },
+        "rationale": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "required": {
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requirement_id": {
+          "format": "uuid4",
+          "title": "Requirement Id",
+          "type": "string"
+        },
+        "season_episode_or_asset": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Season Episode Or Asset",
+          "type": "string"
+        }
+      },
+      "required": [
+        "order",
+        "required",
+        "media_title",
+        "season_episode_or_asset",
+        "moment_description",
+        "rationale",
+        "requirement_id"
+      ],
+      "title": "FootageRequirement",
+      "type": "object"
+    },
+    "QuoteStatus": {
+      "enum": [
+        "NONE",
+        "VERIFIED",
+        "PARAPHRASE",
+        "UNVERIFIED_LEAD"
+      ],
+      "title": "QuoteStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v1/canonical/footage-request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "footage_request_id": {
+      "format": "uuid4",
+      "title": "Footage Request Id",
+      "type": "string"
+    },
+    "opportunity_id": {
+      "format": "uuid4",
+      "title": "Opportunity Id",
+      "type": "string"
+    },
+    "requirements": {
+      "items": {
+        "$ref": "#/$defs/FootageRequirement"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "title": "Requirements",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "search_terms": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "title": "Search Terms",
+      "type": "array"
+    },
+    "summary": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "footage_request_id",
+    "opportunity_id",
+    "summary",
+    "requirements",
+    "search_terms"
+  ],
+  "title": "FootageRequest",
+  "type": "object"
+}

@@ -1,0 +1,137 @@
+{
+  "$defs": {
+    "ModelRunOutcome": {
+      "enum": [
+        "SUCCESS",
+        "REFUSAL",
+        "INCOMPLETE"
+      ],
+      "title": "ModelRunOutcome",
+      "type": "string"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v1/canonical/model-run-envelope.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Trusted metadata paired with, but not authored inside, a provider payload.",
+  "properties": {
+    "configured_model": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Configured Model",
+      "type": "string"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "incomplete": {
+      "anyOf": [
+        {
+          "maxLength": 1000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Incomplete"
+    },
+    "input_fingerprint": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Input Fingerprint",
+      "type": "string"
+    },
+    "job_id": {
+      "format": "uuid4",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "outcome": {
+      "$ref": "#/$defs/ModelRunOutcome"
+    },
+    "payload_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Payload Sha256"
+    },
+    "prompt_version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Prompt Version",
+      "type": "string"
+    },
+    "provider": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Provider",
+      "type": "string"
+    },
+    "refusal": {
+      "anyOf": [
+        {
+          "maxLength": 1000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Refusal"
+    },
+    "resolved_model": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Resolved Model"
+    },
+    "schema_name": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "trace_id": {
+      "format": "uuid4",
+      "title": "Trace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_name",
+    "prompt_version",
+    "trace_id",
+    "job_id",
+    "provider",
+    "configured_model",
+    "generated_at",
+    "input_fingerprint",
+    "outcome"
+  ],
+  "title": "ModelRunEnvelope",
+  "type": "object"
+}

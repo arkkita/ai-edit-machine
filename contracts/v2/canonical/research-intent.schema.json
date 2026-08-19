@@ -1,0 +1,101 @@
+{
+  "$defs": {
+    "MediaKind": {
+      "enum": [
+        "TV_EPISODE",
+        "TV_SERIES",
+        "FILM",
+        "TRAILER",
+        "OFFICIAL_CLIP"
+      ],
+      "title": "MediaKind",
+      "type": "string"
+    },
+    "SpoilerPolicy": {
+      "enum": [
+        "AVOID",
+        "CURRENT_EPISODE",
+        "ALLOW"
+      ],
+      "title": "SpoilerPolicy",
+      "type": "string"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v2/canonical/research-intent.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "exclusions": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 30,
+      "title": "Exclusions",
+      "type": "array"
+    },
+    "focus_terms": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Focus Terms",
+      "type": "array"
+    },
+    "freshness_days": {
+      "default": 14,
+      "maximum": 90,
+      "minimum": 1,
+      "title": "Freshness Days",
+      "type": "integer"
+    },
+    "max_results": {
+      "default": 5,
+      "maximum": 10,
+      "minimum": 1,
+      "title": "Max Results",
+      "type": "integer"
+    },
+    "media_kinds": {
+      "items": {
+        "$ref": "#/$defs/MediaKind"
+      },
+      "maxItems": 5,
+      "minItems": 1,
+      "title": "Media Kinds",
+      "type": "array"
+    },
+    "query": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Query",
+      "type": "string"
+    },
+    "region": {
+      "default": "US",
+      "maxLength": 16,
+      "minLength": 2,
+      "title": "Region",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "2.0.0",
+      "default": "2.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "spoiler_policy": {
+      "$ref": "#/$defs/SpoilerPolicy",
+      "default": "CURRENT_EPISODE"
+    }
+  },
+  "required": [
+    "query",
+    "media_kinds"
+  ],
+  "title": "ResearchIntentV2",
+  "type": "object"
+}
