@@ -457,6 +457,40 @@ impl Database {
         ).optional()?.ok_or_else(|| AppError::Provider(format!("{provider} model preflight is missing or stale")))
     }
 
+    /// Install one immutable run-scope budget for the development-only M1
+    /// provider probe. Reusing the same scope can never authorize a second
+    /// paid request once any amount from the first request is committed.
+    #[cfg(debug_assertions)]
+    pub fn ensure_m1_provider_debug_budget(
+        &mut self,
+        run_scope_key: &str,
+        hard_cap_micro_usd: i64,
+        now_ms: i64,
+    ) -> AppResult<()> {
+        if run_scope_key.trim().is_empty() || hard_cap_micro_usd <= 0 || hard_cap_micro_usd > 50_000 {
+            return Err(AppError::Budget("development provider-debug budget is invalid".to_owned()));
+        }
+        let transaction = self.connection_mut().transaction_with_behavior(TransactionBehavior::Immediate)?;
+        transaction.execute(
+            "INSERT INTO budget(id,scope_type,scope_id,warning_micro_usd,hard_micro_usd,enabled,created_at_ms)
+             VALUES (?1,'RUN',?2,?3,?3,1,?4)
+             ON CONFLICT(scope_type,scope_id) DO NOTHING",
+            params![Uuid::new_v4().to_string(), run_scope_key, hard_cap_micro_usd, now_ms],
+        )?;
+        let exact: bool = transaction.query_row(
+            "SELECT COUNT(*)=1 FROM budget
+             WHERE scope_type='RUN' AND scope_id=?1 AND warning_micro_usd=?2
+               AND hard_micro_usd=?2 AND enabled=1",
+            params![run_scope_key, hard_cap_micro_usd],
+            |row| row.get(0),
+        )?;
+        if !exact {
+            return Err(AppError::Budget("development provider-debug run budget conflicts with existing state".to_owned()));
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
     pub fn provider_disclosures(&self, provider: &str, now_ms: i64) -> AppResult<ProviderDisclosureRecord> {
         self.connection().query_row(
             "SELECT retention_summary,data_use_summary,no_storage_mode,privacy_mode,expires_at_ms
@@ -513,12 +547,14 @@ impl Database {
                                ORDER BY run.finished_at_ms DESC
                            ) AS occurrence
                     FROM research_run run, json_each(run.evidence_sources_json) item
+                    JOIN job ON job.id=run.job_id
                     JOIN evidence_source source
                       ON source.id=json_extract(item.value,'$.sourceId')
                     JOIN provider_policy policy
                       ON policy.provider=source.provider
                      AND policy.policy_class=source.policy_class
                     WHERE run.status='SUCCEEDED'
+                      AND job.run_scope_key<>'m1-provider-debug-live-2026-08-19-v1'
                       AND run.evidence_sources_json IS NOT NULL
                       AND source.provider='openai'
                       AND source.source_type='ARTICLE'
@@ -577,6 +613,7 @@ impl Database {
                                ORDER BY run.finished_at_ms DESC
                            ) AS occurrence
                     FROM research_run run, json_each(run.evidence_claims_json) item
+                    JOIN job ON job.id=run.job_id
                     JOIN evidence_claim claim
                       ON claim.id=json_extract(item.value,'$.claimId')
                     JOIN evidence_source source ON source.id=claim.source_id
@@ -584,6 +621,7 @@ impl Database {
                       ON policy.provider=source.provider
                      AND policy.policy_class=source.policy_class
                     WHERE run.status='SUCCEEDED'
+                      AND job.run_scope_key<>'m1-provider-debug-live-2026-08-19-v1'
                       AND run.evidence_claims_json IS NOT NULL
                       AND source.provider='openai'
                       AND source.source_type='ARTICLE'
@@ -2333,7 +2371,11 @@ fn validate_calls(transaction: &Transaction<'_>, calls: &[PlannedCallInput], now
             )?;
             let persisted: ProviderConfig = serde_json::from_str(&trusted_config)
                 .map_err(|_| AppError::DatabaseInvariant("trusted provider configuration is invalid".to_owned()))?;
-            if persisted != call.provider_config {
+            let config_matches = persisted == call.provider_config;
+            #[cfg(debug_assertions)]
+            let config_matches = config_matches
+                || crate::provider_catalog::is_exact_m1_provider_debug_call(call, &persisted);
+            if !config_matches {
                 return Err(AppError::Security("planned provider configuration does not match the reviewed registry".to_owned()));
             }
         }
@@ -2625,7 +2667,7 @@ fn job_from_transaction(transaction: &Transaction<'_>, job_id: Uuid) -> AppResul
 mod tests {
     use super::*;
 
-    const NOW_MS: i64 = 1_787_083_200_000;
+    const NOW_MS: i64 = 1_787_140_000_000;
 
     fn setup() -> Database {
         let mut database = Database::open_in_memory().unwrap();
@@ -2881,7 +2923,7 @@ mod tests {
     fn start_is_idempotent_and_only_one_executor_can_claim_the_job() {
         let mut database = setup();
         let (preview, hash, request) = create_preview(&mut database, "romance TV", "run-one");
-        assert_eq!(preview.maximum_cost_micro_usd, 497_998);
+        assert_eq!(preview.maximum_cost_micro_usd, 211_600);
         let first = consume(&mut database, &preview, &hash, &request);
         let replay = consume(&mut database, &preview, &hash, &request);
         assert_eq!(first.id, replay.id);
@@ -2894,11 +2936,11 @@ mod tests {
         assert_eq!(ceilings.get("research.metadata"), Some(&(0, 0, 0)));
         assert_eq!(
             ceilings.get("research.web_verify"),
-            Some(&(14, 170_000, 341_998)),
+            Some(&(14, 170_000, 180_400)),
         );
         assert_eq!(
             ceilings.get("research.synthesize"),
-            Some(&(0, 60_000, 156_000)),
+            Some(&(0, 60_000, 31_200)),
         );
         assert!(database.claim_research_execution(first.id, NOW_MS).unwrap());
         assert!(!database.claim_research_execution(first.id, NOW_MS).unwrap());
@@ -2936,6 +2978,52 @@ mod tests {
             expires_at_ms: NOW_MS + 60_000,
         });
         assert!(matches!(result, Err(AppError::Budget(_))));
+    }
+
+    #[test]
+    fn development_provider_debug_budget_blocks_a_second_reserved_call() {
+        let mut database = setup();
+        let run_scope = crate::provider_catalog::M1_PROVIDER_DEBUG_RUN_SCOPE;
+        database.ensure_m1_provider_debug_budget(run_scope, 50_000, NOW_MS).unwrap();
+        let calls = crate::provider_catalog::build_m1_provider_debug_plan(&database, NOW_MS).unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].reservation_micro_usd, 49_960);
+        let (_, normalized) = normalized_intent("female-centered current TV");
+        let request_json = serde_json::json!({
+            "exclusions":null,"freshnessDays":14,"maxResults":5,"mediaKinds":["TV_EPISODE"],
+            "prompt":"female-centered current TV","region":"US","schemaVersion":"2.0.0",
+            "spoilerPolicy":"CURRENT_EPISODE"
+        }).to_string();
+        let first_hash = sha256_hex(request_json.as_bytes());
+        let first = database.create_cost_preview(&NewCostPreview {
+            project_id: DEFAULT_PROJECT_ID,
+            run_scope_key: run_scope,
+            input_sha256: &first_hash,
+            normalized_intent_json: &normalized,
+            calls: &calls,
+            now_ms: NOW_MS,
+            expires_at_ms: NOW_MS + 60_000,
+        }).unwrap();
+        database.consume_preview_and_create_job(&NewResearchJob {
+            consent_token: first.consent_token,
+            input_sha256: &first_hash,
+            input_contract_json: &request_json,
+            raw_query: "female-centered current TV",
+            schema_version: "2.0.0",
+            now_ms: NOW_MS,
+        }).unwrap();
+
+        let second_hash = sha256_hex(b"m1-provider-debug-second");
+        let error = database.create_cost_preview(&NewCostPreview {
+            project_id: DEFAULT_PROJECT_ID,
+            run_scope_key: run_scope,
+            input_sha256: &second_hash,
+            normalized_intent_json: &normalized,
+            calls: &calls,
+            now_ms: NOW_MS + 1,
+            expires_at_ms: NOW_MS + 60_000,
+        }).expect_err("the immutable run cap must reject a second paid reservation");
+        assert!(matches!(error, AppError::Budget(_)));
     }
 
     #[test]
@@ -3407,9 +3495,9 @@ mod tests {
         };
         let result = database.reconcile_provider_run(&reconciliation).unwrap();
         assert!(result.usage_verified);
-        assert_eq!(result.charged_or_held_micro_usd, 10_160);
+        assert_eq!(result.charged_or_held_micro_usd, 10_032);
         let replay = database.reconcile_provider_run(&reconciliation).unwrap();
-        assert_eq!(replay.charged_or_held_micro_usd, 10_160);
+        assert_eq!(replay.charged_or_held_micro_usd, 10_032);
         let changed_usage = ReconcileProviderRun { output_tokens: Some(0), ..reconciliation };
         assert!(matches!(database.reconcile_provider_run(&changed_usage), Err(AppError::Security(_))));
     }
@@ -3460,7 +3548,7 @@ mod tests {
 
         assert!(result.usage_verified);
         assert!(!result.exceeded_reservation);
-        assert_eq!(result.charged_or_held_micro_usd, 263_268);
+        assert_eq!(result.charged_or_held_micro_usd, 164_654);
         assert_eq!(database.job(job.id).unwrap().state, "RUNNING");
     }
 
@@ -3511,10 +3599,10 @@ mod tests {
 
         assert_eq!(capability.max_input_tokens, 170_000);
         assert_eq!(capability.max_output_tokens, 5_333);
-        assert_eq!(capability.maximum_micro_usd, 341_998);
+        assert_eq!(capability.maximum_micro_usd, 180_400);
         assert!(result.usage_verified);
         assert!(!result.exceeded_reservation);
-        assert_eq!(result.charged_or_held_micro_usd, 256_761);
+        assert_eq!(result.charged_or_held_micro_usd, 163_354);
         assert_eq!(database.job(job.id).unwrap().state, "RUNNING");
     }
 

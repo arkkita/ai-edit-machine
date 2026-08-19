@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 import http.client
 import ipaddress
+import re
 import socket
 import ssl
 import time
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .base import ProviderError
@@ -50,11 +51,18 @@ class TextTransport(Protocol):
 
 
 class UrllibJsonTransport:
-    def __init__(self, *, max_attempts: int = 2, sleep_fn=time.sleep) -> None:
+    def __init__(
+        self,
+        *,
+        max_attempts: int = 2,
+        sleep_fn=time.sleep,
+        debug_trace_sink: Callable[[dict[str, object]], None] | None = None,
+    ) -> None:
         if not 1 <= max_attempts <= 3:
             raise ValueError("provider HTTP attempts must be within 1..3")
         self._max_attempts = max_attempts
         self._sleep_fn = sleep_fn
+        self._debug_trace_sink = debug_trace_sink
 
     def request_json(
         self,
@@ -91,12 +99,26 @@ class UrllibJsonTransport:
             headers=request_headers,
             method=method,
         )
+        self._trace(
+            {
+                "event": "http.request",
+                "method": method.upper(),
+                "url": _sanitize_url(url),
+                "headers": _sanitize_headers(request_headers),
+                "body": _sanitize_json_value(body),
+            }
+        )
         opener = build_opener(_NoRedirectHandler())
         attempts = self._max_attempts if method.upper() in {"GET", "HEAD"} else 1
         for attempt in range(attempts):
             try:
                 with opener.open(request, timeout=timeout_seconds) as response:
                     payload_bytes = response.read(max_response_bytes + 1)
+                    self._trace_response(
+                        status=int(response.status),
+                        headers=response.headers,
+                        payload_bytes=payload_bytes,
+                    )
                     if len(payload_bytes) > max_response_bytes:
                         raise ProviderError("provider response exceeded the byte limit")
                     payload = json.loads(
@@ -110,6 +132,12 @@ class UrllibJsonTransport:
                         payload=payload,
                     )
             except HTTPError as error:
+                payload_bytes = error.read(max_response_bytes + 1)
+                self._trace_response(
+                    status=int(error.code),
+                    headers=error.headers,
+                    payload_bytes=payload_bytes,
+                )
                 retryable = error.code in {408, 429, 500, 502, 503, 504}
                 if retryable and attempt + 1 < attempts:
                     retry_after = error.headers.get("Retry-After") if error.headers else None
@@ -120,16 +148,56 @@ class UrllibJsonTransport:
                     self._sleep_fn(delay)
                     continue
                 if 300 <= error.code < 400:
+                    self._trace_exception(error)
                     raise ProviderError("provider redirect was rejected") from None
+                self._trace_exception(error)
                 raise ProviderError(f"provider returned HTTP {error.code}") from None
-            except URLError:
+            except URLError as error:
                 if attempt + 1 < attempts:
                     self._sleep_fn(0.1)
                     continue
+                self._trace_exception(error)
                 raise ProviderError("provider network request failed") from None
-            except (UnicodeDecodeError, json.JSONDecodeError, _StrictJsonError):
+            except ProviderError as error:
+                self._trace_exception(error)
+                raise
+            except (UnicodeDecodeError, json.JSONDecodeError, _StrictJsonError) as error:
+                self._trace_exception(error)
                 raise ProviderError("provider returned invalid JSON") from None
         raise AssertionError("provider retry loop exhausted without a terminal outcome")
+
+    def _trace(self, value: dict[str, object]) -> None:
+        if self._debug_trace_sink is not None:
+            self._debug_trace_sink(value)
+
+    def _trace_response(
+        self,
+        *,
+        status: int,
+        headers: object,
+        payload_bytes: bytes,
+    ) -> None:
+        header_items = headers.items() if hasattr(headers, "items") else ()
+        self._trace(
+            {
+                "event": "http.response",
+                "status": status,
+                "headers": _sanitize_headers(dict(header_items)),
+                "raw_body": _sanitize_text(
+                    payload_bytes.decode("utf-8", errors="replace")
+                ),
+            }
+        )
+
+    def _trace_exception(self, error: BaseException) -> None:
+        self._trace(
+            {
+                "event": "http.exception",
+                "exception": (
+                    f"{type(error).__name__}: {_sanitize_text(str(error))}"
+                ),
+            }
+        )
 
 
 class _NoRedirectHandler(HTTPRedirectHandler):
@@ -153,6 +221,73 @@ def _strict_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 def _reject_json_constant(value: str) -> None:
     raise _StrictJsonError(f"non-finite provider JSON value: {value}")
+
+
+_SECRET_HEADER_NAMES = frozenset(
+    {
+        "authorization",
+        "proxy-authorization",
+        "cookie",
+        "openai-organization",
+        "openai-project",
+        "set-cookie",
+        "x-api-key",
+    }
+)
+_SECRET_TEXT = re.compile(
+    r"(?i)(?:bearer\s+[^\s\"']+|sk-[a-z0-9_-]{8,})"
+)
+
+
+def _sanitize_headers(headers: dict[str, object]) -> dict[str, str]:
+    return {
+        str(name): (
+            "<redacted>"
+            if str(name).casefold() in _SECRET_HEADER_NAMES
+            else _sanitize_text(str(value))
+        )
+        for name, value in headers.items()
+    }
+
+
+def _sanitize_url(url: str) -> str:
+    parts = urlsplit(url)
+    hostname = parts.hostname or ""
+    host = hostname
+    if parts.port is not None:
+        host = f"{host}:{parts.port}"
+    return urlunsplit((parts.scheme, host, parts.path, "", ""))
+
+
+def _sanitize_text(value: str) -> str:
+    return _SECRET_TEXT.sub("<redacted>", value)
+
+
+def _sanitize_json_value(value: object) -> object:
+    if isinstance(value, dict):
+        return {
+            str(key): (
+                "<redacted>"
+                if str(key).casefold()
+                in {
+                    "authorization",
+                    "api_key",
+                    "apikey",
+                    "credential",
+                    "password",
+                    "token",
+                }
+                else _sanitize_json_value(item)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_sanitize_json_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_sanitize_json_value(item) for item in value]
+    if isinstance(value, str):
+        return _sanitize_text(value)
+    return value
 
 
 class FakeJsonTransport:

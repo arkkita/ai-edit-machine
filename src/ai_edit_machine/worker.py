@@ -21,29 +21,60 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, UUID4, field_validator, model_validator
 
-from .contracts import MediaKind, SpoilerPolicy, VerificationState
+from .contracts import (
+    EvidenceSourceType,
+    ExcerptType,
+    MediaKind,
+    SpoilerPolicy,
+    VerificationState,
+)
 from .m1_contracts import (
+    EpisodeLocatorFactV2,
     EvidenceClaimKind,
     EvidenceClaimRecordV2,
     EvidenceSourceRecordV2,
     ResearchIntentV2,
+    ResearchSynthesisDraftV2,
 )
 from .providers.base import (
     CallAuthorization,
     CancellationToken,
+    EvidenceCandidate,
     ProviderBatch,
     ProviderCancelledError,
+    ProviderError,
     ProviderRunOutcome,
     ProviderResearchContext,
     ProviderUsage,
     SecretCredential,
 )
+from .providers.fake import FakeResearchProvider
 from .providers.openai_synthesis import OpenAIResearchSynthesizer
 from .providers.openai_web import OpenAIWebVerifier
-from .providers.transport import UrllibJsonTransport
+from .providers.transport import JsonResponse, JsonTransport, UrllibJsonTransport
 from .providers.tvmaze import TVmazeProvider
 from .providers.xai_search import XAIInvocationCapProof, XAISearchProvider
 from .providers.youtube import YouTubeOfficialProvider
+from .provider_debug_contract import (
+    DEBUG_ENDPOINT,
+    DEBUG_HARD_CAP_MICRO_USD,
+    DEBUG_MAX_INPUT_TOKENS,
+    DEBUG_MAX_OUTPUT_TOKENS,
+    DEBUG_MAX_REQUESTS,
+    DEBUG_MAX_TOOL_CALLS,
+    DEBUG_MODE,
+    DEBUG_MODEL,
+    DEBUG_PROMPT,
+    DEBUG_PROVIDER,
+    DEBUG_RESERVED_MICRO_USD,
+    DEBUG_SEED_EPISODE,
+    DEBUG_SEED_EPISODE_TITLE,
+    DEBUG_SEED_EVENT_AT,
+    DEBUG_SEED_PROVIDER_RECORD_ID,
+    DEBUG_SEED_SEASON,
+    DEBUG_SEED_SHOW,
+    DEBUG_SEED_URL,
+)
 from .research.intent import intent_from_query
 from .research.policy import PolicyRule
 from .research.synthesis import SynthesisProviderResult
@@ -59,6 +90,46 @@ from .worker_protocol import (
 
 PAYLOAD_SCHEMA_VERSION = "1.0.0"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+
+class _OneShotOpenAIDebugTransport:
+    """Development-only guard that can delegate exactly one paid HTTP POST."""
+
+    def __init__(self, transport: JsonTransport) -> None:
+        self._transport = transport
+        self._post_started = False
+
+    def request_json(
+        self,
+        *,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        body: object | None,
+        timeout_seconds: float,
+        max_response_bytes: int,
+        allowed_hosts: frozenset[str],
+    ) -> JsonResponse:
+        if method.upper() != "POST" or url != DEBUG_ENDPOINT:
+            raise ProviderError(
+                "development-only M1 probe blocked a request outside its fixed OpenAI POST"
+            )
+        if self._post_started:
+            raise ProviderError(
+                "development-only M1 probe blocked a second OpenAI POST"
+            )
+        # Consume the one-shot before network activity. A timeout or unknown
+        # transport outcome must never make a retry possible in this process.
+        self._post_started = True
+        return self._transport.request_json(
+            method=method,
+            url=url,
+            headers=headers,
+            body=body,
+            timeout_seconds=timeout_seconds,
+            max_response_bytes=max_response_bytes,
+            allowed_hosts=allowed_hosts,
+        )
 _BARE_HOST = re.compile(
     r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
     r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
@@ -265,6 +336,32 @@ class _Capability(_WireModel):
         return self
 
 
+class _ProviderDebugSeed(_WireModel):
+    show_or_title: Annotated[str, Field(min_length=1, max_length=500)]
+    season_number: Annotated[int, Field(ge=1, le=10_000)]
+    episode_number: Annotated[int, Field(ge=1, le=10_000)]
+    episode_title: Annotated[str, Field(min_length=1, max_length=500)]
+    event_or_release_at: datetime
+    canonical_url: Annotated[str, Field(min_length=1, max_length=2_048)]
+    provider_record_id: Annotated[str, Field(min_length=1, max_length=512)]
+
+    @model_validator(mode="after")
+    def validate_time(self) -> Self:
+        if (
+            self.event_or_release_at.tzinfo is None
+            or self.event_or_release_at.utcoffset() is None
+        ):
+            raise ValueError("provider-debug seed timestamp must be timezone aware")
+        return self
+
+
+class _DevelopmentDebug(_WireModel):
+    schema_version: Literal["1.0.0"]
+    mode: Literal[DEBUG_MODE]
+    trace_id: UUID4
+    seed: _ProviderDebugSeed
+
+
 class _ExecutePayload(_WireModel):
     schema_version: Literal["1.0.0"]
     job_id: UUID4
@@ -285,6 +382,7 @@ class _ExecutePayload(_WireModel):
             pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$"
         ),
     ]
+    development_debug: _DevelopmentDebug | None = None
 
     @field_validator("reusable_evidence_sources", mode="before")
     @classmethod
@@ -347,7 +445,11 @@ class _ExecutePayload(_WireModel):
         synthesis_count = sum(
             item.operation == "research.synthesize" for item in self.capabilities
         )
-        if synthesis_count != 1 and not _is_verifier_only_diagnostic(self):
+        if (
+            synthesis_count != 1
+            and not _is_verifier_only_diagnostic(self)
+            and not _is_m1_provider_debug(self)
+        ):
             raise ValueError("research execution requires exactly one synthesis capability")
         return self
 
@@ -387,6 +489,56 @@ def _is_verifier_only_diagnostic(payload: _ExecutePayload) -> bool:
         and capability.max_input_tokens == 120_000
         and capability.max_output_tokens == 6_000
         and capability.allow_one_repair is False
+    )
+
+
+def _is_m1_provider_debug(payload: _ExecutePayload) -> bool:
+    """Recognize only the fixed, one-shot, Rust-reserved development probe."""
+
+    debug = payload.development_debug
+    if debug is None or len(payload.capabilities) != 1:
+        return False
+    capability = payload.capabilities[0]
+    config = capability.provider_config
+    seed = debug.seed
+    try:
+        expected_event = datetime.fromisoformat(
+            DEBUG_SEED_EVENT_AT.replace("Z", "+00:00")
+        )
+    except ValueError:
+        return False
+    return (
+        payload.intent.prompt == DEBUG_PROMPT
+        and payload.intent.media_kinds == [MediaKind.TV_EPISODE]
+        and payload.intent.region == "US"
+        and payload.intent.freshness_days == 14
+        and payload.intent.spoiler_policy is SpoilerPolicy.CURRENT_EPISODE
+        and payload.intent.exclusions == []
+        and payload.intent.max_results == 5
+        and not payload.reusable_evidence_sources
+        and not payload.reusable_evidence_claims
+        and isinstance(config, _OpenAIWebConfig)
+        and capability.provider == DEBUG_PROVIDER
+        and capability.operation == "research.web_verify"
+        and capability.configured_model == DEBUG_MODEL
+        and capability.resolved_model == DEBUG_MODEL
+        and capability.maximum_micro_usd == DEBUG_RESERVED_MICRO_USD
+        and capability.maximum_micro_usd <= DEBUG_HARD_CAP_MICRO_USD
+        and capability.max_requests == DEBUG_MAX_REQUESTS
+        and capability.max_tool_calls == DEBUG_MAX_TOOL_CALLS
+        and capability.max_input_tokens == DEBUG_MAX_INPUT_TOKENS
+        and capability.max_output_tokens == DEBUG_MAX_OUTPUT_TOKENS
+        and capability.allow_one_repair is False
+        and config.search_context_size == "low"
+        and config.request_max_tool_calls == DEBUG_MAX_TOOL_CALLS
+        and config.request_body_max_input_tokens <= DEBUG_MAX_INPUT_TOKENS
+        and seed.show_or_title == DEBUG_SEED_SHOW
+        and seed.season_number == DEBUG_SEED_SEASON
+        and seed.episode_number == DEBUG_SEED_EPISODE
+        and seed.episode_title == DEBUG_SEED_EPISODE_TITLE
+        and seed.event_or_release_at.astimezone(timezone.utc) == expected_event
+        and seed.canonical_url == DEBUG_SEED_URL
+        and seed.provider_record_id == DEBUG_SEED_PROVIDER_RECORD_ID
     )
 
 
@@ -518,11 +670,127 @@ class _StartedSynthesizer:
         return result
 
 
+class _DebugEmptySynthesizer:
+    """Zero-network synthesis used only by the exact development probe."""
+
+    name = "debug-offline-synthesis"
+
+    def synthesize(self, *args: object, **kwargs: object) -> SynthesisProviderResult:
+        del args, kwargs
+        return SynthesisProviderResult(
+            provider=self.name,
+            draft=ResearchSynthesisDraftV2(
+                recommendations=[],
+                no_strong_opportunity_reason=(
+                    "Development replay delegates only to deterministic M1 fallbacks."
+                ),
+            ),
+            usage=ProviderUsage(request_count=0),
+        )
+
+
 def _domain_payload(model: BaseModel) -> dict[str, object]:
     dumped = model.model_dump(mode="json")
     result = _camel_keys(dumped)
     assert isinstance(result, dict)
     return result
+
+
+def _provider_debug_seed_candidate(debug: _DevelopmentDebug) -> EvidenceCandidate:
+    seed = debug.seed
+    locator = EpisodeLocatorFactV2(
+        show_or_title=seed.show_or_title,
+        season_number=seed.season_number,
+        episode_number=seed.episode_number,
+        episode_title=seed.episode_title,
+    )
+    return EvidenceCandidate(
+        provider="tvmaze",
+        provider_record_id=seed.provider_record_id,
+        source_type=EvidenceSourceType.METADATA,
+        canonical_url=seed.canonical_url,
+        title=(
+            f"{seed.show_or_title} - S{seed.season_number:02d}"
+            f"E{seed.episode_number:02d}: {seed.episode_title}"
+        ),
+        author_or_channel="TVmaze",
+        excerpt_type=ExcerptType.PARAPHRASE,
+        excerpt=(
+            f"TVmaze lists {seed.episode_title} as Season {seed.season_number} "
+            f"Episode {seed.episode_number}."
+        ),
+        verification=VerificationState.SECONDARY_CORROBORATED,
+        claim_kind=EvidenceClaimKind.EPISODE_IDENTITY,
+        supports_why_now=False,
+        policy_class="tvmaze-metadata-v1",
+        event_or_release_at=seed.event_or_release_at.astimezone(timezone.utc),
+        citation_verified=True,
+        episode_locator=locator,
+    )
+
+
+def _provider_debug_local_authorization(
+    job_id: UUID,
+    *,
+    provider: str,
+    operation: str,
+    model: str | None,
+    max_requests: int,
+) -> CallAuthorization:
+    return CallAuthorization(
+        job_id=job_id,
+        reservation_id=uuid4(),
+        provider=provider,
+        operation=operation,
+        configured_model=model,
+        allowed_resolved_models=(model,) if model else (),
+        max_requests=max_requests,
+        max_tool_calls=0,
+        max_input_tokens=0,
+        max_output_tokens=0,
+        allow_one_repair=False,
+        privacy_mode="development_only",
+        live_calls_enabled=True,
+    )
+
+
+def _provider_debug_raw_result_count(events: list[dict[str, object]]) -> int:
+    for event in reversed(events):
+        if event.get("event") != "http.response":
+            continue
+        raw_body = event.get("raw_body")
+        if not isinstance(raw_body, str):
+            return 0
+        try:
+            payload = json.loads(raw_body)
+        except json.JSONDecodeError:
+            return 0
+        if not isinstance(payload, dict):
+            return 0
+        count = 0
+        output = payload.get("output")
+        if not isinstance(output, list):
+            return 0
+        for item in output:
+            if not isinstance(item, dict) or item.get("type") != "web_search_call":
+                continue
+            action = item.get("action")
+            if isinstance(action, dict) and isinstance(action.get("sources"), list):
+                count += len(action["sources"])
+        return count
+    return 0
+
+
+def _provider_debug_trace_payload(
+    debug: _DevelopmentDebug,
+    events: list[dict[str, object]],
+) -> dict[str, object]:
+    return {
+        "schemaVersion": PAYLOAD_SCHEMA_VERSION,
+        "developmentOnly": True,
+        "traceId": str(debug.trace_id),
+        "events": events,
+    }
 
 
 def _authorization(job_id: UUID, capability: _Capability) -> CallAuthorization:
@@ -966,6 +1234,224 @@ class _WorkerRuntime:
                 raise WorkerProtocolError("provider-start acknowledgement did not match")
             pending[2].set()
 
+    def _run_m1_provider_debug(
+        self,
+        request_id: UUID,
+        payload: _ExecutePayload,
+        normalized: ResearchIntentV2,
+        token: CancellationToken,
+        record: Callable[[_Capability, ProviderBatch | None], None],
+        outcomes_so_far: Callable[[], list[dict[str, object]]],
+    ) -> None:
+        debug = payload.development_debug
+        assert debug is not None and _is_m1_provider_debug(payload)
+        capability = payload.capabilities[0]
+        config = capability.provider_config
+        assert isinstance(config, _OpenAIWebConfig)
+        generated_at = datetime.fromisoformat(
+            payload.generated_at.replace("Z", "+00:00")
+        )
+        events: list[dict[str, object]] = []
+
+        def trace_event(event: dict[str, object]) -> None:
+            events.append({"traceId": str(debug.trace_id), **event})
+
+        print(
+            "DEVELOPMENT-ONLY M1 provider probe: one Rust-reserved OpenAI request",
+            file=sys.stderr,
+            flush=True,
+        )
+        trace_event(
+            {
+                "event": "provider.resolved",
+                "provider": capability.provider,
+                "configured_model": capability.configured_model,
+                "resolved_model": capability.resolved_model,
+                "development_only": True,
+            }
+        )
+        verifier = _StartedProvider(
+            OpenAIWebVerifier(
+                credential=SecretCredential(capability.credential or ""),
+                model=capability.configured_model or "",
+                official_domains=tuple(config.official_hosts),
+                search_context_size=config.search_context_size,
+                request_body_max_input_tokens=config.request_body_max_input_tokens,
+                request_max_tool_calls=config.request_max_tool_calls,
+                policy_class=capability.policy_class,
+                transport=_OneShotOpenAIDebugTransport(
+                    UrllibJsonTransport(
+                        max_attempts=1,
+                        debug_trace_sink=trace_event,
+                    )
+                ),
+                now_fn=lambda: generated_at,
+            ),
+            capability,
+            lambda item: self.start_provider(
+                request_id, payload.job_id, item, token
+            ),
+            record,
+        )
+        seed = _provider_debug_seed_candidate(debug)
+        self.emit(
+            request_id,
+            "research.progress",
+            {
+                "schemaVersion": PAYLOAD_SCHEMA_VERSION,
+                "jobId": str(payload.job_id),
+                "percent": 20,
+                "phase": "DEVELOPMENT-ONLY one-request provider probe",
+            },
+        )
+        try:
+            batch = verifier.collect(
+                normalized,
+                authorization=_authorization(payload.job_id, capability),
+                cancellation=token,
+                context=ProviderResearchContext(prior_evidence=(seed,)),
+            )
+        except Exception as error:
+            counts = {
+                "rawProviderResults": _provider_debug_raw_result_count(events),
+                "parsedResults": 0,
+                "normalizedEvidence": 0,
+                "evidenceSurvivingGates": 0,
+                "rankedOpportunities": 0,
+                "opportunitiesReturnedToUi": 0,
+            }
+            trace_event({"event": "pipeline.counts", **counts})
+            self.emit(
+                request_id,
+                "research.error",
+                {
+                    "schemaVersion": PAYLOAD_SCHEMA_VERSION,
+                    "jobId": str(payload.job_id),
+                    "message": _sanitize_error(error, payload.capabilities),
+                    "providerOutcomes": outcomes_so_far(),
+                    "debugTrace": _provider_debug_trace_payload(debug, events),
+                    "stageCounts": counts,
+                },
+            )
+            return
+
+        if batch.outcome is not ProviderRunOutcome.SUCCESS:
+            counts = {
+                "rawProviderResults": _provider_debug_raw_result_count(events),
+                "parsedResults": len(batch.evidence),
+                "normalizedEvidence": 0,
+                "evidenceSurvivingGates": 0,
+                "rankedOpportunities": 0,
+                "opportunitiesReturnedToUi": 0,
+            }
+            trace_event({"event": "pipeline.counts", **counts})
+            terminal = {
+                ProviderRunOutcome.REFUSAL: "research.refusal",
+                ProviderRunOutcome.INCOMPLETE: "research.incomplete",
+                ProviderRunOutcome.ERROR: "research.error",
+            }[batch.outcome]
+            detail = (
+                batch.refusal
+                or batch.incomplete
+                or batch.error
+                or "OpenAI provider probe did not complete."
+            )
+            self.emit(
+                request_id,
+                terminal,
+                {
+                    "schemaVersion": PAYLOAD_SCHEMA_VERSION,
+                    "jobId": str(payload.job_id),
+                    "message": detail[:1_000],
+                    "providerOutcomes": outcomes_so_far(),
+                    "debugTrace": _provider_debug_trace_payload(debug, events),
+                    "stageCounts": counts,
+                },
+            )
+            return
+
+        metadata_batch = ProviderBatch(provider="tvmaze", evidence=(seed,))
+        workflow = ResearchWorkflow(
+            providers=[
+                ProviderPlan(
+                    FakeResearchProvider(
+                        name="tvmaze",
+                        operation="research.metadata",
+                        batches=[metadata_batch],
+                    ),
+                    _provider_debug_local_authorization(
+                        UUID(str(payload.job_id)),
+                        provider="tvmaze",
+                        operation="research.metadata",
+                        model=None,
+                        max_requests=1,
+                    ),
+                ),
+                ProviderPlan(
+                    FakeResearchProvider(
+                        name=DEBUG_PROVIDER,
+                        operation="research.web_verify",
+                        batches=[batch],
+                    ),
+                    _authorization(payload.job_id, capability),
+                ),
+            ],
+            synthesizer=_DebugEmptySynthesizer(),
+            synthesis_authorization=_provider_debug_local_authorization(
+                UUID(str(payload.job_id)),
+                provider="debug-offline-synthesis",
+                operation="research.synthesize",
+                model=None,
+                max_requests=0,
+            ),
+            official_hosts=set(),
+        )
+        output = workflow.run(
+            normalized,
+            generated_at=generated_at,
+            cancellation=token,
+            run_id=UUID(str(payload.research_run_id)),
+        )
+        counts = {
+            "rawProviderResults": _provider_debug_raw_result_count(events),
+            "parsedResults": len(batch.evidence),
+            "normalizedEvidence": output.stage_counts.normalized_evidence,
+            "evidenceSurvivingGates": (
+                output.stage_counts.evidence_surviving_gates
+            ),
+            "rankedOpportunities": output.stage_counts.ranked_opportunities,
+            "opportunitiesReturnedToUi": len(output.result.opportunities),
+        }
+        trace_event({"event": "pipeline.counts", **counts})
+        self.emit(
+            request_id,
+            "research.progress",
+            {
+                "schemaVersion": PAYLOAD_SCHEMA_VERSION,
+                "jobId": str(payload.job_id),
+                "percent": 100,
+                "phase": "DEVELOPMENT-ONLY provider probe validated",
+            },
+        )
+        self.emit(
+            request_id,
+            "research.result",
+            {
+                "schemaVersion": PAYLOAD_SCHEMA_VERSION,
+                "jobId": str(payload.job_id),
+                "result": _domain_payload(output.result),
+                "evidenceSources": [
+                    _domain_payload(item) for item in output.evidence_sources
+                ],
+                "evidenceClaims": [
+                    _domain_payload(item) for item in output.evidence_claims
+                ],
+                "providerOutcomes": outcomes_so_far(),
+                "debugTrace": _provider_debug_trace_payload(debug, events),
+                "stageCounts": counts,
+            },
+        )
+
     def _execute_thread(
         self,
         request_id: UUID,
@@ -1006,6 +1492,16 @@ class _WorkerRuntime:
                     "phase": "validating capabilities",
                 },
             )
+            if _is_m1_provider_debug(payload):
+                self._run_m1_provider_debug(
+                    request_id,
+                    payload,
+                    normalized,
+                    token,
+                    record,
+                    outcomes_so_far,
+                )
+                return
             if _is_verifier_only_diagnostic(payload):
                 metadata_capability, capability = payload.capabilities
                 metadata_provider = _StartedProvider(

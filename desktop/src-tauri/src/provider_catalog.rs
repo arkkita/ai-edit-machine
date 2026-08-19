@@ -13,14 +13,30 @@ const CATALOG_JSON: &str = include_str!("../resources/provider-catalog.json");
 const RESEARCH_AUDIT: &str = include_str!("../../../docs/RESEARCH_AUDIT.md");
 const API_COSTS: &str = include_str!("../../../docs/API_COSTS.md");
 const CATALOG_SCHEMA: &str = "1.0.0";
-const CATALOG_REGISTRY: &str = "m1-2026-08-18-r72";
+const CATALOG_REGISTRY: &str = "m1-2026-08-19-r73";
 const OPENAI_MODEL: &str = "gpt-5.6-luna";
-const OPENAI_PRICE_CARD: &str = "54bc0aae-93e6-4473-95ef-b00d12ec2ca7";
+const OPENAI_PRICE_CARD: &str = "7f771320-9944-465d-98a1-924ed837fe34";
 const TVMAZE_CAST_SHOW_LIMIT: i64 = 8;
+#[cfg(debug_assertions)]
+pub(crate) const M1_PROVIDER_DEBUG_MODE: &str = "M1_PROVIDER_ONE_SHOT";
+#[cfg(debug_assertions)]
+pub(crate) const M1_PROVIDER_DEBUG_RUN_SCOPE: &str = "m1-provider-debug-live-2026-08-19-v1";
+#[cfg(debug_assertions)]
+pub(crate) const M1_PROVIDER_DEBUG_MAX_REQUESTS: i64 = 8;
+#[cfg(debug_assertions)]
+pub(crate) const M1_PROVIDER_DEBUG_MAX_TOOL_CALLS: i64 = 1;
+#[cfg(debug_assertions)]
+pub(crate) const M1_PROVIDER_DEBUG_MAX_INPUT_TOKENS: i64 = 198_000;
+#[cfg(debug_assertions)]
+pub(crate) const M1_PROVIDER_DEBUG_MAX_OUTPUT_TOKENS: i64 = 300;
+#[cfg(debug_assertions)]
+pub(crate) const M1_PROVIDER_DEBUG_RESERVATION_MICRO_USD: i64 = 49_960;
+#[cfg(debug_assertions)]
+pub(crate) const M1_PROVIDER_DEBUG_HARD_CAP_MICRO_USD: i64 = 50_000;
 pub const BUNDLE_CACHE_NAMESPACE: &str = "research-bundle-v2";
 pub const BUNDLE_CACHE_SCHEMA: &str = "research-result-bundle/2.0.0";
-pub const BUNDLE_CACHE_MODEL: &str = "openai:gpt-5.6-luna|catalog:m1-2026-08-18-r72";
-pub const BUNDLE_CACHE_PROMPT: &str = "m1-research-2026-08-18-r68+catalog:m1-2026-08-18-r72";
+pub const BUNDLE_CACHE_MODEL: &str = "openai:gpt-5.6-luna|catalog:m1-2026-08-19-r73";
+pub const BUNDLE_CACHE_PROMPT: &str = "m1-research-2026-08-19-r69+catalog:m1-2026-08-19-r73";
 pub const BUNDLE_CACHE_POLICY: &str = "openai-web-evidence-v1";
 
 #[derive(Debug, Deserialize)]
@@ -248,6 +264,75 @@ pub fn build_openai_verifier_diagnostic_plan(
     ))
 }
 
+/// Build the one fixed development-only provider probe authorized on
+/// 2026-08-19. Release builds do not contain this function or its narrower
+/// provider-configuration exception.
+#[cfg(debug_assertions)]
+pub fn build_m1_provider_debug_plan(database: &Database, now_ms: i64) -> AppResult<Vec<PlannedCallInput>> {
+    let openai = policy(database, "openai", now_ms)?;
+    let (openai, resolved_model, price_id, prices) = openai_paid_binding(database, openai, now_ms)?;
+    let config = match openai.provider_config.clone() {
+        ProviderConfig::OpenaiWeb {
+            registry_version, official_hosts, search_context_size,
+            request_body_max_input_tokens, ..
+        } => ProviderConfig::OpenaiWeb {
+            registry_version, official_hosts, search_context_size,
+            request_body_max_input_tokens,
+            request_max_tool_calls: M1_PROVIDER_DEBUG_MAX_TOOL_CALLS,
+        },
+        _ => return Err(AppError::DatabaseInvariant("OpenAI provider-debug registry is invalid".to_owned())),
+    };
+    let call = paid_call(
+        &openai, &resolved_model, price_id, "research.web_verify", config,
+        M1_PROVIDER_DEBUG_MAX_REQUESTS, M1_PROVIDER_DEBUG_MAX_TOOL_CALLS,
+        M1_PROVIDER_DEBUG_MAX_INPUT_TOKENS, M1_PROVIDER_DEBUG_MAX_OUTPUT_TOKENS,
+        false,
+        vec![
+            component("input_primary", M1_PROVIDER_DEBUG_MAX_INPUT_TOKENS, 1_000_000, "INPUT_TOKEN", price(&prices, "input_primary")?)?,
+            component("cached_input_primary", 0, 1_000_000, "CACHED_INPUT_TOKEN", price(&prices, "cached_input_primary")?)?,
+            component("output_primary", M1_PROVIDER_DEBUG_MAX_OUTPUT_TOKENS, 1_000_000, "OUTPUT_TOKEN", price(&prices, "output_primary")?)?,
+            component("web_search_tool", M1_PROVIDER_DEBUG_MAX_TOOL_CALLS, 1, "TOOL_CALL", price(&prices, "web_search_tool")?)?,
+        ],
+        "Replay the sanitized fixture locally; this probe is development-only.",
+    )?;
+    if call.reservation_micro_usd != M1_PROVIDER_DEBUG_RESERVATION_MICRO_USD
+        || call.reservation_micro_usd > M1_PROVIDER_DEBUG_HARD_CAP_MICRO_USD
+    {
+        return Err(AppError::Budget("provider-debug price card no longer fits the $0.05 hard cap".to_owned()));
+    }
+    Ok(vec![call])
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn is_exact_m1_provider_debug_call(call: &PlannedCallInput, trusted: &ProviderConfig) -> bool {
+    let (
+        ProviderConfig::OpenaiWeb {
+            registry_version: call_registry, official_hosts: call_hosts,
+            search_context_size: call_context, request_body_max_input_tokens: call_body_input,
+            request_max_tool_calls: call_request_tools,
+        },
+        ProviderConfig::OpenaiWeb {
+            registry_version: trusted_registry, official_hosts: trusted_hosts,
+            search_context_size: trusted_context, request_body_max_input_tokens: trusted_body_input,
+            request_max_tool_calls: trusted_request_tools,
+        },
+    ) = (&call.provider_config, trusted) else { return false; };
+    call.provider == "openai"
+        && call.operation == "research.web_verify"
+        && call.configured_model.as_deref() == Some(OPENAI_MODEL)
+        && call.resolved_model.as_deref() == Some(OPENAI_MODEL)
+        && call.reservation_micro_usd == M1_PROVIDER_DEBUG_RESERVATION_MICRO_USD
+        && call.max_requests == M1_PROVIDER_DEBUG_MAX_REQUESTS
+        && call.max_tool_calls == M1_PROVIDER_DEBUG_MAX_TOOL_CALLS
+        && call.max_input_tokens == M1_PROVIDER_DEBUG_MAX_INPUT_TOKENS
+        && call.max_output_tokens == M1_PROVIDER_DEBUG_MAX_OUTPUT_TOKENS
+        && !call.allow_one_repair
+        && call_registry == trusted_registry && call_hosts == trusted_hosts
+        && call_context == trusted_context && call_body_input == trusted_body_input
+        && *call_request_tools == M1_PROVIDER_DEBUG_MAX_TOOL_CALLS
+        && *trusted_request_tools >= *call_request_tools
+}
+
 fn tvmaze_request_ceiling(freshness_days: i64) -> i64 {
     // TVmaze schedules are calendar-day endpoints, but canonical freshness
     // is a rolling duration. Include the oldest partial calendar day; Python
@@ -446,7 +531,7 @@ mod tests {
     fn embedded_catalog_is_strict_and_not_future_dated() {
         let value = crate::worker::protocol::parse_strict_json_bytes(CATALOG_JSON.as_bytes()).unwrap();
         let catalog: Catalog = serde_json::from_value(value).unwrap();
-        validate_catalog(&catalog, 1_787_050_800_000).unwrap();
+        validate_catalog(&catalog, 1_787_140_000_000).unwrap();
         assert!(validate_catalog(&catalog, catalog.policies[0].checked_at_unix_ms - 1).is_err());
     }
 
@@ -460,7 +545,7 @@ mod tests {
             params![prior_id, "3328e5c570bcc5c956e73fedcacb68226453fc433b60c605d43a903ac722e9e0"],
         ).unwrap();
 
-        install(&mut database, 1_787_050_800_000).unwrap();
+        install(&mut database, 1_787_140_000_000).unwrap();
 
         let prior_count: i64 = database.connection().query_row(
             "SELECT COUNT(*) FROM price_card WHERE id=?1",
@@ -479,7 +564,7 @@ mod tests {
 
     #[test]
     fn consumed_verifier_diagnostic_authorization_cannot_be_reused() {
-        let now_ms = 1_787_050_800_000;
+        let now_ms = 1_787_140_000_000;
         let mut database = Database::open_in_memory().unwrap();
         install(&mut database, now_ms).unwrap();
         database
@@ -503,8 +588,43 @@ mod tests {
     }
 
     #[test]
+    fn development_provider_debug_plan_is_exactly_one_call_under_five_cents() {
+        let now_ms = 1_787_140_000_000;
+        let mut database = Database::open_in_memory().unwrap();
+        install(&mut database, now_ms).unwrap();
+        database.upsert_model_preflight(&ModelPreflightInput {
+            provider: "openai",
+            configured_model: OPENAI_MODEL,
+            resolved_model: Some(OPENAI_MODEL),
+            available: true,
+            retention_mode: "up to 30 days abuse monitoring unless approved controls apply",
+            data_use_mode: "API data is not used for training by default",
+            no_storage_mode: "store=false for Responses; stronger ZDR is not assumed",
+            privacy_mode: "store_false",
+            checked_at_ms: now_ms,
+            expires_at_ms: now_ms + 3_600_000,
+        }).unwrap();
+
+        let calls = build_m1_provider_debug_plan(&database, now_ms).unwrap();
+
+        assert_eq!(calls.len(), 1);
+        let call = &calls[0];
+        assert_eq!(call.operation, "research.web_verify");
+        assert_eq!(call.max_requests, M1_PROVIDER_DEBUG_MAX_REQUESTS);
+        assert_eq!(call.max_tool_calls, 1);
+        assert_eq!(call.max_input_tokens, 198_000);
+        assert_eq!(call.max_output_tokens, 300);
+        assert_eq!(call.reservation_micro_usd, 49_960);
+        assert!(!call.allow_one_repair);
+        assert!(is_exact_m1_provider_debug_call(
+            call,
+            &policy(&database, "openai", now_ms).unwrap().provider_config,
+        ));
+    }
+
+    #[test]
     fn exact_quality_bar_prompt_gets_widened_bounded_metadata_plan() {
-        let now_ms = 1_787_050_800_000;
+        let now_ms = 1_787_140_000_000;
         let mut database = Database::open_in_memory().unwrap();
         install(&mut database, now_ms).unwrap();
         database
@@ -545,16 +665,16 @@ mod tests {
         assert_eq!(calls[1].max_tool_calls, 14);
         assert_eq!(calls[1].max_input_tokens, 170_000);
         assert_eq!(calls[1].max_output_tokens, 5_333);
-        assert_eq!(calls[1].reservation_micro_usd, 341_998);
+        assert_eq!(calls[1].reservation_micro_usd, 180_400);
         assert_eq!(calls[2].provider, "youtube");
         assert_eq!(calls[2].operation, "research.youtube");
         assert_eq!(calls[2].max_requests, 5);
         assert_eq!(calls[2].reservation_micro_usd, 0);
         assert_eq!(calls[3].operation, "research.synthesize");
-        assert_eq!(calls[3].reservation_micro_usd, 156_000);
+        assert_eq!(calls[3].reservation_micro_usd, 31_200);
         assert_eq!(
             calls.iter().map(|call| call.reservation_micro_usd).sum::<i64>(),
-            497_998
+            211_600
         );
         assert_eq!(tvmaze_request_ceiling(1), 12);
         assert_eq!(tvmaze_request_ceiling(7), 24);
@@ -564,7 +684,7 @@ mod tests {
 
     #[test]
     fn film_and_trailer_plan_does_not_schedule_tvmaze() {
-        let now_ms = 1_787_050_800_000;
+        let now_ms = 1_787_140_000_000;
         let mut database = Database::open_in_memory().unwrap();
         install(&mut database, now_ms).unwrap();
         database
@@ -603,7 +723,7 @@ mod tests {
         assert_eq!(calls[2].operation, "research.synthesize");
         assert_eq!(
             calls.iter().map(|call| call.reservation_micro_usd).sum::<i64>(),
-            497_998
+            211_600
         );
     }
 }

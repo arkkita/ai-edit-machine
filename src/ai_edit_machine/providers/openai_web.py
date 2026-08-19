@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 from html.parser import HTMLParser
-from typing import Annotated, Self
+from typing import Annotated, Callable, Self
 from urllib.parse import unquote, urlsplit
 
 from pydantic import AwareDatetime, Field, HttpUrl, ValidationError, model_validator
@@ -1005,6 +1005,7 @@ class OpenAIWebVerifier:
         official_only: bool = False,
         transport: JsonTransport | None = None,
         page_transport: TextTransport | None = None,
+        now_fn: Callable[[], datetime] | None = None,
     ) -> None:
         if not model:
             raise ValueError("OpenAI verifier model cannot be empty")
@@ -1029,6 +1030,7 @@ class OpenAIWebVerifier:
         self._official_only = official_only
         self._transport = transport or UrllibJsonTransport(max_attempts=1)
         self._page_transport = page_transport or UrllibTextTransport()
+        self._now_fn = now_fn or (lambda: datetime.now(timezone.utc))
 
     @property
     def official_domains(self) -> tuple[str, ...]:
@@ -1056,9 +1058,16 @@ class OpenAIWebVerifier:
             )
         meter = CallMeter(authorization)
         cancellation.raise_if_cancelled()
-        collection_now = datetime.now(timezone.utc)
+        collection_now = self._now_fn()
+        if collection_now.tzinfo is None or collection_now.utcoffset() is None:
+            raise ValueError("OpenAI verifier clock must be timezone aware")
+        collection_now = collection_now.astimezone(timezone.utc)
         trusted_tvmaze_seeds = _verification_seed_slate(
-            _trusted_tvmaze_episode_seeds(context, intent=intent),
+            _trusted_tvmaze_episode_seeds(
+                context,
+                intent=intent,
+                now=collection_now,
+            ),
             intent=intent,
             now=collection_now,
         )
@@ -2446,7 +2455,7 @@ class OpenAIWebVerifier:
                 else response_payloads[0]
             )
         )
-        now = datetime.now(timezone.utc)
+        now = collection_now
         cutoff = now - timedelta(days=intent.freshness_days)
         try:
             raw_output_text = _extract_output_text(response_payload)
@@ -6031,10 +6040,13 @@ def _trusted_tvmaze_episode_seeds(
     context: ProviderResearchContext,
     *,
     intent: ResearchIntentV2,
+    now: datetime,
 ) -> tuple[_TrustedTVmazeEpisodeSeed, ...]:
     """Translate only exact, current TVmaze facts into bounded search targets."""
 
-    now = datetime.now(timezone.utc)
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("TVmaze seed clock must be timezone aware")
+    now = now.astimezone(timezone.utc)
     cutoff = now - timedelta(days=intent.freshness_days)
     cast_by_show: dict[str, set[str]] = {}
     performers_by_show: dict[str, set[str]] = {}

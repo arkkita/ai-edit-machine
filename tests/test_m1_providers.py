@@ -272,6 +272,7 @@ class ProviderTests(unittest.TestCase):
             intent=intent_from_query(
                 "a good show for girls thatll get views on tiktok"
             ),
+            now=NOW,
         )
         furious = next(seed for seed in seeds if seed.show_or_title == "Furious")
         live_shaped_page = _parse_page(
@@ -3316,7 +3317,7 @@ class ProviderTests(unittest.TestCase):
             "a good show for girls that'll get views on tiktok"
         )
         seeds = _trusted_tvmaze_episode_seeds(
-            _eight_seed_tvmaze_context(), intent=intent
+            _eight_seed_tvmaze_context(), intent=intent, now=NOW
         )
         future = _openai_tv_selector_payload(
             [
@@ -3358,7 +3359,7 @@ class ProviderTests(unittest.TestCase):
             "a good show for girls that'll get views on tiktok"
         )
         seeds = _trusted_tvmaze_episode_seeds(
-            _eight_seed_tvmaze_context(), intent=intent
+            _eight_seed_tvmaze_context(), intent=intent, now=NOW
         )
         promoted = next(
             seed for seed in seeds if seed.show_or_title == "Candidate Show 7"
@@ -5923,6 +5924,7 @@ class ProviderTests(unittest.TestCase):
         seeds = _trusted_tvmaze_episode_seeds(
             ProviderResearchContext(prior_evidence=result.evidence),
             intent=intent,
+            now=NOW,
         )
         self.assertEqual(seeds[0].show_or_title, "Regional Romance")
 
@@ -6102,6 +6104,7 @@ class ProviderTests(unittest.TestCase):
         seeds = _trusted_tvmaze_episode_seeds(
             ProviderResearchContext(prior_evidence=batch.evidence),
             intent=intent,
+            now=NOW,
         )
 
         self.assertEqual(intent.freshness_days, 14)

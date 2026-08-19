@@ -93,6 +93,10 @@ pub struct ResearchResultPayload {
     pub evidence_sources: Vec<Value>,
     pub evidence_claims: Vec<Value>,
     pub provider_outcomes: Vec<ProviderOutcome>,
+    #[serde(default)]
+    pub debug_trace: Option<ProviderDebugTrace>,
+    #[serde(default)]
+    pub stage_counts: Option<ProviderDebugStageCounts>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -103,6 +107,30 @@ pub struct ResearchTerminalDetail {
     pub message: String,
     #[serde(default)]
     pub provider_outcomes: Vec<ProviderOutcome>,
+    #[serde(default)]
+    pub debug_trace: Option<ProviderDebugTrace>,
+    #[serde(default)]
+    pub stage_counts: Option<ProviderDebugStageCounts>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ProviderDebugTrace {
+    pub schema_version: String,
+    pub development_only: bool,
+    pub trace_id: Uuid,
+    pub events: Vec<Value>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ProviderDebugStageCounts {
+    pub raw_provider_results: i64,
+    pub parsed_results: i64,
+    pub normalized_evidence: i64,
+    pub evidence_surviving_gates: i64,
+    pub ranked_opportunities: i64,
+    pub opportunities_returned_to_ui: i64,
 }
 
 #[derive(Debug, Clone, Deserialize)]

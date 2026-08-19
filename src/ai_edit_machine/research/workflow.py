@@ -62,10 +62,29 @@ from .source_ownership import (
 from .synthesis import ResearchSynthesizer, SynthesisProviderResult
 
 
+_FEMALE_CENTERED_FOCUS = "female-centered"
+_FEMALE_CENTERED_EVIDENCE = re.compile(
+    r"(?:\bfemale[\s-]*(?:centered|centred|focused|led)\b|"
+    r"\b(?:girls?|women|woman)\b|\b(?:mother|daughter|sister)s?\b)",
+    re.IGNORECASE,
+)
+
+
 @dataclass(frozen=True, slots=True)
 class ProviderPlan:
     provider: ResearchProvider
     authorization: CallAuthorization
+
+
+@dataclass(frozen=True, slots=True)
+class ResearchStageCounts:
+    """Non-contract observability for the deterministic M1 pipeline."""
+
+    parsed_results: int
+    normalized_evidence: int
+    evidence_surviving_gates: int
+    ranked_opportunities: int
+    opportunities_returned_to_ui: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +94,7 @@ class ResearchWorkflowOutput:
     evidence_claims: tuple[EvidenceClaimRecordV2, ...]
     provider_batches: tuple[ProviderBatch, ...]
     synthesis: SynthesisProviderResult | None
+    stage_counts: ResearchStageCounts
 
 
 class ResearchWorkflow:
@@ -203,6 +223,13 @@ class ResearchWorkflow:
                 evidence_claims=tuple(claims),
                 provider_batches=tuple(batches),
                 synthesis=None,
+                stage_counts=ResearchStageCounts(
+                    parsed_results=sum(len(item.evidence) for item in batches),
+                    normalized_evidence=len(claims),
+                    evidence_surviving_gates=0,
+                    ranked_opportunities=0,
+                    opportunities_returned_to_ui=0,
+                ),
             )
 
         synthesis_sources, synthesis_claims = _select_synthesis_evidence(
@@ -229,6 +256,13 @@ class ResearchWorkflow:
                 evidence_claims=tuple(claims),
                 provider_batches=tuple(batches),
                 synthesis=None,
+                stage_counts=ResearchStageCounts(
+                    parsed_results=sum(len(item.evidence) for item in batches),
+                    normalized_evidence=len(claims),
+                    evidence_surviving_gates=0,
+                    ranked_opportunities=0,
+                    opportunities_returned_to_ui=0,
+                ),
             )
         synthesis = self._synthesizer.synthesize(
             intent,
@@ -263,6 +297,7 @@ class ResearchWorkflow:
                     intent,
                     recommendation.opportunity,
                     recommendation.footage_request,
+                    evidence_index=evidence_index,
                 )
             except (ValueError, KeyError) as error:
                 rejected += 1
@@ -387,6 +422,7 @@ class ResearchWorkflow:
                         intent,
                         upgrade_opportunity_draft,
                         upgrade_footage_draft,
+                        evidence_index=evidence_index,
                     )
                     opportunity_id = self._uuid_factory()
                     request_id = self._uuid_factory()
@@ -464,7 +500,10 @@ class ResearchWorkflow:
             metadata_fallback_titles.add(fallback_title)
             try:
                 _validate_pair_against_intent(
-                    intent, opportunity_draft, footage_draft
+                    intent,
+                    opportunity_draft,
+                    footage_draft,
+                    evidence_index=evidence_index,
                 )
                 opportunity_id = self._uuid_factory()
                 request_id = self._uuid_factory()
@@ -539,7 +578,10 @@ class ResearchWorkflow:
                 opportunity_draft, footage_draft = fallback
                 try:
                     _validate_pair_against_intent(
-                        intent, opportunity_draft, footage_draft
+                        intent,
+                        opportunity_draft,
+                        footage_draft,
+                        evidence_index=evidence_index,
                     )
                     opportunity_id = self._uuid_factory()
                     request_id = self._uuid_factory()
@@ -618,6 +660,13 @@ class ResearchWorkflow:
             evidence_claims=tuple(claims),
             provider_batches=tuple(batches),
             synthesis=synthesis,
+            stage_counts=ResearchStageCounts(
+                parsed_results=sum(len(item.evidence) for item in batches),
+                normalized_evidence=len(claims),
+                evidence_surviving_gates=len(synthesis_claims),
+                ranked_opportunities=len(canonical_pairs),
+                opportunities_returned_to_ui=len(result.opportunities),
+            ),
         )
 
 
@@ -817,6 +866,38 @@ def _claim_search_text(claim: EvidenceClaimRecordV2) -> str:
     return " ".join(values)
 
 
+def _required_focus_is_supported(
+    intent: ResearchIntentV2,
+    show_or_title: str,
+    claims: list[EvidenceClaimRecordV2],
+    source_by_id: dict[UUID, EvidenceSourceRecordV2],
+) -> bool:
+    """Require source-owned support for explicit audience-fit constraints.
+
+    ``female-centered`` is a deterministic user constraint, not a genre guess or
+    model-writable label.  A title can pass only when one of its selected,
+    normalized evidence records explicitly carries a female-centered cue.  Cast
+    names and the model's own opportunity prose never establish this property.
+    """
+
+    required = {_normalized(value) for value in intent.focus_terms}
+    if _FEMALE_CENTERED_FOCUS not in required:
+        return True
+    normalized_title = _normalized(show_or_title)
+    for claim in claims:
+        source = source_by_id.get(UUID(str(claim.source_id)))
+        if source is None:
+            continue
+        claim_title = _normalized(_claim_show_or_title(claim) or "")
+        if claim_title != normalized_title and not _source_matches_show(
+            source, show_or_title
+        ):
+            continue
+        if _FEMALE_CENTERED_EVIDENCE.search(source.title):
+            return True
+    return False
+
+
 def _could_support_recommendation(
     sources: list[EvidenceSourceRecordV2],
     claims: list[EvidenceClaimRecordV2],
@@ -859,10 +940,20 @@ def _could_support_recommendation(
         identity = primary_claim.why_now_event.media_identity if primary_claim.why_now_event else None
         if identity is None or identity.media_kind not in intent.media_kinds:
             continue
-        relevant_signal_groups = {
-            source.independence_group
-            for _, source in signals
+        relevant_signals = [
+            (claim, source)
+            for claim, source in signals
             if _source_matches_show(source, identity.show_or_title)
+        ]
+        if not _required_focus_is_supported(
+            intent,
+            identity.show_or_title,
+            [primary_claim, *(claim for claim, _ in relevant_signals)],
+            source_by_id,
+        ):
+            continue
+        relevant_signal_groups = {
+            source.independence_group for _, source in relevant_signals
         }
         groups = {primary_source.independence_group, *relevant_signal_groups}
         # The normal gate remains two independent discussion sources. One
@@ -886,12 +977,22 @@ def _could_support_recommendation(
     ]
     for metadata_claim, metadata_source in metadata:
         assert metadata_claim.episode_locator is not None
-        relevant_signal_groups = {
-            source.independence_group
-            for _, source in signals
+        relevant_signals = [
+            (claim, source)
+            for claim, source in signals
             if _source_matches_show(
                 source, metadata_claim.episode_locator.show_or_title
             )
+        ]
+        if not _required_focus_is_supported(
+            intent,
+            metadata_claim.episode_locator.show_or_title,
+            [metadata_claim, *(claim for claim, _ in relevant_signals)],
+            source_by_id,
+        ):
+            continue
+        relevant_signal_groups = {
+            source.independence_group for _, source in relevant_signals
         }
         groups = {metadata_source.independence_group, *relevant_signal_groups}
         # Metadata is never promoted to an official primary. Two independent,
@@ -1009,6 +1110,13 @@ def _select_synthesis_evidence(
                 source_by_id[UUID(str(signal.source_id))], show_or_title
             )
         ]
+        if not _required_focus_is_supported(
+            intent,
+            show_or_title,
+            [identity_claim, *relevant_signals],
+            source_by_id,
+        ):
+            continue
         signal_groups = {
             source_by_id[UUID(str(signal.source_id))].independence_group
             for signal in relevant_signals
@@ -1147,6 +1255,10 @@ def _synthesis_rejection_code(stage: str, error: Exception) -> str:
         ("footage request named a character outside", "footage-character-mismatch"),
         ("synthesized media kind is outside", "media-kind-mismatch"),
         ("synthesized recommendation violates an explicit exclusion", "exclusion"),
+        (
+            "opportunity evidence does not support a required audience focus",
+            "required-audience-focus",
+        ),
         ("spoiler-avoid intent permits official promotional footage only", "spoiler-policy"),
     )
     code = next((value for prefix, value in known if message.startswith(prefix)), "other-local-validation")
@@ -2272,6 +2384,8 @@ def _validate_pair_against_intent(
     intent: ResearchIntentV2,
     opportunity: TrendOpportunityDraftV2,
     footage: FootageRequestDraftV2,
+    *,
+    evidence_index: EvidenceIndex | None = None,
 ) -> None:
     if opportunity.media_kind not in intent.media_kinds:
         raise ValueError("synthesized media kind is outside the intent")
@@ -2284,6 +2398,20 @@ def _validate_pair_against_intent(
     )
     if violates_exclusions(displayed, intent):
         raise ValueError("synthesized recommendation violates an explicit exclusion")
+    if evidence_index is not None:
+        selected_claims = [
+            evidence_index.joined(UUID(str(item.claim_id)))[0]
+            for item in opportunity.evidence
+        ]
+        if not _required_focus_is_supported(
+            intent,
+            opportunity.media_identity.show_or_title,
+            selected_claims,
+            evidence_index.sources,
+        ):
+            raise ValueError(
+                "opportunity evidence does not support a required audience focus"
+            )
     source_title = _normalized(opportunity.media_identity.show_or_title)
     all_sources = [
         *footage.required_sources,

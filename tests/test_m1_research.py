@@ -560,7 +560,112 @@ class M1ResearchTests(unittest.TestCase):
         self.assertEqual(intent.focus_terms, ["female-centered"])
         self.assertNotIn("romance", intent.focus_terms)
 
-    def test_multi_title_gate_fills_every_distinct_card_synthesis_omits(self) -> None:
+    def test_explicit_female_audience_cannot_pass_on_title_only_discussion(self) -> None:
+        title = "Stuart Fails to Save the Universe"
+        locator = EpisodeLocatorFactV2(
+            show_or_title=title,
+            season_number=1,
+            episode_number=4,
+            episode_title="Spoiler: Stuart Makes a Wallet",
+        )
+        metadata = EvidenceCandidate(
+            provider="tvmaze",
+            provider_record_id="404",
+            source_type=EvidenceSourceType.METADATA,
+            canonical_url="https://www.tvmaze.com/episodes/404/spoiler-stuart-makes-a-wallet",
+            title=f"{title} — S01E04: Spoiler: Stuart Makes a Wallet",
+            author_or_channel="TVmaze",
+            excerpt_type=ExcerptType.PARAPHRASE,
+            excerpt="TVmaze lists Spoiler: Stuart Makes a Wallet as Season 1 Episode 4.",
+            verification=VerificationState.SECONDARY_CORROBORATED,
+            claim_kind=EvidenceClaimKind.EPISODE_IDENTITY,
+            supports_why_now=False,
+            policy_class="tvmaze-metadata-v1",
+            event_or_release_at=NOW - timedelta(hours=1),
+            citation_verified=True,
+            episode_locator=locator,
+        )
+
+        def discussion(*, host: str, slug: str, headline: str) -> EvidenceCandidate:
+            url = f"https://{host}/{slug}"
+            return EvidenceCandidate(
+                provider="openai",
+                provider_record_id=tvmaze_show_source_binding(title, url),
+                source_type=EvidenceSourceType.ARTICLE,
+                canonical_url=url,
+                title=headline,
+                author_or_channel=None,
+                excerpt_type=ExcerptType.PARAPHRASE,
+                excerpt=f"Current cited-source title: {headline}",
+                verification=VerificationState.SECONDARY_CORROBORATED,
+                claim_kind=EvidenceClaimKind.VIEWER_DISCUSSION,
+                supports_why_now=True,
+                policy_class="openai-web-evidence-v1",
+                source_created_at=NOW - timedelta(hours=1),
+                page_published_at=NOW - timedelta(hours=1),
+                window_start=NOW - timedelta(days=3),
+                window_end=NOW,
+                citation_verified=True,
+                content_binding_verified=True,
+            )
+
+        discussions = (
+            discussion(
+                host="tomsguide.com",
+                slug="matrix-joke",
+                headline="How much effort it took to pull off that Matrix joke",
+            ),
+            discussion(
+                host="variety.com",
+                slug="similar-shows",
+                headline="Ten shows with similar ensemble comedy",
+            ),
+        )
+
+        class SynthesisMustNotRun:
+            name = "openai"
+
+            def synthesize(self, *args, **kwargs):
+                del args, kwargs
+                raise AssertionError(
+                    "unsupported audience evidence must fail before paid synthesis"
+                )
+
+        workflow = ResearchWorkflow(
+            providers=[
+                ProviderPlan(
+                    FakeResearchProvider(
+                        name="tvmaze",
+                        operation="research.metadata",
+                        batches=[ProviderBatch(provider="tvmaze", evidence=(metadata,))],
+                    ),
+                    _authorization("tvmaze", "research.metadata"),
+                ),
+                ProviderPlan(
+                    FakeResearchProvider(
+                        name="openai",
+                        operation="research.web_verify",
+                        batches=[ProviderBatch(provider="openai", evidence=discussions)],
+                    ),
+                    _authorization("openai", "research.web_verify"),
+                ),
+            ],
+            synthesizer=SynthesisMustNotRun(),
+            synthesis_authorization=_authorization("openai", "research.synthesize"),
+            official_hosts=set(),
+        )
+
+        output = workflow.run(
+            intent_from_query("a good show for girls that'll get views on tiktok"),
+            generated_at=NOW,
+            cancellation=CancellationToken(),
+        )
+
+        self.assertEqual(output.result.status.value, "NO_STRONG_OPPORTUNITY")
+        self.assertEqual(output.result.opportunities, [])
+        self.assertIsNone(output.synthesis)
+
+    def test_female_audience_gate_fills_every_distinct_supported_title(self) -> None:
         def metadata(
             *, title: str, record_id: int, episode_number: int
         ) -> EvidenceCandidate:
@@ -597,9 +702,9 @@ class M1ResearchTests(unittest.TestCase):
         ) -> EvidenceCandidate:
             url = f"https://{host}/{slug}"
             headline = (
-                f"{title}: a quiet family reconciliation gives the premiere its emotional center"
+                f"{title}: women at the center of a quiet family reconciliation"
                 if host == "tomsguide.com"
-                else f"{title} finale review weighs an abrupt career decision and ensemble chemistry"
+                else f"{title} review weighs the female-led ensemble's abrupt career decision"
             )
             return EvidenceCandidate(
                 provider="openai",
@@ -684,7 +789,7 @@ class M1ResearchTests(unittest.TestCase):
         )
 
         output = workflow.run(
-            intent_from_query("Find two current TV episodes"),
+            intent_from_query("a good show for girls thatll get views on tiktok"),
             generated_at=NOW,
             cancellation=CancellationToken(),
         )

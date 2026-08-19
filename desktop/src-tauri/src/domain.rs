@@ -33,6 +33,7 @@ impl CanonicalResearchIntent {
     pub fn region(&self) -> &str { &self.region }
     pub fn query(&self) -> &str { &self.query }
     pub fn media_kinds(&self) -> &[String] { &self.media_kinds }
+    pub fn focus_terms(&self) -> &[String] { &self.focus_terms }
     pub fn spoiler_policy(&self) -> &str { &self.spoiler_policy }
     pub fn exclusions(&self) -> &[String] { &self.exclusions }
     pub fn to_canonical_json(&self) -> AppResult<String> {
@@ -1012,6 +1013,9 @@ fn validate_opportunity_and_request(
     {
         return Err("opportunity_header");
     }
+    if !required_focus_is_supported(opportunity, intent, now, sources, claims) {
+        return Err("opportunity_required_focus");
+    }
     if !validate_footage_request(request, opportunity, intent, sources, claims, all_ids) {
         return Err("footage_request");
     }
@@ -1597,6 +1601,43 @@ fn focus_is_supported(
     }
     let tokens = meaningful_topic_tokens(&opportunity.focus.relationship_or_topic);
     tokens.is_empty() || tokens.iter().any(|token| corpus.contains(&format!(" {token} ")))
+}
+
+fn required_focus_is_supported(
+    opportunity: &Opportunity,
+    intent: &CanonicalResearchIntent,
+    now: Timestamp,
+    sources: &HashMap<Uuid, &EvidenceSource>,
+    claims: &HashMap<Uuid, &EvidenceClaim>,
+) -> bool {
+    if !intent.focus_terms.iter().any(|value| normalized_words(value) == "female centered") {
+        return true;
+    }
+    opportunity.evidence.iter().any(|reference| {
+        let Some(claim) = claims.get(&reference.claim_id) else { return false; };
+        let Some(source) = sources.get(&claim.source_id) else { return false; };
+        if !usable_evidence(claim, source, now) { return false; }
+        let structured_title_matches = [
+            claim.episode_locator.as_ref().map(|value| value.show_or_title.as_str()),
+            claim.quote_fact.as_ref().map(|value| value.media_identity.show_or_title.as_str()),
+            claim.scene_fact.as_ref().map(|value| value.show_or_title.as_str()),
+            claim.why_now_event.as_ref().map(|value| value.media_identity.show_or_title.as_str()),
+            claim.cast_fact.as_ref().map(|value| value.show_or_title.as_str()),
+        ].into_iter().flatten().any(|value| same_text(value, &opportunity.media_identity.show_or_title));
+        if !structured_title_matches && !evidence_source_binds_title(source, &opportunity.media_identity.show_or_title) {
+            return false;
+        }
+        female_centered_evidence(&source.title)
+    })
+}
+
+fn female_centered_evidence(value: &str) -> bool {
+    let normalized = format!(" {} ", normalized_words(value));
+    [
+        " female centered ", " female centred ", " female focused ", " female led ",
+        " girl ", " girls ", " woman ", " women ", " mother ", " mothers ",
+        " daughter ", " daughters ", " sister ", " sisters ",
+    ].iter().any(|term| normalized.contains(term))
 }
 
 fn discussion_matches_opportunity(opportunity: &Opportunity, source: &EvidenceSource) -> bool {
@@ -2833,6 +2874,28 @@ mod tests {
         // promoted an exact-episode article lead. The independent Rust boundary
         // must derive the same hook, direction, caveat, and scene request.
         validate_fixture(metadata_low_scene_fixture()).unwrap();
+    }
+
+    #[test]
+    fn explicit_female_audience_requires_source_backed_evidence() {
+        let mut fixture = metadata_low_scene_fixture();
+        fixture.intent.focus_terms = vec!["female-centered".into()];
+        fixture.result["intent"]["focusTerms"] = serde_json::json!(["female-centered"]);
+
+        let error = validate_fixture(fixture).unwrap_err().to_string();
+        assert!(error.contains("opportunity_required_focus"), "unexpected validation error: {error}");
+    }
+
+    #[test]
+    fn explicit_female_audience_accepts_source_owned_title_evidence() {
+        let mut fixture = metadata_low_scene_fixture();
+        fixture.intent.focus_terms = vec!["female-centered".into()];
+        fixture.result["intent"]["focusTerms"] = serde_json::json!(["female-centered"]);
+        fixture.sources[1]["title"] = "Example Show: a female-centered discussion of Ada and Bea".into();
+        fixture.sources[1] = finish_source(fixture.sources[1].clone());
+        fixture.claims[1] = finish_claim(fixture.claims[1].clone(), &fixture.sources[1]);
+
+        validate_fixture(fixture).unwrap();
     }
 
     #[test]

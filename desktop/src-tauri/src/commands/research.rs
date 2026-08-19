@@ -1,6 +1,12 @@
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use std::path::Path;
+#[cfg(debug_assertions)]
+use std::fs::OpenOptions;
+#[cfg(debug_assertions)]
+use std::io::Write;
+#[cfg(debug_assertions)]
+use std::path::PathBuf;
 
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
@@ -12,17 +18,32 @@ use crate::cost::ProviderConfig;
 use crate::credentials::{CredentialProvider, CredentialStore, WindowsCredentialStore};
 use crate::database::repositories::{
     BeginProviderRun, CachePutInput, JobRecord, NewCostPreview, NewResearchJob, ReconcileProviderRun,
-    ReservationCapability, DEFAULT_PROJECT_ID,
+    ReservationCapability, ReusableEvidenceSnapshot, DEFAULT_PROJECT_ID,
 };
 use crate::database::Database;
 use crate::domain::CanonicalResearchIntent;
 use crate::security::{limits, sha256_hex};
-use crate::worker::protocol::{self, ProviderOutcome, ProviderStarted, WorkerMessage};
+use crate::worker::protocol::{
+    self, ProviderDebugStageCounts, ProviderDebugTrace, ProviderOutcome, ProviderStarted,
+    WorkerMessage,
+};
 use crate::worker::WorkerSupervisor;
 use crate::{AppError, AppResult, AppState};
 
 const EXECUTION_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const PROMPT_VERSION: &str = "m1-research-2026-08-18-r61";
+#[cfg(debug_assertions)]
+const M1_PROVIDER_DEBUG_PROMPT: &str = "a good show for girls thatll get views on tiktok";
+#[cfg(debug_assertions)]
+const M1_PROVIDER_DEBUG_SEED_SHOW: &str = "The Real Housewives: Ultimate Girls Trip";
+#[cfg(debug_assertions)]
+const M1_PROVIDER_DEBUG_SEED_EPISODE_TITLE: &str = "Leather You Like It or Not";
+#[cfg(debug_assertions)]
+const M1_PROVIDER_DEBUG_SEED_EVENT_AT: &str = "2026-08-17T01:00:00Z";
+#[cfg(debug_assertions)]
+const M1_PROVIDER_DEBUG_SEED_URL: &str = "https://www.tvmaze.com/episodes/3686306/the-real-housewives-ultimate-girls-trip-5x02-leather-you-like-it-or-not";
+#[cfg(debug_assertions)]
+const M1_PROVIDER_DEBUG_SEED_RECORD_ID: &str = "3686306";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -130,6 +151,27 @@ struct ExecuteCapability<'a> {
 
 #[derive(Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct ProviderDebugSeedPayload<'a> {
+    show_or_title: &'a str,
+    season_number: i64,
+    episode_number: i64,
+    episode_title: &'a str,
+    event_or_release_at: &'a str,
+    canonical_url: &'a str,
+    provider_record_id: &'a str,
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct DevelopmentDebugPayload<'a> {
+    schema_version: &'static str,
+    mode: &'static str,
+    trace_id: Uuid,
+    seed: ProviderDebugSeedPayload<'a>,
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct ExecutePayload<'a> {
     schema_version: &'static str,
     job_id: Uuid,
@@ -141,6 +183,15 @@ struct ExecutePayload<'a> {
     reusable_evidence_sources: &'a [serde_json::Value],
     reusable_evidence_claims: &'a [serde_json::Value],
     generated_at: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    development_debug: Option<&'a DevelopmentDebugPayload<'a>>,
+}
+
+#[derive(Clone, Default)]
+struct ResearchExecutionReport {
+    debug_trace: Option<ProviderDebugTrace>,
+    stage_counts: Option<ProviderDebugStageCounts>,
+    generated_at: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -297,12 +348,7 @@ pub fn run_openai_verifier_diagnostic(
     let database = Arc::new(Mutex::new(database));
     let worker = Arc::new(Mutex::new(worker));
     let credentials: Arc<dyn CredentialStore> = Arc::new(WindowsCredentialStore);
-    let execution_error = execute_research(
-        job.id,
-        &database,
-        &worker,
-        credentials.as_ref(),
-    )
+    let execution_error = execute_research(job.id, &database, &worker, credentials.as_ref(), None, None)
     .err()
     .ok_or_else(|| {
         AppError::Worker(
@@ -383,6 +429,445 @@ pub fn run_openai_verifier_diagnostic(
         charged_or_held_micro_usd: cost.0,
         cost_state: cost.1,
     })
+}
+
+#[cfg(debug_assertions)]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct M1ProviderDebugReport {
+    pub schema_version: &'static str,
+    pub development_only: bool,
+    pub job_id: Uuid,
+    pub trace_id: Uuid,
+    pub hard_cap_micro_usd: i64,
+    pub reserved_micro_usd: i64,
+    pub provider: &'static str,
+    pub configured_model: Option<String>,
+    pub resolved_model: Option<String>,
+    pub provider_request_id: Option<String>,
+    pub provider_outcome: String,
+    pub requests: Option<i64>,
+    pub input_tokens: Option<i64>,
+    pub cached_input_tokens: Option<i64>,
+    pub output_tokens: Option<i64>,
+    pub reasoning_tokens: Option<i64>,
+    pub tool_invocations: Option<i64>,
+    pub charged_or_held_micro_usd: i64,
+    pub cost_state: String,
+    pub stage_counts: Option<ProviderDebugStageCounts>,
+    pub valid_opportunity: bool,
+    pub result: Option<serde_json::Value>,
+    pub sanitized_execution_error: Option<String>,
+    pub replay_fixture_path: Option<String>,
+    pub trace: Option<ProviderDebugTrace>,
+}
+
+/// Execute exactly one development-only M1 provider request without starting
+/// the desktop UI. The fixed intent, seed, quotas, price components, and
+/// durable run-scope budget cannot be supplied or widened from the command
+/// line. Release builds do not contain this function.
+#[cfg(debug_assertions)]
+pub fn run_m1_provider_debug_live(
+    database_path: &Path,
+    resource_dir: &Path,
+    worker_temp: &Path,
+    replay_fixture_path: &Path,
+) -> AppResult<M1ProviderDebugReport> {
+    if replay_fixture_path.exists()
+        || replay_fixture_path
+            .parent()
+            .is_none_or(|parent| !parent.is_dir())
+    {
+        return Err(AppError::Validation(
+            "provider-debug replay path must be a new file in an existing directory".to_owned(),
+        ));
+    }
+    eprintln!("DEVELOPMENT-ONLY: one OpenAI M1 provider request; hard cap $0.05; no synthesis");
+    let intent = ResearchIntentInput {
+        schema_version: "2.0.0".to_owned(),
+        prompt: M1_PROVIDER_DEBUG_PROMPT.to_owned(),
+        media_kinds: Some(vec!["TV_EPISODE".to_owned()]),
+        region: Some("US".to_owned()),
+        freshness_days: Some(14),
+        spoiler_policy: Some("CURRENT_EPISODE".to_owned()),
+        exclusions: Some(vec![]),
+        max_results: Some(5),
+    };
+    let (input_json, input_sha256) = intent.canonical_json_and_hash()?;
+    let now_ms = crate::unix_time_ms()?;
+    let mut database = Database::open(database_path)?;
+    crate::provider_catalog::install(&mut database, now_ms)?;
+    database.run_policy_maintenance(now_ms)?;
+    database.ensure_m1_provider_debug_budget(
+        crate::provider_catalog::M1_PROVIDER_DEBUG_RUN_SCOPE,
+        crate::provider_catalog::M1_PROVIDER_DEBUG_HARD_CAP_MICRO_USD,
+        now_ms,
+    )?;
+
+    let mut worker = WorkerSupervisor::from_paths(resource_dir, worker_temp);
+    let preview_request_id = Uuid::new_v4();
+    worker.start()?;
+    worker.send(
+        "research.preview",
+        preview_request_id,
+        PreviewPayload {
+            schema_version: protocol::PAYLOAD_SCHEMA_VERSION,
+            intent: &intent,
+            input_sha256: &input_sha256,
+            now_unix_ms: now_ms,
+        },
+    )?;
+    let normalized_value = match worker.receive(Duration::from_secs(15))? {
+        WorkerMessage::ResearchPreviewResult(payload) => payload.normalized_intent,
+        _ => {
+            worker.abort_request(preview_request_id);
+            return Err(AppError::Worker(
+                "worker returned the wrong provider-debug preview response".to_owned(),
+            ));
+        }
+    };
+    let normalized = crate::domain::parse_intent(normalized_value)?;
+    intent.validate_normalized(&normalized)?;
+    if normalized.focus_terms() != ["female-centered"] {
+        return Err(AppError::Security(
+            "provider-debug normalization lost the required audience focus".to_owned(),
+        ));
+    }
+    let normalized_json = normalized.to_canonical_json()?;
+    let calls = crate::provider_catalog::build_m1_provider_debug_plan(&database, now_ms)?;
+    if calls.len() != 1
+        || calls[0].provider != "openai"
+        || calls[0].operation != "research.web_verify"
+        || calls[0].reservation_micro_usd
+            != crate::provider_catalog::M1_PROVIDER_DEBUG_RESERVATION_MICRO_USD
+        || calls[0].max_requests != crate::provider_catalog::M1_PROVIDER_DEBUG_MAX_REQUESTS
+        || calls[0].max_tool_calls != crate::provider_catalog::M1_PROVIDER_DEBUG_MAX_TOOL_CALLS
+        || calls[0].max_input_tokens != crate::provider_catalog::M1_PROVIDER_DEBUG_MAX_INPUT_TOKENS
+        || calls[0].max_output_tokens
+            != crate::provider_catalog::M1_PROVIDER_DEBUG_MAX_OUTPUT_TOKENS
+        || calls[0].allow_one_repair
+    {
+        return Err(AppError::Security(
+            "development provider-debug plan escaped its fixed boundary".to_owned(),
+        ));
+    }
+    let preview = database.create_cost_preview(&NewCostPreview {
+        project_id: DEFAULT_PROJECT_ID,
+        run_scope_key: crate::provider_catalog::M1_PROVIDER_DEBUG_RUN_SCOPE,
+        input_sha256: &input_sha256,
+        normalized_intent_json: &normalized_json,
+        calls: &calls,
+        now_ms,
+        expires_at_ms: now_ms.saturating_add(5 * 60 * 1000),
+    })?;
+    if preview.maximum_cost_micro_usd
+        != crate::provider_catalog::M1_PROVIDER_DEBUG_RESERVATION_MICRO_USD
+        || preview.effective_hard_limit_micro_usd
+            > crate::provider_catalog::M1_PROVIDER_DEBUG_HARD_CAP_MICRO_USD
+    {
+        return Err(AppError::Budget(
+            "development provider-debug preview exceeded its fixed cap".to_owned(),
+        ));
+    }
+    let job = database.consume_preview_and_create_job(&NewResearchJob {
+        consent_token: preview.consent_token,
+        input_sha256: &input_sha256,
+        input_contract_json: &input_json,
+        raw_query: &intent.prompt,
+        schema_version: &intent.schema_version,
+        now_ms,
+    })?;
+    if !database.claim_research_execution(job.id, now_ms)? {
+        return Err(AppError::DatabaseInvariant(
+            "development provider-debug execution could not be claimed".to_owned(),
+        ));
+    }
+
+    let trace_id = Uuid::new_v4();
+    let development_debug = DevelopmentDebugPayload {
+        schema_version: protocol::PAYLOAD_SCHEMA_VERSION,
+        mode: crate::provider_catalog::M1_PROVIDER_DEBUG_MODE,
+        trace_id,
+        seed: ProviderDebugSeedPayload {
+            show_or_title: M1_PROVIDER_DEBUG_SEED_SHOW,
+            season_number: 5,
+            episode_number: 2,
+            episode_title: M1_PROVIDER_DEBUG_SEED_EPISODE_TITLE,
+            event_or_release_at: M1_PROVIDER_DEBUG_SEED_EVENT_AT,
+            canonical_url: M1_PROVIDER_DEBUG_SEED_URL,
+            provider_record_id: M1_PROVIDER_DEBUG_SEED_RECORD_ID,
+        },
+    };
+    let database = Arc::new(Mutex::new(database));
+    let worker = Arc::new(Mutex::new(worker));
+    let credentials: Arc<dyn CredentialStore> = Arc::new(WindowsCredentialStore);
+    let mut capture = ResearchExecutionReport::default();
+    let execution = execute_research(
+        job.id,
+        &database,
+        &worker,
+        credentials.as_ref(),
+        Some(&development_debug),
+        Some(&mut capture),
+    );
+    if let Ok(mut supervisor) = worker.lock() {
+        let _ = supervisor.stop();
+    }
+    let execution_error = execution
+        .as_ref()
+        .err()
+        .map(|error| crate::security::sanitized_error(&error.to_string()));
+    let execution_report = execution.unwrap_or(capture);
+    if let Some(error) = execution_error.as_deref() {
+        database
+            .lock()
+            .map_err(|_| AppError::Internal)?
+            .fail_job_safely(job.id, false, error, crate::unix_time_ms()?)?;
+    }
+
+    let database = database.lock().map_err(|_| AppError::Internal)?;
+    type ProviderRow = (
+        Option<String>,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        String,
+    );
+    let row: Option<ProviderRow> = database.connection().query_row(
+        "SELECT provider_request_id,outcome,configured_model,resolved_model,requests,input_tokens,cached_input_tokens,output_tokens,reasoning_tokens,tool_invocations,id FROM provider_run WHERE job_id=?1 AND provider='openai' ORDER BY started_at_ms DESC LIMIT 1",
+        [job.id.to_string()],
+        |row| Ok((
+            row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?,
+            row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?, row.get(9)?,
+            row.get(10)?,
+        )),
+    ).optional()?;
+    let row = match row {
+        Some(row) => row,
+        None => {
+            return Err(AppError::Worker(format!(
+                "development provider-debug made no provider request: {}",
+                execution_error.as_deref().unwrap_or("worker ended before provider start")
+            )));
+        }
+    };
+    let cost: (i64, String) = database.connection().query_row(
+        "SELECT micro_usd,state FROM cost_entry WHERE job_id=?1 AND provider_run_id=?2 AND state IN ('ACTUAL','UNVERIFIED') ORDER BY created_at_ms DESC LIMIT 1",
+        rusqlite::params![job.id.to_string(), row.10],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    ).optional()?.ok_or_else(|| AppError::DatabaseInvariant(
+        "development provider-debug did not reconcile its reservation".to_owned(),
+    ))?;
+    if cost.0 > crate::provider_catalog::M1_PROVIDER_DEBUG_HARD_CAP_MICRO_USD {
+        return Err(AppError::Budget(
+            "development provider-debug charge or hold exceeded $0.05".to_owned(),
+        ));
+    }
+    let record = database.job(job.id)?;
+    let result = record
+        .result_contract_json
+        .map(|value| serde_json::from_str::<serde_json::Value>(&value))
+        .transpose()
+        .map_err(|_| {
+            AppError::DatabaseInvariant("development provider-debug result is invalid".to_owned())
+        })?;
+    drop(database);
+
+    let valid_opportunity = result.as_ref().is_some_and(|value| {
+        value
+            .get("opportunities")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|items| !items.is_empty())
+    });
+    let fixture_written = if let (Some(trace), Some(generated_at)) = (
+        execution_report.debug_trace.as_ref(),
+        execution_report.generated_at.as_deref(),
+    ) {
+        validate_provider_debug_trace(trace, trace_id, credentials.as_ref())?;
+        write_provider_debug_replay_fixture(replay_fixture_path, trace, generated_at)?
+    } else {
+        None
+    };
+
+    Ok(M1ProviderDebugReport {
+        schema_version: protocol::PAYLOAD_SCHEMA_VERSION,
+        development_only: true,
+        job_id: job.id,
+        trace_id,
+        hard_cap_micro_usd: crate::provider_catalog::M1_PROVIDER_DEBUG_HARD_CAP_MICRO_USD,
+        reserved_micro_usd: crate::provider_catalog::M1_PROVIDER_DEBUG_RESERVATION_MICRO_USD,
+        provider: "openai",
+        configured_model: row.2,
+        resolved_model: row.3,
+        provider_request_id: row.0,
+        provider_outcome: row.1,
+        requests: row.4,
+        input_tokens: row.5,
+        cached_input_tokens: row.6,
+        output_tokens: row.7,
+        reasoning_tokens: row.8,
+        tool_invocations: row.9,
+        charged_or_held_micro_usd: cost.0,
+        cost_state: cost.1,
+        stage_counts: execution_report.stage_counts,
+        valid_opportunity,
+        result,
+        sanitized_execution_error: execution_error,
+        replay_fixture_path: fixture_written.map(|path| path.display().to_string()),
+        trace: execution_report.debug_trace,
+    })
+}
+
+#[cfg(debug_assertions)]
+fn validate_provider_debug_trace(
+    trace: &ProviderDebugTrace,
+    expected_trace_id: Uuid,
+    credentials: &dyn CredentialStore,
+) -> AppResult<()> {
+    if trace.schema_version != protocol::PAYLOAD_SCHEMA_VERSION
+        || !trace.development_only
+        || trace.trace_id != expected_trace_id
+        || trace.events.is_empty()
+    {
+        return Err(AppError::Security(
+            "development provider-debug trace identity is invalid".to_owned(),
+        ));
+    }
+    let serialized = serde_json::to_vec(trace)?;
+    let secret = credentials
+        .load(CredentialProvider::Openai)?
+        .ok_or_else(|| AppError::Credential("OpenAI credential is not configured".to_owned()))?;
+    if !secret.is_empty()
+        && serialized
+            .windows(secret.len())
+            .any(|candidate| candidate == secret.as_slice())
+    {
+        return Err(AppError::Security(
+            "development provider-debug trace contained a credential".to_owned(),
+        ));
+    }
+    let expected_trace = expected_trace_id.to_string();
+    for event in &trace.events {
+        if event.get("traceId").and_then(serde_json::Value::as_str) != Some(expected_trace.as_str())
+        {
+            return Err(AppError::Security(
+                "development provider-debug trace IDs diverged".to_owned(),
+            ));
+        }
+    }
+    let requests = trace
+        .events
+        .iter()
+        .filter(|event| {
+            event.get("event").and_then(serde_json::Value::as_str) == Some("http.request")
+        })
+        .collect::<Vec<_>>();
+    if requests.len() != 1 {
+        return Err(AppError::Security(
+            "development provider-debug trace did not contain exactly one HTTP request".to_owned(),
+        ));
+    }
+    let request = requests[0];
+    let headers = request
+        .get("headers")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            AppError::Worker("development provider-debug trace omitted request headers".to_owned())
+        })?;
+    let authorization = headers
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case("authorization"))
+        .and_then(|(_, value)| value.as_str());
+    let body = request
+        .get("body")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            AppError::Worker("development provider-debug trace omitted the request body".to_owned())
+        })?;
+    if request.get("method").and_then(serde_json::Value::as_str) != Some("POST")
+        || request.get("url").and_then(serde_json::Value::as_str)
+            != Some("https://api.openai.com/v1/responses")
+        || authorization != Some("<redacted>")
+        || body.get("model").and_then(serde_json::Value::as_str) != Some("gpt-5.6-luna")
+        || body.get("store").and_then(serde_json::Value::as_bool) != Some(false)
+        || body
+            .get("parallel_tool_calls")
+            .and_then(serde_json::Value::as_bool)
+            != Some(false)
+        || body
+            .get("max_tool_calls")
+            .and_then(serde_json::Value::as_i64)
+            != Some(crate::provider_catalog::M1_PROVIDER_DEBUG_MAX_TOOL_CALLS)
+        || body
+            .get("max_output_tokens")
+            .and_then(serde_json::Value::as_i64)
+            != Some(crate::provider_catalog::M1_PROVIDER_DEBUG_MAX_OUTPUT_TOKENS)
+    {
+        return Err(AppError::Security(
+            "development provider-debug HTTP contract changed".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(debug_assertions)]
+fn write_provider_debug_replay_fixture(
+    path: &Path,
+    trace: &ProviderDebugTrace,
+    generated_at: &str,
+) -> AppResult<Option<PathBuf>> {
+    let Some(response) = trace.events.iter().find(|event| {
+        event.get("event").and_then(serde_json::Value::as_str) == Some("http.response")
+    }) else {
+        return Ok(None);
+    };
+    let status = response
+        .get("status")
+        .and_then(serde_json::Value::as_i64)
+        .ok_or_else(|| {
+            AppError::Worker("development provider-debug response status is missing".to_owned())
+        })?;
+    let headers = response.get("headers").cloned().ok_or_else(|| {
+        AppError::Worker("development provider-debug response headers are missing".to_owned())
+    })?;
+    let raw_body = response
+        .get("raw_body")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| {
+            AppError::Worker("development provider-debug raw response is missing".to_owned())
+        })?;
+    let body = protocol::parse_strict_json_bytes(raw_body.as_bytes())?;
+    let fixture = serde_json::json!({
+        "schemaVersion": "1.0.0",
+        "prompt": M1_PROVIDER_DEBUG_PROMPT,
+        "generatedAt": generated_at,
+        "seed": {
+            "showOrTitle": M1_PROVIDER_DEBUG_SEED_SHOW,
+            "seasonNumber": 5,
+            "episodeNumber": 2,
+            "episodeTitle": M1_PROVIDER_DEBUG_SEED_EPISODE_TITLE,
+            "eventOrReleaseAt": M1_PROVIDER_DEBUG_SEED_EVENT_AT,
+            "canonicalUrl": M1_PROVIDER_DEBUG_SEED_URL,
+            "providerRecordId": M1_PROVIDER_DEBUG_SEED_RECORD_ID,
+        },
+        "response": {
+            "status": status,
+            "headers": headers,
+            "body": body,
+        },
+    });
+    let bytes = serde_json::to_vec_pretty(&fixture)?;
+    let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+    file.write_all(&bytes)?;
+    file.write_all(b"\n")?;
+    file.sync_all()?;
+    Ok(Some(path.to_path_buf()))
 }
 
 #[tauri::command]
@@ -489,7 +974,7 @@ fn spawn_execution(
     std::thread::Builder::new()
         .name(format!("ai-edit-research-{job_id}"))
         .spawn(move || {
-            if let Err(error) = execute_research(job_id, &database, &worker, credentials.as_ref()) {
+            if let Err(error) = execute_research(job_id, &database, &worker, credentials.as_ref(), None, None) {
                 if let Ok(mut worker) = worker.lock() {
                     worker.abort_request(job_id);
                 }
@@ -508,40 +993,64 @@ fn execute_research(
     database: &Arc<Mutex<Database>>,
     worker: &Arc<Mutex<WorkerSupervisor>>,
     credentials: &dyn crate::credentials::CredentialStore,
-) -> AppResult<()> {
+    development_debug: Option<&DevelopmentDebugPayload<'_>>,
+    mut debug_capture: Option<&mut ResearchExecutionReport>,
+) -> AppResult<ResearchExecutionReport> {
     let (context, generated_at) = {
         let database = database.lock().map_err(|_| AppError::Internal)?;
         let job = database.job(job_id)?;
         if matches!(job.state.as_str(), "CANCELLING" | "CANCELLED") {
-            return Err(AppError::Worker("research was cancelled before execution".to_owned()));
+            return Err(AppError::Worker(
+                "research was cancelled before execution".to_owned(),
+            ));
         }
-        (database.execution_context(job_id)?, database.current_rfc3339()?)
+        (
+            database.execution_context(job_id)?,
+            database.current_rfc3339()?,
+        )
     };
-    let intent: ResearchIntentInput = serde_json::from_str(&context.input_contract_json)
-        .map_err(|_| AppError::DatabaseInvariant("stored research request is invalid".to_owned()))?;
+    let intent: ResearchIntentInput =
+        serde_json::from_str(&context.input_contract_json).map_err(|_| {
+            AppError::DatabaseInvariant("stored research request is invalid".to_owned())
+        })?;
     let (canonical_input, recomputed_hash) = intent.canonical_json_and_hash()?;
     if canonical_input != context.input_contract_json || recomputed_hash != context.input_sha256 {
-        return Err(AppError::DatabaseInvariant("stored research request hash changed".to_owned()));
+        return Err(AppError::DatabaseInvariant(
+            "stored research request hash changed".to_owned(),
+        ));
     }
-    let normalized_value: serde_json::Value = serde_json::from_str(&context.normalized_intent_json)?;
+    let normalized_value: serde_json::Value =
+        serde_json::from_str(&context.normalized_intent_json)?;
     let normalized = crate::domain::parse_intent(normalized_value.clone())?;
     intent.validate_normalized(&normalized)?;
     if context.capabilities.is_empty() {
-        let replay = database.lock().map_err(|_| AppError::Internal)?
+        let replay = database
+            .lock()
+            .map_err(|_| AppError::Internal)?
             .whole_bundle_replay(job_id, crate::unix_time_ms()?)?
-            .ok_or_else(|| AppError::DatabaseInvariant("approved whole-result cache binding disappeared".to_owned()))?;
-        let strict = crate::worker::protocol::parse_strict_json_bytes(replay.contract_json.as_bytes())?;
-        let mut cached: CachedBundle = serde_json::from_value(strict)
-            .map_err(|_| AppError::DatabaseInvariant("whole-result cache violates its strict schema".to_owned()))?;
+            .ok_or_else(|| {
+                AppError::DatabaseInvariant(
+                    "approved whole-result cache binding disappeared".to_owned(),
+                )
+            })?;
+        let strict =
+            crate::worker::protocol::parse_strict_json_bytes(replay.contract_json.as_bytes())?;
+        let mut cached: CachedBundle = serde_json::from_value(strict).map_err(|_| {
+            AppError::DatabaseInvariant("whole-result cache violates its strict schema".to_owned())
+        })?;
         if cached.schema_version != protocol::PAYLOAD_SCHEMA_VERSION {
-            return Err(AppError::DatabaseInvariant("whole-result cache schema version mismatch".to_owned()));
+            return Err(AppError::DatabaseInvariant(
+                "whole-result cache schema version mismatch".to_owned(),
+            ));
         }
         // A cached result's generatedAt is part of its validated semantic snapshot:
         // opportunity freshness scores were computed against that instant. Rekey only
         // run-owned UUIDs. Current replay eligibility is checked separately below so
         // preserving the original timestamp cannot extend an evidence deadline.
         rekey_cached_result(&mut cached.result, job_id)?;
-        let trusted_policies = database.lock().map_err(|_| AppError::Internal)?
+        let trusted_policies = database
+            .lock()
+            .map_err(|_| AppError::Internal)?
             .trusted_evidence_policies(crate::unix_time_ms()?)?;
         crate::domain::validate_cached_evidence_currentness(
             &cached.evidence_sources,
@@ -549,20 +1058,27 @@ fn execute_research(
             &trusted_policies,
         )?;
         let bundle = crate::domain::parse_bundle(
-            cached.result, cached.evidence_sources, cached.evidence_claims, job_id, &normalized,
+            cached.result,
+            cached.evidence_sources,
+            cached.evidence_claims,
+            job_id,
+            &normalized,
             &trusted_policies,
         )?;
         let mut database = database.lock().map_err(|_| AppError::Internal)?;
         database.record_whole_bundle_replay(job_id, &replay, crate::unix_time_ms()?)?;
         database.complete_research(job_id, &bundle, crate::unix_time_ms()?)?;
-        return Ok(());
+        return Ok(ResearchExecutionReport::default());
     }
 
     let evidence_now_ms = crate::unix_time_ms()?;
     let (reusable_evidence, reusable_policies) = {
         let database = database.lock().map_err(|_| AppError::Internal)?;
         (
-            database.reusable_research_evidence(evidence_now_ms, 64, 128)?,
+            isolate_development_debug_reusable_evidence(
+                database.reusable_research_evidence(evidence_now_ms, 64, 128)?,
+                development_debug.is_some(),
+            ),
             database.trusted_evidence_policies(evidence_now_ms)?,
         )
     };
@@ -573,119 +1089,261 @@ fn execute_research(
         &reusable_policies,
     )?;
     let secrets = load_capability_secrets(&context.capabilities, credentials)?;
-    let wire_capabilities = context.capabilities.iter().zip(&secrets).map(|(capability, secret)| ExecuteCapability {
-        provider_run_id: capability.provider_run_id,
-        reservation_id: capability.reservation_id,
-        planned_call_id: capability.planned_call_id,
-        provider: &capability.provider,
-        operation: &capability.operation,
-        configured_model: &capability.configured_model,
-        resolved_model: &capability.resolved_model,
-        maximum_micro_usd: capability.maximum_micro_usd,
-        max_requests: capability.max_requests,
-        max_tool_calls: capability.max_tool_calls,
-        max_input_tokens: capability.max_input_tokens,
-        max_output_tokens: capability.max_output_tokens,
-        allow_one_repair: capability.allow_one_repair,
-        retention_mode: &capability.retention_mode,
-        data_use_mode: &capability.data_use_mode,
-        no_storage_mode: &capability.no_storage_mode,
-        privacy_mode: &capability.privacy_mode,
-        policy_class: &capability.policy_class,
-        evidence_ttl_seconds: capability.evidence_ttl_seconds,
-        refresh_after_seconds: capability.refresh_after_seconds,
-        purge_after_seconds: capability.purge_after_seconds,
-        deletion_after_seconds: capability.deletion_after_seconds,
-        credential: secret.as_deref().map(String::as_str),
-        provider_config: &capability.provider_config,
-    }).collect::<Vec<_>>();
+    let wire_capabilities = context
+        .capabilities
+        .iter()
+        .zip(&secrets)
+        .map(|(capability, secret)| ExecuteCapability {
+            provider_run_id: capability.provider_run_id,
+            reservation_id: capability.reservation_id,
+            planned_call_id: capability.planned_call_id,
+            provider: &capability.provider,
+            operation: &capability.operation,
+            configured_model: &capability.configured_model,
+            resolved_model: &capability.resolved_model,
+            maximum_micro_usd: capability.maximum_micro_usd,
+            max_requests: capability.max_requests,
+            max_tool_calls: capability.max_tool_calls,
+            max_input_tokens: capability.max_input_tokens,
+            max_output_tokens: capability.max_output_tokens,
+            allow_one_repair: capability.allow_one_repair,
+            retention_mode: &capability.retention_mode,
+            data_use_mode: &capability.data_use_mode,
+            no_storage_mode: &capability.no_storage_mode,
+            privacy_mode: &capability.privacy_mode,
+            policy_class: &capability.policy_class,
+            evidence_ttl_seconds: capability.evidence_ttl_seconds,
+            refresh_after_seconds: capability.refresh_after_seconds,
+            purge_after_seconds: capability.purge_after_seconds,
+            deletion_after_seconds: capability.deletion_after_seconds,
+            credential: secret.as_deref().map(String::as_str),
+            provider_config: &capability.provider_config,
+        })
+        .collect::<Vec<_>>();
     {
         let mut worker = worker.lock().map_err(|_| AppError::Internal)?;
         worker.start()?;
-        worker.send("research.execute", job_id, ExecutePayload {
-            schema_version: protocol::PAYLOAD_SCHEMA_VERSION,
+        worker.send(
+            "research.execute",
             job_id,
-            research_run_id: job_id,
-            input_sha256: &context.input_sha256,
-            intent: &intent,
-            normalized_intent: &normalized_value,
-            capabilities: &wire_capabilities,
-            reusable_evidence_sources: &reusable_evidence.sources,
-            reusable_evidence_claims: &reusable_evidence.claims,
-            generated_at: &generated_at,
-        })?;
+            ExecutePayload {
+                schema_version: protocol::PAYLOAD_SCHEMA_VERSION,
+                job_id,
+                research_run_id: job_id,
+                input_sha256: &context.input_sha256,
+                intent: &intent,
+                normalized_intent: &normalized_value,
+                capabilities: &wire_capabilities,
+                reusable_evidence_sources: &reusable_evidence.sources,
+                reusable_evidence_claims: &reusable_evidence.claims,
+                generated_at: &generated_at,
+                development_debug,
+            },
+        )?;
     }
     drop(wire_capabilities);
 
     let started = Instant::now();
     loop {
         if started.elapsed() > EXECUTION_TIMEOUT {
-            worker.lock().map_err(|_| AppError::Internal)?.abort_active();
-            return Err(AppError::Worker("research worker exceeded its bounded execution time".to_owned()));
+            worker
+                .lock()
+                .map_err(|_| AppError::Internal)?
+                .abort_active();
+            return Err(AppError::Worker(
+                "research worker exceeded its bounded execution time".to_owned(),
+            ));
         }
-        let message = worker.lock().map_err(|_| AppError::Internal)?.poll(Duration::from_millis(100))?;
-        let Some(message) = message else { continue; };
+        let message = worker
+            .lock()
+            .map_err(|_| AppError::Internal)?
+            .poll(Duration::from_millis(100))?;
+        let Some(message) = message else {
+            continue;
+        };
         match message {
             WorkerMessage::ProviderStarted(payload) => {
-                authorize_provider_start(job_id, &context.input_sha256, &context.capabilities, &payload, database)?;
-                worker.lock().map_err(|_| AppError::Internal)?.send("provider.started.ack", job_id, &payload)?;
+                authorize_provider_start(
+                    job_id,
+                    &context.input_sha256,
+                    &context.capabilities,
+                    &payload,
+                    database,
+                )?;
+                worker.lock().map_err(|_| AppError::Internal)?.send(
+                    "provider.started.ack",
+                    job_id,
+                    &payload,
+                )?;
             }
             WorkerMessage::ResearchProgress(progress) => {
-                if progress.job_id != job_id { return Err(AppError::Worker("worker progress job identity mismatch".to_owned())); }
-                database.lock().map_err(|_| AppError::Internal)?.update_job_progress(job_id, progress.percent, &progress.phase, crate::unix_time_ms()?)?;
+                if progress.job_id != job_id {
+                    return Err(AppError::Worker(
+                        "worker progress job identity mismatch".to_owned(),
+                    ));
+                }
+                database
+                    .lock()
+                    .map_err(|_| AppError::Internal)?
+                    .update_job_progress(
+                        job_id,
+                        progress.percent,
+                        &progress.phase,
+                        crate::unix_time_ms()?,
+                    )?;
             }
             WorkerMessage::ResearchCancelAck(ack) => {
-                if ack.job_id != job_id { return Err(AppError::Worker("worker cancellation identity mismatch".to_owned())); }
+                if ack.job_id != job_id {
+                    return Err(AppError::Worker(
+                        "worker cancellation identity mismatch".to_owned(),
+                    ));
+                }
             }
             WorkerMessage::ResearchResult(payload) => {
-                if payload.job_id != job_id { return Err(AppError::Worker("worker result job identity mismatch".to_owned())); }
-                reconcile_all(job_id, &context.capabilities, &payload.provider_outcomes, database)?;
+                if payload.job_id != job_id {
+                    return Err(AppError::Worker(
+                        "worker result job identity mismatch".to_owned(),
+                    ));
+                }
+                if let Some(capture) = debug_capture.as_deref_mut() {
+                    *capture = ResearchExecutionReport {
+                        debug_trace: payload.debug_trace.clone(),
+                        stage_counts: payload.stage_counts.clone(),
+                        generated_at: Some(generated_at.clone()),
+                    };
+                }
+                reconcile_all(
+                    job_id,
+                    &context.capabilities,
+                    &payload.provider_outcomes,
+                    database,
+                )?;
                 require_host_generated_at(&payload.result, &generated_at)?;
-                let trusted_policies = database.lock().map_err(|_| AppError::Internal)?
+                let trusted_policies = database
+                    .lock()
+                    .map_err(|_| AppError::Internal)?
                     .trusted_evidence_policies(crate::unix_time_ms()?)?;
                 let bundle = crate::domain::parse_bundle(
-                    payload.result, payload.evidence_sources, payload.evidence_claims, job_id, &normalized,
+                    payload.result,
+                    payload.evidence_sources,
+                    payload.evidence_claims,
+                    job_id,
+                    &normalized,
                     &trusted_policies,
                 )?;
                 let contract = bundle.cache_contract_json()?;
                 let output_sha256 = sha256_hex(contract.as_bytes());
                 let now_ms = crate::unix_time_ms()?;
                 let mut database = database.lock().map_err(|_| AppError::Internal)?;
-                database.cache_put(&CachePutInput {
-                    provider: "openai", namespace: crate::provider_catalog::BUNDLE_CACHE_NAMESPACE,
-                    key: &context.input_sha256, input_sha256: &context.input_sha256,
-                    output_sha256: &output_sha256, schema_version: crate::provider_catalog::BUNDLE_CACHE_SCHEMA,
-                    model_version: crate::provider_catalog::BUNDLE_CACHE_MODEL,
-                    prompt_version: crate::provider_catalog::BUNDLE_CACHE_PROMPT,
-                    policy_class: crate::provider_catalog::BUNDLE_CACHE_POLICY,
-                    contract_json: &contract, now_ms,
-                })?;
+                if development_debug.is_none() {
+                    database.cache_put(&CachePutInput {
+                        provider: "openai",
+                        namespace: crate::provider_catalog::BUNDLE_CACHE_NAMESPACE,
+                        key: &context.input_sha256,
+                        input_sha256: &context.input_sha256,
+                        output_sha256: &output_sha256,
+                        schema_version: crate::provider_catalog::BUNDLE_CACHE_SCHEMA,
+                        model_version: crate::provider_catalog::BUNDLE_CACHE_MODEL,
+                        prompt_version: crate::provider_catalog::BUNDLE_CACHE_PROMPT,
+                        policy_class: crate::provider_catalog::BUNDLE_CACHE_POLICY,
+                        contract_json: &contract,
+                        now_ms,
+                    })?;
+                }
                 database.complete_research(job_id, &bundle, now_ms)?;
-                return Ok(());
+                return Ok(ResearchExecutionReport {
+                    debug_trace: payload.debug_trace,
+                    stage_counts: payload.stage_counts,
+                    generated_at: Some(generated_at.clone()),
+                });
             }
             WorkerMessage::ResearchRefusal(detail)
             | WorkerMessage::ResearchIncomplete(detail)
             | WorkerMessage::ResearchError(detail) => {
-                if detail.job_id != job_id { return Err(AppError::Worker("worker terminal job identity mismatch".to_owned())); }
-                let reconcile_error = reconcile_all(job_id, &context.capabilities, &detail.provider_outcomes, database).err();
+                if detail.job_id != job_id {
+                    return Err(AppError::Worker(
+                        "worker terminal job identity mismatch".to_owned(),
+                    ));
+                }
+                if let Some(capture) = debug_capture.as_deref_mut() {
+                    *capture = ResearchExecutionReport {
+                        debug_trace: detail.debug_trace.clone(),
+                        stage_counts: detail.stage_counts.clone(),
+                        generated_at: Some(generated_at.clone()),
+                    };
+                }
+                let reconcile_error = reconcile_all(
+                    job_id,
+                    &context.capabilities,
+                    &detail.provider_outcomes,
+                    database,
+                )
+                .err();
                 let message = redact_known(&detail.message, &secrets);
                 if matches!(reconcile_error.as_ref(), Some(AppError::Budget(_))) {
-                    database.lock().map_err(|_| AppError::Internal)?
+                    database
+                        .lock()
+                        .map_err(|_| AppError::Internal)?
                         .annotate_provider_accounting_failure(job_id, &message)?;
                 }
                 return Err(reconcile_error.unwrap_or_else(|| AppError::Provider(message)));
             }
             WorkerMessage::ResearchCancelled(detail) => {
-                if detail.job_id != job_id { return Err(AppError::Worker("worker cancellation job identity mismatch".to_owned())); }
-                let _ = reconcile_all(job_id, &context.capabilities, &detail.provider_outcomes, database);
-                database.lock().map_err(|_| AppError::Internal)?.fail_job_safely(job_id, true, "Research was cancelled.", crate::unix_time_ms()?)?;
-                return Ok(());
+                if detail.job_id != job_id {
+                    return Err(AppError::Worker(
+                        "worker cancellation job identity mismatch".to_owned(),
+                    ));
+                }
+                let _ = reconcile_all(
+                    job_id,
+                    &context.capabilities,
+                    &detail.provider_outcomes,
+                    database,
+                );
+                database
+                    .lock()
+                    .map_err(|_| AppError::Internal)?
+                    .fail_job_safely(
+                        job_id,
+                        true,
+                        "Research was cancelled.",
+                        crate::unix_time_ms()?,
+                    )?;
+                let report = ResearchExecutionReport {
+                    debug_trace: detail.debug_trace,
+                    stage_counts: detail.stage_counts,
+                    generated_at: Some(generated_at.clone()),
+                };
+                if let Some(capture) = debug_capture.as_deref_mut() {
+                    *capture = report.clone();
+                }
+                return Ok(report);
             }
-            _ => return Err(AppError::Worker("worker emitted a response outside the active research operation".to_owned())),
+            _ => {
+                return Err(AppError::Worker(
+                    "worker emitted a response outside the active research operation".to_owned(),
+                ));
+            }
         }
     }
 }
 
+fn isolate_development_debug_reusable_evidence(
+    snapshot: ReusableEvidenceSnapshot,
+    development_debug: bool,
+) -> ReusableEvidenceSnapshot {
+    if development_debug {
+        // A replay/debug probe must be explained only by its fixed seed and its
+        // one captured response. Production cache state must not alter either
+        // the worker contract or the observed stage counts.
+        ReusableEvidenceSnapshot {
+            sources: Vec::new(),
+            claims: Vec::new(),
+        }
+    } else {
+        snapshot
+    }
+}
 fn load_capability_secrets(
     capabilities: &[ReservationCapability],
     credentials: &dyn crate::credentials::CredentialStore,
@@ -952,6 +1610,17 @@ mod tests {
         let (json, hash) = intent.canonical_json_and_hash().unwrap();
         assert_eq!(hash, sha256_hex(json.as_bytes()));
         assert!(json.starts_with("{\"exclusions\":"));
+    }
+
+    #[test]
+    fn development_provider_debug_never_transports_cached_evidence() {
+        let cached = ReusableEvidenceSnapshot {
+            sources: vec![serde_json::json!({"sourceId": Uuid::new_v4()})],
+            claims: vec![serde_json::json!({"claimId": Uuid::new_v4()})],
+        };
+        let isolated = isolate_development_debug_reusable_evidence(cached, true);
+        assert!(isolated.sources.is_empty());
+        assert!(isolated.claims.is_empty());
     }
 
     #[test]

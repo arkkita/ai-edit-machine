@@ -30,14 +30,27 @@ from ai_edit_machine.providers.base import (  # noqa: E402
 from ai_edit_machine.m1_contracts import ResearchSynthesisDraftV2  # noqa: E402
 from ai_edit_machine.research.synthesis import SynthesisProviderResult  # noqa: E402
 from ai_edit_machine.research.intent import intent_from_query  # noqa: E402
-from ai_edit_machine.providers.transport import JsonResponse  # noqa: E402
+from ai_edit_machine.providers.transport import FakeJsonTransport, JsonResponse  # noqa: E402
+from ai_edit_machine.provider_debug_contract import (  # noqa: E402
+    DEBUG_MODE,
+    DEBUG_PROMPT,
+    DEBUG_SEED_EPISODE,
+    DEBUG_SEED_EPISODE_TITLE,
+    DEBUG_SEED_EVENT_AT,
+    DEBUG_SEED_PROVIDER_RECORD_ID,
+    DEBUG_SEED_SEASON,
+    DEBUG_SEED_SHOW,
+    DEBUG_SEED_URL,
+)
 from ai_edit_machine.worker import (  # noqa: E402
     _Capability,
     _ExecutePayload,
     _PreflightPayload,
+    _OneShotOpenAIDebugTransport,
     _StartedProvider,
     _WorkerRuntime,
     _handle,
+    _is_m1_provider_debug,
     _preflight,
     _recorded_outcome,
     _terminal_from_provider_batches,
@@ -365,6 +378,122 @@ class M1WorkerTests(unittest.TestCase):
         overbroad["capabilities"][1]["maxRequests"] = 7
         with self.assertRaisesRegex(Exception, "synthesis capability"):
             _validate_wire(_ExecutePayload, overbroad)
+
+    def test_development_provider_debug_requires_the_exact_one_shot_shape(self) -> None:
+        intent = {
+            "schemaVersion": "2.0.0",
+            "prompt": DEBUG_PROMPT,
+            "mediaKinds": ["TV_EPISODE"],
+            "region": "US",
+            "freshnessDays": 14,
+            "spoilerPolicy": "CURRENT_EPISODE",
+            "exclusions": [],
+            "maxResults": 5,
+        }
+        normalized = intent_from_query(DEBUG_PROMPT, region="US").model_dump(
+            mode="json"
+        )
+        payload = {
+            "schemaVersion": "1.0.0",
+            "jobId": str(uuid4()),
+            "researchRunId": str(uuid4()),
+            "inputSha256": _hash_intent(intent),
+            "intent": intent,
+            "normalizedIntent": normalized,
+            "capabilities": [
+                _openai_capability(
+                    operation="research.web_verify",
+                    config={
+                        "kind": "OPENAI_WEB",
+                        "registryVersion": "m1-openai-web-2026-08-18-r60",
+                        "searchContextSize": "low",
+                        "requestBodyMaxInputTokens": 120_000,
+                        "requestMaxToolCalls": 1,
+                        "officialHosts": ["tomsguide.com", "techradar.com"],
+                    },
+                    configuredModel="gpt-5.6-luna",
+                    resolvedModel="gpt-5.6-luna",
+                    maximumMicroUsd=49_960,
+                    maxRequests=8,
+                    maxToolCalls=1,
+                    maxInputTokens=198_000,
+                    maxOutputTokens=300,
+                    allowOneRepair=False,
+                )
+            ],
+            "generatedAt": "2026-08-19T10:00:00Z",
+            "developmentDebug": {
+                "schemaVersion": "1.0.0",
+                "mode": DEBUG_MODE,
+                "traceId": str(uuid4()),
+                "seed": {
+                    "showOrTitle": DEBUG_SEED_SHOW,
+                    "seasonNumber": DEBUG_SEED_SEASON,
+                    "episodeNumber": DEBUG_SEED_EPISODE,
+                    "episodeTitle": DEBUG_SEED_EPISODE_TITLE,
+                    "eventOrReleaseAt": DEBUG_SEED_EVENT_AT,
+                    "canonicalUrl": DEBUG_SEED_URL,
+                    "providerRecordId": DEBUG_SEED_PROVIDER_RECORD_ID,
+                },
+            },
+        }
+
+        parsed = _validate_wire(_ExecutePayload, payload)
+        assert isinstance(parsed, _ExecutePayload)
+        self.assertTrue(_is_m1_provider_debug(parsed))
+
+        drifted = json.loads(json.dumps(payload))
+        drifted["capabilities"][0]["maxRequests"] = 9
+        with self.assertRaisesRegex(Exception, "synthesis capability"):
+            _validate_wire(_ExecutePayload, drifted)
+
+    def test_development_provider_debug_transport_blocks_a_second_post(self) -> None:
+        inner = FakeJsonTransport([JsonResponse(200, {}, {"id": "resp_one"})])
+        transport = _OneShotOpenAIDebugTransport(inner)
+        request = {
+            "method": "POST",
+            "url": "https://api.openai.com/v1/responses",
+            "headers": {"Authorization": "Bearer test-only"},
+            "body": {"model": "gpt-5.6-luna"},
+            "timeout_seconds": 1.0,
+            "max_response_bytes": 1_024,
+            "allowed_hosts": frozenset({"api.openai.com"}),
+        }
+
+        self.assertEqual(transport.request_json(**request).status, 200)
+        with self.assertRaisesRegex(ProviderError, "blocked a second OpenAI POST"):
+            transport.request_json(**request)
+        self.assertEqual(len(inner.requests), 1)
+
+    def test_development_provider_debug_transport_cannot_retry_after_unknown_failure(
+        self,
+    ) -> None:
+        class FailingTransport:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def request_json(self, **kwargs):
+                del kwargs
+                self.calls += 1
+                raise ProviderError("unknown transport outcome")
+
+        inner = FailingTransport()
+        transport = _OneShotOpenAIDebugTransport(inner)
+        request = {
+            "method": "POST",
+            "url": "https://api.openai.com/v1/responses",
+            "headers": {"Authorization": "Bearer test-only"},
+            "body": {"model": "gpt-5.6-luna"},
+            "timeout_seconds": 1.0,
+            "max_response_bytes": 1_024,
+            "allowed_hosts": frozenset({"api.openai.com"}),
+        }
+
+        with self.assertRaisesRegex(ProviderError, "unknown transport outcome"):
+            transport.request_json(**request)
+        with self.assertRaisesRegex(ProviderError, "blocked a second OpenAI POST"):
+            transport.request_json(**request)
+        self.assertEqual(inner.calls, 1)
 
     def test_execute_accepts_rust_camel_case_reusable_evidence_records(self) -> None:
         intent = _intent()

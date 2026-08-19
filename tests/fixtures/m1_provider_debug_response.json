@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "1.0.0",
+  "prompt": "a good show for girls thatll get views on tiktok",
+  "generatedAt": "2026-08-19T10:00:00Z",
+  "seed": {
+    "showOrTitle": "The Real Housewives: Ultimate Girls Trip",
+    "seasonNumber": 5,
+    "episodeNumber": 2,
+    "episodeTitle": "Leather You Like It or Not",
+    "eventOrReleaseAt": "2026-08-17T01:00:00Z",
+    "canonicalUrl": "https://www.tvmaze.com/episodes/3686306/the-real-housewives-ultimate-girls-trip-5x02-leather-you-like-it-or-not",
+    "providerRecordId": "3686306"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json",
+      "x-request-id": "req_provider_debug_fixture"
+    },
+    "body": {
+      "id": "resp_provider_debug_fixture",
+      "model": "gpt-5.6-luna",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 420,
+        "input_tokens_details": {
+          "cached_tokens": 0
+        },
+        "output_tokens": 32,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      },
+      "output": [
+        {
+          "type": "web_search_call",
+          "id": "search_provider_debug_fixture",
+          "action": {
+            "sources": [
+              {
+                "url": "https://variety.com/2026/tv/reviews/provider-debug-women-ensemble/",
+                "title": "The Real Housewives: Ultimate Girls Trip centers its women",
+                "published_at": "2026-08-19T09:00:00Z"
+              },
+              {
+                "url": "https://www.tomsguide.com/entertainment/streaming/provider-debug-female-led-friendship",
+                "title": "The Real Housewives: Ultimate Girls Trip's female-led friendship",
+                "published_at": "2026-08-19T08:00:00Z"
+              }
+            ]
+          }
+        },
+        {
+          "type": "message",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "M1_SOURCE_LEADS_V2\nNO_EVIDENCE",
+              "annotations": []
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

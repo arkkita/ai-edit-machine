@@ -1,4 +1,6 @@
 mod commands;
+#[cfg(debug_assertions)]
+pub use commands::research::run_m1_provider_debug_live;
 pub use commands::research::run_openai_verifier_diagnostic;
 pub mod cost;
 pub mod credentials;
