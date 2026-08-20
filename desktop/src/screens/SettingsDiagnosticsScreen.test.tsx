@@ -14,6 +14,7 @@ function backend(): BackendApi {
     getResearchRun: vi.fn(),
     cancelResearch: vi.fn(),
     openEvidenceLink: vi.fn(),
+    recordRecommendationFeedback: vi.fn(),
     getCredentialStatus: vi.fn(async (provider) => ({ provider, configured: provider === "openai", locallyValid: provider === "openai", lastValidatedAt: null })),
     storeCredential: vi.fn(async (provider) => ({ provider, configured: true, locallyValid: true, lastValidatedAt: null })),
     validateCredential: vi.fn(async (provider) => ({ provider, configured: true, locallyValid: true, lastValidatedAt: "2026-08-15T20:00:00Z" })),

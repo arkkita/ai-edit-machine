@@ -131,6 +131,36 @@ pub struct ProviderDebugStageCounts {
     pub evidence_surviving_gates: i64,
     pub ranked_opportunities: i64,
     pub opportunities_returned_to_ui: i64,
+    #[serde(default)]
+    pub parsed_intent: Option<i64>,
+    #[serde(default)]
+    pub generated_search_variants: Option<i64>,
+    #[serde(default)]
+    pub raw_release_candidates: Option<i64>,
+    #[serde(default)]
+    pub candidates_after_freshness_filtering: Option<i64>,
+    #[serde(default)]
+    pub candidates_after_hard_exclusions: Option<i64>,
+    #[serde(default)]
+    pub candidates_after_audience_fit_screening: Option<i64>,
+    #[serde(default)]
+    pub candidates_selected_for_social_research: Option<i64>,
+    #[serde(default)]
+    pub candidates_with_usable_social_evidence: Option<i64>,
+    #[serde(default)]
+    pub candidates_surviving_evidence_gates: Option<i64>,
+    #[serde(default)]
+    pub candidates_surviving_deduplication: Option<i64>,
+    #[serde(default)]
+    pub candidates_sent_to_final_ranker: Option<i64>,
+    #[serde(default)]
+    pub final_opportunities_serialized: Option<i64>,
+    #[serde(default)]
+    pub final_opportunities_received_by_rust: Option<i64>,
+    #[serde(default)]
+    pub final_opportunities_displayed_by_ui: Option<i64>,
+    #[serde(default)]
+    pub rejection_reason_counts: BTreeMap<String, i64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

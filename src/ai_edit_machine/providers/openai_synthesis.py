@@ -168,15 +168,16 @@ class OpenAIResearchSynthesizer:
             "TVmaze EPISODE_IDENTITY, use INDIVIDUAL_SCENES, copy its scene_fact.description "
             "and relationship_or_topic exactly, keep verification LIKELY_INFERRED, and cite "
             "both claims. Treat it as a provisional inspection selector, not proof of the "
-            "outcome or footage location. When no such SCENE_CONTEXT claim exists, request a "
-            "broad UNKNOWN SCENE_PACK and never assert that a discussion moment, quote, speaker, "
-            "or scene belongs to the TVmaze episode. A discussion claim whose "
+            "outcome or footage location. When no such SCENE_CONTEXT claim exists, do not "
+            "manufacture a broad scene pack: return no recommendation unless other selected "
+            "evidence supports a specific named-character story and actionable concept. A "
+            "discussion claim whose "
             "text begins 'Current cited-source title:' is headline-level evidence, not a scene: "
             "never copy that headline into relationship_or_topic, natural footage copy, or a "
             "search query, and do not promote it to a scene_or_moment. If that headline names a "
             "performer and an allow-listed CAST_IDENTITY claim maps the exact performer to a "
-            "character, prefer those exact character names for an UNKNOWN character scene pack "
-            "whose exact scene remains unknown. A VIEWER_DISCUSSION claim that actually describes "
+            "character, prefer those exact character names as identity context only; cast "
+            "identity alone is not a story or footage request. A VIEWER_DISCUSSION claim that actually describes "
             "a moment may be copied exactly as a provisional scene_or_moment. Return no strong "
             "opportunity when neither gate can pass. Claim records intentionally do not contain "
             "a role field: the draft evidence references assign those roles. Use the supplied "
@@ -190,11 +191,48 @@ class OpenAIResearchSynthesizer:
             "the host has already selected that compact candidate because its exact identity "
             "and independent signal count can pass one documented gate. For a SCENE_PACK or "
             "INDIVIDUAL_SCENES source whose only moment support is a VIEWER_DISCUSSION claim, "
-            "LIKELY_INFERRED requires scene_or_moment to copy that claim's text exactly; use "
-            "UNKNOWN when proposing broader or paraphrased material. A film-release WHY_NOW "
+            "LIKELY_INFERRED requires scene_or_moment to copy that claim's specific narrative "
+            "description exactly. If the discussion is broader or cannot establish a coherent "
+            "scene role, do not produce a concept or footage request. A film-release WHY_NOW "
             "claim does not by itself verify an official trailer, exact scene, speaker, quote, "
             "or footage location. Some host-validated discussion bindings are opaque because a "
             "localized or list-style headline need not literally repeat the title."
+            " After selecting evidence for each opportunity, perform a distinct editorial "
+            "bridge stage before concept synthesis. First build one FandomStoryDossier using "
+            "only selected evidence: the current hook, exact named characters, central "
+            "relationship when supported, exact current source/episode/trailer/clip, an exact "
+            "or clearly non-exact quote lead when available, verified franchise connections, "
+            "history, why fans care now, audience/fandom evidence, and uncertainties. Label "
+            "each dossier fact VERIFIED, STRONGLY_SUPPORTED, LIKELY_INFERRED, or UNKNOWN and "
+            "cite its claim IDs. Do not create a concept from material absent from that dossier. "
+            "Then generate one to four genuinely different concepts, and "
+            "prefer two to four when the evidence supports them. Every concept must name a "
+            "specific subject, the current event that unlocks the idea, why existing fans may "
+            "care, one to three evidence-bound intro leads, a song handoff, three to six ordered "
+            "montage beats, a payoff, and its own smallest useful footage request. Do not return "
+            "paraphrases of one montage. There is no title-level footage request: every footage "
+            "request is nested under exactly one concept, carries that concept_key, and the "
+            "recommended_concept_key selects the one exposed as the current request. A title "
+            "that lacks a specific supported concept must not be recommended merely because it "
+            "is new. Research-backed concepts are provisional until later local footage analysis."
+            " Cross-season, parent-series, sequel, prequel, spinoff, reunion, callback, and "
+            "character-history concepts are first-class only when selected evidence explicitly "
+            "supports that connection. Distinguish SAME_CHARACTER, SAME_CANONICAL_UNIVERSE, "
+            "EXPLICIT_CALLBACK, THEMATIC_PARALLEL, ACTOR_CONNECTION_ONLY, FAN_INTERPRETATION, "
+            "and UNSUPPORTED_SPECULATION. Never upgrade an actor connection, rumor, or fan theory "
+            "to canon. UNSUPPORTED_SPECULATION cannot pass local validation. If an exact quote, "
+            "quote is absent but a specific scene is supported, describe the scene, state that "
+            "exact dialogue is not verified, use LIKELY_INFERRED, and put the uncertainty in "
+            "known_uncertainties. If the scene itself is absent, return no concept rather than "
+            "an UNKNOWN generic footage placeholder."
+            " Search suggestions must follow the actual concept—current event, supported "
+            "characters or relationship, episode when verified, parent series when supported, "
+            "and scene-pack or official-clip terminology—without suggesting prohibited media "
+            "acquisition. Generic 'get clips from this show and make an emotional edit' concepts "
+            "are invalid. Also reject placeholder wording such as 'current character discussion', "
+            "'any relevant material', 'exact scene unknown', 'clips from the show', or a generic "
+            "'intro + montage + payoff'. If the dossier cannot support a small coherent story, "
+            "return no strong opportunity and no footage request."
         )
         if repair_text is not None:
             instructions += (
@@ -419,6 +457,49 @@ def _canonicalize_nonfactual_source_keys(raw_text: str) -> str:
     for recommendation in recommendations:
         if not isinstance(recommendation, dict):
             continue
+
+        concepts = recommendation.get("editorial_concepts")
+        dossier = recommendation.get("fandom_story_dossier")
+        dossier_key = dossier.get("dossier_key") if isinstance(dossier, dict) else None
+        if isinstance(concepts, list):
+            for concept in concepts:
+                if not isinstance(concept, dict):
+                    continue
+                if isinstance(dossier_key, str) and concept.get("dossier_key") != dossier_key:
+                    concept["dossier_key"] = dossier_key
+                    changed = True
+                concept_request = concept.get("footage_request")
+                if not isinstance(concept_request, dict):
+                    continue
+                concept_key = concept.get("concept_key")
+                if isinstance(concept_key, str) and concept_request.get("concept_key") != concept_key:
+                    concept_request["concept_key"] = concept_key
+                    changed = True
+                pseudo = {
+                    "recommendations": [
+                        {
+                            "opportunity": {},
+                            "footage_request": concept_request,
+                        }
+                    ],
+                    "no_strong_opportunity_reason": None,
+                    "schema_version": "2.0.0",
+                }
+                normalized = _canonicalize_nonfactual_source_keys(
+                    json.dumps(pseudo, ensure_ascii=False, separators=(",", ":"))
+                )
+                try:
+                    normalized_request = json.loads(normalized)["recommendations"][0][
+                        "footage_request"
+                    ]
+                except (TypeError, ValueError, KeyError, IndexError):
+                    continue
+                if normalized_request != concept_request:
+                    concept["footage_request"] = normalized_request
+                    changed = True
+                if concept.get("intro_leads") != normalized_request.get("intro_leads"):
+                    concept["intro_leads"] = normalized_request.get("intro_leads")
+                    changed = True
 
         opportunity = recommendation.get("opportunity")
         if isinstance(opportunity, dict):

@@ -13,9 +13,9 @@ const CATALOG_JSON: &str = include_str!("../resources/provider-catalog.json");
 const RESEARCH_AUDIT: &str = include_str!("../../../docs/RESEARCH_AUDIT.md");
 const API_COSTS: &str = include_str!("../../../docs/API_COSTS.md");
 const CATALOG_SCHEMA: &str = "1.0.0";
-const CATALOG_REGISTRY: &str = "m1-2026-08-19-r73";
+pub const CATALOG_REGISTRY: &str = "m1.1b-2026-08-20-r76";
 const OPENAI_MODEL: &str = "gpt-5.6-luna";
-const OPENAI_PRICE_CARD: &str = "7f771320-9944-465d-98a1-924ed837fe34";
+const OPENAI_PRICE_CARD: &str = "943ee851-51a0-4a71-b5e2-0f2be3ad345e";
 const TVMAZE_CAST_SHOW_LIMIT: i64 = 8;
 #[cfg(debug_assertions)]
 pub(crate) const M1_PROVIDER_DEBUG_MODE: &str = "M1_PROVIDER_ONE_SHOT";
@@ -33,10 +33,17 @@ pub(crate) const M1_PROVIDER_DEBUG_MAX_OUTPUT_TOKENS: i64 = 300;
 pub(crate) const M1_PROVIDER_DEBUG_RESERVATION_MICRO_USD: i64 = 49_960;
 #[cfg(debug_assertions)]
 pub(crate) const M1_PROVIDER_DEBUG_HARD_CAP_MICRO_USD: i64 = 50_000;
+#[cfg(debug_assertions)]
+pub(crate) const M11_CALIBRATION_RUN_SCOPE: &str =
+    "m1-1-live-calibration-2026-08-19-v1";
+#[cfg(debug_assertions)]
+pub(crate) const M11_CALIBRATION_HARD_CAP_MICRO_USD: i64 = 2_000_000;
+#[cfg(debug_assertions)]
+pub(crate) const M11_CALIBRATION_RUN_RESERVATION_MICRO_USD: i64 = 286_200;
 pub const BUNDLE_CACHE_NAMESPACE: &str = "research-bundle-v2";
 pub const BUNDLE_CACHE_SCHEMA: &str = "research-result-bundle/2.0.0";
-pub const BUNDLE_CACHE_MODEL: &str = "openai:gpt-5.6-luna|catalog:m1-2026-08-19-r73";
-pub const BUNDLE_CACHE_PROMPT: &str = "m1-research-2026-08-19-r69+catalog:m1-2026-08-19-r73";
+pub const BUNDLE_CACHE_MODEL: &str = "openai:gpt-5.6-luna|catalog:m1.1b-2026-08-20-r76";
+pub const BUNDLE_CACHE_PROMPT: &str = "m1.1b-research-2026-08-20-r71+catalog:m1.1b-2026-08-20-r76";
 pub const BUNDLE_CACHE_POLICY: &str = "openai-web-evidence-v1";
 
 #[derive(Debug, Deserialize)]
@@ -182,6 +189,15 @@ pub fn build_plan(
         call.validate_shape()?;
         return Ok(vec![call]);
     }
+    build_live_plan(database, intent, now_ms)
+}
+
+fn build_live_plan(
+    database: &Database,
+    intent: &CanonicalResearchIntent,
+    now_ms: i64,
+) -> AppResult<Vec<PlannedCallInput>> {
+    let openai = policy(database, "openai", now_ms)?;
     let tvmaze = policy(database, "tvmaze", now_ms)?;
     let youtube = policy(database, "youtube", now_ms)?;
     let (openai, resolved_model, price_id, prices) =
@@ -211,15 +227,15 @@ pub fn build_plan(
             _ => return Err(AppError::DatabaseInvariant("OpenAI official-host registry is invalid".to_owned())),
         },
         40,
-        14,
-        170_000,
-        5_333,
+        20,
+        230_000,
+        7_500,
         false,
         vec![
-            component("input_primary", 170_000, 1_000_000, "INPUT_TOKEN", price(&prices, "input_primary")?)?,
+            component("input_primary", 230_000, 1_000_000, "INPUT_TOKEN", price(&prices, "input_primary")?)?,
             component("cached_input_primary", 0, 1_000_000, "CACHED_INPUT_TOKEN", price(&prices, "cached_input_primary")?)?,
-            component("output_primary", 5_333, 1_000_000, "OUTPUT_TOKEN", price(&prices, "output_primary")?)?,
-            component("web_search_tool", 14, 1, "TOOL_CALL", price(&prices, "web_search_tool")?)?,
+            component("output_primary", 7_500, 1_000_000, "OUTPUT_TOKEN", price(&prices, "output_primary")?)?,
+            component("web_search_tool", 20, 1, "TOOL_CALL", price(&prices, "web_search_tool")?)?,
         ],
         "TVmaze plus official pages can still yield a lower-cost metadata-only result.",
     )?);
@@ -248,6 +264,32 @@ pub fn build_plan(
         ],
         "Skip synthesis and return normalized evidence only.",
     )?);
+    Ok(calls)
+}
+
+/// Build the normal M1.1 live plan while deliberately bypassing the shared
+/// whole-result cache. The caller separately isolates reusable evidence and
+/// cache writes. Release builds do not contain this entry point.
+#[cfg(debug_assertions)]
+pub fn build_m11_calibration_plan(
+    database: &Database,
+    intent: &CanonicalResearchIntent,
+    now_ms: i64,
+) -> AppResult<Vec<PlannedCallInput>> {
+    let calls = build_live_plan(database, intent, now_ms)?;
+    let reservation = calls.iter().try_fold(0_i64, |total, call| {
+        total
+            .checked_add(call.reservation_micro_usd)
+            .ok_or_else(|| AppError::Budget("M1.1 calibration plan overflow".to_owned()))
+    })?;
+    if reservation != M11_CALIBRATION_RUN_RESERVATION_MICRO_USD
+        || reservation > M11_CALIBRATION_HARD_CAP_MICRO_USD
+        || calls.iter().any(|call| call.cache_status == CacheStatus::Hit)
+    {
+        return Err(AppError::Budget(
+            "M1.1 calibration plan escaped its fixed live boundary".to_owned(),
+        ));
+    }
     Ok(calls)
 }
 
@@ -662,10 +704,10 @@ mod tests {
         assert_eq!(calls[0].reservation_micro_usd, 0);
         assert_eq!(calls[1].operation, "research.web_verify");
         assert_eq!(calls[1].max_requests, 40);
-        assert_eq!(calls[1].max_tool_calls, 14);
-        assert_eq!(calls[1].max_input_tokens, 170_000);
-        assert_eq!(calls[1].max_output_tokens, 5_333);
-        assert_eq!(calls[1].reservation_micro_usd, 180_400);
+        assert_eq!(calls[1].max_tool_calls, 20);
+        assert_eq!(calls[1].max_input_tokens, 230_000);
+        assert_eq!(calls[1].max_output_tokens, 7_500);
+        assert_eq!(calls[1].reservation_micro_usd, 255_000);
         assert_eq!(calls[2].provider, "youtube");
         assert_eq!(calls[2].operation, "research.youtube");
         assert_eq!(calls[2].max_requests, 5);
@@ -674,7 +716,7 @@ mod tests {
         assert_eq!(calls[3].reservation_micro_usd, 31_200);
         assert_eq!(
             calls.iter().map(|call| call.reservation_micro_usd).sum::<i64>(),
-            211_600
+            286_200
         );
         assert_eq!(tvmaze_request_ceiling(1), 12);
         assert_eq!(tvmaze_request_ceiling(7), 24);
@@ -723,7 +765,7 @@ mod tests {
         assert_eq!(calls[2].operation, "research.synthesize");
         assert_eq!(
             calls.iter().map(|call| call.reservation_micro_usd).sum::<i64>(),
-            211_600
+            286_200
         );
     }
 }

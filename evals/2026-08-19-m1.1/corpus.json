@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0.0",
+  "suite_id": "m1.1-quality-golden-2026-08-19",
+  "as_of_date": "2026-08-19",
+  "cases": [
+    {
+      "case_id": "female-short-form-broad",
+      "prompt": "find shows for girls that'll likely be popular on tiktok",
+      "expected_facets": ["tv_only", "female_skewing_fandom", "short_form_edit_potential", "active_fan_edit_culture", "recognizable_characters_relationships", "emotionally_legible_scenes", "visual_quote_moments", "current_or_upcoming_relevance", "relationship_or_character_salience"],
+      "broad_query": true,
+      "clarification_needed": false,
+      "minimum_search_questions": 8,
+      "failure_flags": ["single_unexplained_result", "weak_female_audience_evidence", "newness_dominates", "vague_footage_request", "unsupported_tiktok_claim"]
+    },
+    {
+      "case_id": "romcom-three-days-exclusions",
+      "prompt": "romance or romcom TV with a new episode in the last three days, no K-drama, no reality TV",
+      "expected_facets": ["tv_only", "freshness_window", "relationship_edit"],
+      "broad_query": false,
+      "clarification_needed": false,
+      "minimum_search_questions": 4
+    },
+    {
+      "case_id": "female-thriller-character-no-romance",
+      "prompt": "female-led thriller that could make a good character edit, not romance",
+      "expected_facets": ["character_edit", "no_romance"],
+      "broad_query": false,
+      "clarification_needed": false,
+      "minimum_search_questions": 4
+    },
+    {
+      "case_id": "ya-fantasy-relationship",
+      "prompt": "young-adult fantasy with an active relationship fandom",
+      "expected_facets": ["young_adult_audience", "relationship_edit"],
+      "broad_query": true,
+      "clarification_needed": false,
+      "minimum_search_questions": 4
+    },
+    {
+      "case_id": "shipping-trailer",
+      "prompt": "new trailer with characters people are already shipping",
+      "expected_facets": ["relationship_edit"],
+      "broad_query": true,
+      "clarification_needed": false,
+      "minimum_search_questions": 4
+    },
+    {
+      "case_id": "pain-no-death",
+      "prompt": "something emotionally painful between two characters, but no death",
+      "expected_facets": ["heartbreaking_edit", "no_death"],
+      "broad_query": true,
+      "clarification_needed": false,
+      "minimum_search_questions": 4
+    },
+    {
+      "case_id": "male-aggressive",
+      "prompt": "popular TV for men that would work for an aggressive edit",
+      "expected_facets": ["tv_only", "male_skewing_fandom", "aggressive_edit"],
+      "broad_query": true,
+      "clarification_needed": false,
+      "minimum_search_questions": 4
+    },
+    {
+      "case_id": "narrow-one-or-two",
+      "prompt": "find exactly two current TV character edits about a named detective",
+      "expected_facets": ["tv_only", "character_edit"],
+      "broad_query": true,
+      "clarification_needed": false,
+      "minimum_search_questions": 4,
+      "max_results": 2
+    },
+    {
+      "case_id": "contradictory-romance",
+      "prompt": "find romance TV for me, but no romance",
+      "expected_facets": ["tv_only", "relationship_edit", "no_romance"],
+      "broad_query": true,
+      "clarification_needed": true,
+      "minimum_search_questions": 4
+    },
+    {
+      "case_id": "honest-no-opportunity",
+      "prompt": "find a current edit opportunity for an obscure nonexistent show, but only if strong evidence exists",
+      "expected_facets": [],
+      "broad_query": false,
+      "clarification_needed": false,
+      "minimum_search_questions": 4,
+      "allowed_outcome": "NO_STRONG_OPPORTUNITY"
+    }
+  ]
+}

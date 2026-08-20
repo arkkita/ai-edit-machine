@@ -116,6 +116,188 @@
       "title": "OpportunityFocus",
       "type": "object"
     },
+    "OpportunityQualityScoreV1": {
+      "additionalProperties": false,
+      "properties": {
+        "audience_fit": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Audience Fit",
+          "type": "number"
+        },
+        "evidence_quality": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Evidence Quality",
+          "type": "number"
+        },
+        "fandom_velocity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Fandom Velocity",
+          "type": "number"
+        },
+        "footage_actionability": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Footage Actionability",
+          "type": "number"
+        },
+        "freshness": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Freshness",
+          "type": "number"
+        },
+        "intent_fit": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Intent Fit",
+          "type": "number"
+        },
+        "profile_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "relationship_or_character_salience": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Relationship Or Character Salience",
+          "type": "number"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "short_form_edit_potential": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Short Form Edit Potential",
+          "type": "number"
+        },
+        "source_diversity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Source Diversity",
+          "type": "number"
+        },
+        "total": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Total",
+          "type": "number"
+        },
+        "uncertainty_penalty": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Uncertainty Penalty",
+          "type": "number"
+        },
+        "weights": {
+          "$ref": "#/$defs/OpportunityRankingWeightsV1"
+        }
+      },
+      "required": [
+        "profile_id",
+        "intent_fit",
+        "audience_fit",
+        "freshness",
+        "fandom_velocity",
+        "short_form_edit_potential",
+        "relationship_or_character_salience",
+        "footage_actionability",
+        "evidence_quality",
+        "source_diversity",
+        "uncertainty_penalty",
+        "weights",
+        "total"
+      ],
+      "title": "OpportunityQualityScoreV1",
+      "type": "object"
+    },
+    "OpportunityRankingWeightsV1": {
+      "additionalProperties": false,
+      "properties": {
+        "audience_fit": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Audience Fit",
+          "type": "number"
+        },
+        "evidence_quality": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Evidence Quality",
+          "type": "number"
+        },
+        "fandom_velocity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Fandom Velocity",
+          "type": "number"
+        },
+        "footage_actionability": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Footage Actionability",
+          "type": "number"
+        },
+        "freshness": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Freshness",
+          "type": "number"
+        },
+        "intent_fit": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Intent Fit",
+          "type": "number"
+        },
+        "relationship_or_character_salience": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Relationship Or Character Salience",
+          "type": "number"
+        },
+        "short_form_edit_potential": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Short Form Edit Potential",
+          "type": "number"
+        },
+        "source_diversity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Source Diversity",
+          "type": "number"
+        },
+        "uncertainty_penalty": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Uncertainty Penalty",
+          "type": "number"
+        }
+      },
+      "required": [
+        "intent_fit",
+        "audience_fit",
+        "freshness",
+        "fandom_velocity",
+        "short_form_edit_potential",
+        "relationship_or_character_salience",
+        "footage_actionability",
+        "evidence_quality",
+        "source_diversity",
+        "uncertainty_penalty"
+      ],
+      "title": "OpportunityRankingWeightsV1",
+      "type": "object"
+    },
     "OpportunityScoreV2": {
       "additionalProperties": false,
       "properties": {
@@ -166,6 +348,82 @@
       ],
       "title": "OpportunityScoreV2",
       "type": "object"
+    },
+    "ShortFormEditPotentialV1": {
+      "additionalProperties": false,
+      "properties": {
+        "band": {
+          "$ref": "#/$defs/ShortFormPotentialBand"
+        },
+        "direct_tiktok_data_used": {
+          "const": false,
+          "default": false,
+          "title": "Direct Tiktok Data Used",
+          "type": "boolean"
+        },
+        "disclaimer": {
+          "const": "TikTok potential is inferred from cross-platform fandom and editability signals. Direct TikTok trend data was not used.",
+          "default": "TikTok potential is inferred from cross-platform fandom and editability signals. Direct TikTok trend data was not used.",
+          "title": "Disclaimer",
+          "type": "string"
+        },
+        "explanation": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "metric_name": {
+          "const": "SHORT_FORM_EDIT_POTENTIAL",
+          "default": "SHORT_FORM_EDIT_POTENTIAL",
+          "title": "Metric Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "signals": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "title": "Signals",
+          "type": "array"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "band",
+        "explanation",
+        "signals",
+        "supporting_claim_ids"
+      ],
+      "title": "ShortFormEditPotentialV1",
+      "type": "object"
+    },
+    "ShortFormPotentialBand": {
+      "enum": [
+        "LOW",
+        "MODERATE",
+        "HIGH"
+      ],
+      "title": "ShortFormPotentialBand",
+      "type": "string"
     },
     "TrustedOpportunityEvidenceReferenceV2": {
       "additionalProperties": false,
@@ -225,6 +483,19 @@
       "title": "Creative Hook",
       "type": "string"
     },
+    "dossier_id": {
+      "anyOf": [
+        {
+          "format": "uuid4",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dossier Id"
+    },
     "emotional_edit_direction": {
       "maxLength": 2000,
       "minLength": 1,
@@ -262,6 +533,30 @@
       "title": "Opportunity Id",
       "type": "string"
     },
+    "quality_score": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OpportunityQualityScoreV1"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "recommended_concept_id": {
+      "anyOf": [
+        {
+          "format": "uuid4",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Recommended Concept Id"
+    },
     "schema_version": {
       "const": "2.0.0",
       "default": "2.0.0",
@@ -270,6 +565,17 @@
     },
     "score": {
       "$ref": "#/$defs/OpportunityScoreV2"
+    },
+    "short_form_edit_potential": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShortFormEditPotentialV1"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "title": {
       "maxLength": 500,

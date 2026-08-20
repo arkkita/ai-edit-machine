@@ -120,6 +120,79 @@ M1 passes only when all are true:
 
 After the M1 interactive report, stop for user approval. The handoff reports all relevant test/schema/type results, the dated interactive/golden evaluation, actual paid API cost, configured/resolved provider model versions, architecture changes, several representative outputs, known limitations, and explicit confirmation that no M2 implementation occurred and the focused video-ingestion study remains recorded at the M2 approval boundary. If relevance, evidence, footage requests, or cost are weak, iterate M1 rather than starting M2.
 
+## Milestone 1.1 — live relevance, recall, and editorial taste calibration
+
+**Status:** authorized on 2026-08-19 and continuing as M1.1b (Evidence-to-Concept Bridge and False-Abstention Recovery). Implementation and offline validation are in progress. The 2026-08-19 exact live regression did not meet the usefulness gate; a final bounded live rerun and user review remain required. M1.1 is not complete and Milestone 2 remains unapproved.
+
+### Goal
+
+Turn a broad current-interest request into several well-fitted,
+evidence-supported edit propositions when the evidence allows—not merely a list
+of new titles. Preserve honest abstention and the functioning M1 live path.
+
+### Approved scope
+
+- Typed interpretation of hard constraints, soft preferences, audience intent,
+  platform fit, and creative-edit intent, with visible editable chips and
+  semantic research questions.
+- A fourteen-stage candidate funnel, source/rejection diagnostics, broader
+  inexpensive recall, bounded deep validation, and explicit shortage guidance.
+- Development diagnostics for every deeply researched candidate: shortlist
+  reason, current hook, audience/fandom/story evidence, source categories and
+  evidence references, inferred short-form signal, every applicable score and
+  threshold, exact rejection gate, and retrieval/evidence/threshold failure
+  class. A score that was never reached is recorded as `NOT_COMPUTED`.
+- One bounded false-abstention recovery pass for a broad zero-result query. It
+  may expand semantic/fandom discovery and relax soft-preference thresholds,
+  but never factual verification, source binding, or anti-fabrication gates.
+- An inferred `SHORT_FORM_EDIT_POTENTIAL` disclaimer; no direct TikTok claim or
+  probability of virality.
+- Explainable ranking in which intent/audience fit, current fandom evidence,
+  editability, footage actionability, evidence quality, and uncertainty are
+  individually visible and freshness cannot dominate by itself.
+- The explicit domain flow `Opportunity -> FandomStoryDossier ->
+  EditorialConcept[] -> selected EditorialConcept -> concept-specific
+  FootageRequest`. A dossier separates verified facts from inferences and owns
+  the current hook, characters/relationship, source locator, story/franchise
+  context, current fandom/audience evidence, uncertainties, and evidence
+  references. Concepts are derived only from that dossier. No supported concept
+  means no Footage Request.
+- Research-backed concept routes with a specific subject, intro, handoff,
+  montage progression, payoff, canonical/legacy bridge, certainty, and a
+  smallest-useful source set. Generic placeholder concepts or footage requests
+  fail validation.
+- Cross-season/franchise research only when canonical evidence supports it;
+  false connections, rumored cameos, invented quotes, and invented episode
+  locators fail closed.
+- Local recommendation/concept feedback, a dated ten-prompt golden set, replay
+  fixtures, rank-profile comparison, provider/model role audit, and a debug-only
+  aggregate $2.00 live-calibration capability.
+- Visible build/run provenance on Settings, diagnostics, and results: build
+  commit or dirty identifier, build time, pipeline version, worker-manifest
+  hash, provider-configuration identifier, research run ID, and run time.
+  Results without M1.1b provenance are visibly labeled as legacy M1.
+
+### M1.1 acceptance gate
+
+- Rerun `find shows for girls that'll likely be popular on tiktok` live through
+  the normal provider path under the aggregate cap.
+- Return several useful opportunities when evidence supports them, or expose
+  exactly where and why the funnel honestly narrowed.
+- Each surviving result explains audience fit, current event, fandom interest,
+  inferred short-form potential, at least two distinct concepts when supported,
+  and one selected concept-specific footage request.
+- No unsupported quote, episode, scene, speaker, franchise, or audience claim
+  survives Python or Rust validation.
+- Offline Python/provider/schema/compile, Rust, TypeScript, UI, and representative
+  JSON checks pass; actual cost and latency are recorded.
+- Stop for user review. Do not begin M2.
+
+### Explicit M1.1 non-scope
+
+No footage acquisition or upload, ffprobe/media inspection, transcript/ASR,
+video model, shot/scene analysis, final intro selection, song analysis, edit
+planning, render, Topaz, After Effects, or other Milestone 2+ work.
+
 ## Milestone 2 — footage intelligence
 
 **Status:** not approved. The focused research below is a required part of the future M2 approval boundary, not permission to begin it during M1.

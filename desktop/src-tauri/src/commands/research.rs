@@ -18,7 +18,7 @@ use crate::cost::ProviderConfig;
 use crate::credentials::{CredentialProvider, CredentialStore, WindowsCredentialStore};
 use crate::database::repositories::{
     BeginProviderRun, CachePutInput, JobRecord, NewCostPreview, NewResearchJob, ReconcileProviderRun,
-    ReservationCapability, ReusableEvidenceSnapshot, DEFAULT_PROJECT_ID,
+    ReservationCapability, ReusableEvidenceSnapshot, ModelPreflightInput, DEFAULT_PROJECT_ID,
 };
 use crate::database::Database;
 use crate::domain::CanonicalResearchIntent;
@@ -44,6 +44,9 @@ const M1_PROVIDER_DEBUG_SEED_EVENT_AT: &str = "2026-08-17T01:00:00Z";
 const M1_PROVIDER_DEBUG_SEED_URL: &str = "https://www.tvmaze.com/episodes/3686306/the-real-housewives-ultimate-girls-trip-5x02-leather-you-like-it-or-not";
 #[cfg(debug_assertions)]
 const M1_PROVIDER_DEBUG_SEED_RECORD_ID: &str = "3686306";
+#[cfg(debug_assertions)]
+const M11_CALIBRATION_PROMPT: &str =
+    "find shows for girls that'll likely be popular on tiktok";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -56,6 +59,39 @@ pub struct ResearchIntentInput {
     spoiler_policy: Option<String>,
     exclusions: Option<Vec<String>>,
     max_results: Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct RecommendationFeedbackInput {
+    job_id: Uuid,
+    opportunity_id: Uuid,
+    concept_id: Option<Uuid>,
+    rating: String,
+}
+
+impl RecommendationFeedbackInput {
+    fn validate(&self) -> AppResult<()> {
+        if !matches!(
+            self.rating.as_str(),
+            "GREAT_RECOMMENDATION"
+                | "RELEVANT_BUT_BORING"
+                | "WRONG_AUDIENCE"
+                | "NOT_ACTUALLY_TRENDING"
+                | "WEAK_EVIDENCE"
+                | "FOOTAGE_REQUEST_TOO_VAGUE"
+                | "HIDE_THIS_TYPE"
+                | "GENERATE_ANOTHER_IDEA"
+                | "MORE_LIKE_THIS"
+                | "TOO_GENERIC"
+                | "DONT_CARE_ABOUT_THIS_ANGLE"
+        ) {
+            return Err(AppError::Validation(
+                "recommendation feedback category is unsupported".to_owned(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl ResearchIntentInput {
@@ -211,7 +247,23 @@ pub struct ResearchRunView {
     progress_percent: i64,
     phase: String,
     result: Option<serde_json::Value>,
+    provenance: ResearchRunProvenanceView,
     sanitized_error: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResearchRunProvenanceView {
+    build_commit: &'static str,
+    build_identifier: &'static str,
+    build_is_dirty: bool,
+    build_timestamp_unix_ms: i64,
+    pipeline_version: String,
+    worker_manifest_sha256: &'static str,
+    research_run_id: Option<String>,
+    run_timestamp: Option<String>,
+    provider_config_id: String,
+    legacy_result: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -238,12 +290,49 @@ fn view(record: JobRecord) -> AppResult<ResearchRunView> {
         .map(|value| serde_json::from_str(&value))
         .transpose()
         .map_err(|_| AppError::DatabaseInvariant("persisted research result is invalid".to_owned()))?;
+    let legacy_result = result.as_ref().is_some_and(|value: &serde_json::Value| {
+        value.get("pipelineVersion").and_then(serde_json::Value::as_str).is_none()
+    });
+    let research_run_id = result
+        .as_ref()
+        .and_then(|value| value.get("researchRunId"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    let run_timestamp = result
+        .as_ref()
+        .and_then(|value| value.get("runTimestamp"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    let result_pipeline = result
+        .as_ref()
+        .and_then(|value| value.get("pipelineVersion"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(if legacy_result { "legacy-m1" } else { crate::build_provenance::PIPELINE_VERSION })
+        .to_owned();
+    let provider_config_id = result
+        .as_ref()
+        .and_then(|value| value.get("providerConfigId"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(if legacy_result { "legacy-not-recorded" } else { crate::provider_catalog::CATALOG_REGISTRY })
+        .to_owned();
     Ok(ResearchRunView {
         job_id: record.id,
         status: record.state,
         progress_percent: record.progress_percent,
         phase: record.phase,
         result,
+        provenance: ResearchRunProvenanceView {
+            build_commit: crate::build_provenance::BUILD_COMMIT,
+            build_identifier: crate::build_provenance::BUILD_IDENTIFIER,
+            build_is_dirty: crate::build_provenance::BUILD_IS_DIRTY,
+            build_timestamp_unix_ms: crate::build_provenance::BUILD_TIMESTAMP_UNIX_MS,
+            pipeline_version: result_pipeline,
+            worker_manifest_sha256: crate::worker::bundle::embedded_manifest_sha256(),
+            research_run_id,
+            run_timestamp,
+            provider_config_id,
+            legacy_result,
+        },
         sanitized_error: record.sanitized_error,
     })
 }
@@ -348,7 +437,15 @@ pub fn run_openai_verifier_diagnostic(
     let database = Arc::new(Mutex::new(database));
     let worker = Arc::new(Mutex::new(worker));
     let credentials: Arc<dyn CredentialStore> = Arc::new(WindowsCredentialStore);
-    let execution_error = execute_research(job.id, &database, &worker, credentials.as_ref(), None, None)
+    let execution_error = execute_research(
+        job.id,
+        &database,
+        &worker,
+        credentials.as_ref(),
+        None,
+        false,
+        None,
+    )
     .err()
     .ok_or_else(|| {
         AppError::Worker(
@@ -608,6 +705,7 @@ pub fn run_m1_provider_debug_live(
         &worker,
         credentials.as_ref(),
         Some(&development_debug),
+        true,
         Some(&mut capture),
     );
     if let Ok(mut supervisor) = worker.lock() {
@@ -721,6 +819,87 @@ pub fn run_m1_provider_debug_live(
         sanitized_execution_error: execution_error,
         replay_fixture_path: fixture_written.map(|path| path.display().to_string()),
         trace: execution_report.debug_trace,
+    })
+}
+
+#[cfg(debug_assertions)]
+fn refresh_m11_calibration_openai_preflight(
+    database: &mut Database,
+    worker: &mut WorkerSupervisor,
+    credentials: &dyn CredentialStore,
+    now_ms: i64,
+) -> AppResult<()> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload<'a> {
+        schema_version: &'static str,
+        provider: &'static str,
+        configured_model: &'static str,
+        credential: &'a str,
+    }
+
+    let bytes = credentials
+        .load(CredentialProvider::Openai)?
+        .ok_or_else(|| AppError::Credential("OpenAI credential is not configured".to_owned()))?;
+    limits::validate_secret(&bytes)?;
+    let secret = Zeroizing::new(
+        String::from_utf8(bytes.to_vec()).map_err(|_| {
+            AppError::Credential("stored OpenAI credential is not valid UTF-8".to_owned())
+        })?,
+    );
+    let policy = database.provider_disclosures("openai", now_ms)?;
+    let request_id = Uuid::new_v4();
+    worker.send(
+        "provider.preflight",
+        request_id,
+        Payload {
+            schema_version: protocol::PAYLOAD_SCHEMA_VERSION,
+            provider: "openai",
+            configured_model: "gpt-5.6-luna",
+            credential: secret.as_str(),
+        },
+    )?;
+    let result = match worker.receive(Duration::from_secs(45))? {
+        WorkerMessage::ProviderPreflightResult(value) => value,
+        WorkerMessage::ProviderPreflightError(value) => {
+            return Err(AppError::Provider(
+                value.message.replace(secret.as_str(), "<redacted>"),
+            ));
+        }
+        _ => {
+            worker.abort_request(request_id);
+            return Err(AppError::Worker(
+                "worker returned the wrong M1.1 calibration preflight response".to_owned(),
+            ));
+        }
+    };
+    if result.provider != "openai"
+        || !result.available
+        || result.resolved_model.as_deref() != Some("gpt-5.6-luna")
+        || result.retention_mode != policy.retention_summary
+        || result.data_use_mode != policy.data_use_summary
+        || result.no_storage_mode != policy.no_storage_mode
+        || result.privacy_mode != policy.privacy_mode
+    {
+        return Err(AppError::Security(
+            "M1.1 calibration preflight did not match the fixed model and privacy policy"
+                .to_owned(),
+        ));
+    }
+    let expires_at_ms = now_ms
+        .saturating_add(6 * 60 * 60 * 1000)
+        .min(policy.expires_at_ms);
+    database.upsert_model_preflight(&ModelPreflightInput {
+        provider: "openai",
+        configured_model: "gpt-5.6-luna",
+        resolved_model: result.resolved_model.as_deref(),
+        available: true,
+        retention_mode: &result.retention_mode,
+        data_use_mode: &result.data_use_mode,
+        no_storage_mode: &result.no_storage_mode,
+        privacy_mode: &result.privacy_mode,
+        checked_at_ms: now_ms,
+        expires_at_ms,
     })
 }
 
@@ -870,6 +1049,429 @@ fn write_provider_debug_replay_fixture(
     Ok(Some(path.to_path_buf()))
 }
 
+#[cfg(debug_assertions)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct M11CalibrationProviderRun {
+    provider: String,
+    operation: String,
+    configured_model: Option<String>,
+    resolved_model: Option<String>,
+    provider_request_id: Option<String>,
+    outcome: String,
+    requests: Option<i64>,
+    input_tokens: Option<i64>,
+    cached_input_tokens: Option<i64>,
+    output_tokens: Option<i64>,
+    reasoning_tokens: Option<i64>,
+    tool_invocations: Option<i64>,
+    reservation_micro_usd: i64,
+    charged_or_held_micro_usd: i64,
+    cost_state: String,
+}
+
+#[cfg(debug_assertions)]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct M11CalibrationReport {
+    pub schema_version: &'static str,
+    pub development_only: bool,
+    pub run_scope: &'static str,
+    pub job_id: Uuid,
+    pub prompt: &'static str,
+    pub normalized_intent: serde_json::Value,
+    pub hard_cap_micro_usd: i64,
+    pub reserved_this_run_micro_usd: i64,
+    pub committed_before_this_run_micro_usd: i64,
+    pub cumulative_charged_or_held_micro_usd: i64,
+    pub remaining_authorization_micro_usd: i64,
+    pub latency_ms: u128,
+    pub stage_counts: Option<ProviderDebugStageCounts>,
+    pub final_opportunity_count: usize,
+    pub evidence_source_count: usize,
+    pub evidence_claim_count: usize,
+    pub quality_target_met: bool,
+    pub providers: Vec<M11CalibrationProviderRun>,
+    pub result: Option<serde_json::Value>,
+    pub sanitized_execution_error: Option<String>,
+    pub replay_fixture_path: String,
+}
+
+/// Run the exact M1.1 regression query through the normal live M1 pipeline.
+/// The command is compiled only for development, uses one immutable aggregate
+/// budget scope, forces a cache miss, and writes only a sanitized canonical
+/// replay fixture to a caller-supplied create-new path.
+#[cfg(debug_assertions)]
+pub fn run_m11_calibration_live(
+    database_path: &Path,
+    resource_dir: &Path,
+    worker_temp: &Path,
+    replay_fixture_path: &Path,
+) -> AppResult<M11CalibrationReport> {
+    if replay_fixture_path.exists()
+        || replay_fixture_path
+            .parent()
+            .is_none_or(|parent| !parent.is_dir())
+    {
+        return Err(AppError::Validation(
+            "M1.1 replay path must be a new file in an existing directory".to_owned(),
+        ));
+    }
+    eprintln!(
+        "DEVELOPMENT-ONLY: exact M1.1 live calibration; aggregate hard cap $2.00"
+    );
+    let total_started = Instant::now();
+    let intent = ResearchIntentInput {
+        schema_version: "2.0.0".to_owned(),
+        prompt: M11_CALIBRATION_PROMPT.to_owned(),
+        media_kinds: Some(vec!["TV_EPISODE".to_owned()]),
+        region: Some("US".to_owned()),
+        freshness_days: Some(14),
+        spoiler_policy: Some("CURRENT_EPISODE".to_owned()),
+        exclusions: Some(vec![]),
+        max_results: Some(5),
+    };
+    let (input_json, input_sha256) = intent.canonical_json_and_hash()?;
+    let now_ms = crate::unix_time_ms()?;
+    let mut database = Database::open(database_path)?;
+    crate::provider_catalog::install(&mut database, now_ms)?;
+    database.run_policy_maintenance(now_ms)?;
+    database.ensure_m11_calibration_budget(now_ms)?;
+
+    let mut worker = WorkerSupervisor::from_paths(resource_dir, worker_temp);
+    let preview_request_id = Uuid::new_v4();
+    worker.start()?;
+    let credentials: Arc<dyn CredentialStore> = Arc::new(WindowsCredentialStore);
+    refresh_m11_calibration_openai_preflight(
+        &mut database,
+        &mut worker,
+        credentials.as_ref(),
+        now_ms,
+    )?;
+    worker.send(
+        "research.preview",
+        preview_request_id,
+        PreviewPayload {
+            schema_version: protocol::PAYLOAD_SCHEMA_VERSION,
+            intent: &intent,
+            input_sha256: &input_sha256,
+            now_unix_ms: now_ms,
+        },
+    )?;
+    let normalized_value = match worker.receive(Duration::from_secs(15))? {
+        WorkerMessage::ResearchPreviewResult(payload) => payload.normalized_intent,
+        _ => {
+            worker.abort_request(preview_request_id);
+            return Err(AppError::Worker(
+                "worker returned the wrong M1.1 calibration preview response".to_owned(),
+            ));
+        }
+    };
+    let normalized = crate::domain::parse_intent(normalized_value.clone())?;
+    intent.validate_normalized(&normalized)?;
+    let facet_ids = normalized_value
+        .get("interpretation")
+        .and_then(|value| value.get("facets"))
+        .and_then(serde_json::Value::as_array)
+        .map(|facets| {
+            facets
+                .iter()
+                .filter_map(|facet| facet.get("facetId").and_then(serde_json::Value::as_str))
+                .collect::<std::collections::HashSet<_>>()
+        })
+        .unwrap_or_default();
+    if normalized.focus_terms() != ["female-centered"]
+        || !facet_ids.contains("female_skewing_fandom")
+        || !facet_ids.contains("short_form_edit_potential")
+    {
+        return Err(AppError::Security(
+            "M1.1 calibration normalization lost the audience or short-form intent".to_owned(),
+        ));
+    }
+    let normalized_json = normalized.to_canonical_json()?;
+    let calls = crate::provider_catalog::build_m11_calibration_plan(
+        &database,
+        &normalized,
+        now_ms,
+    )?;
+    let operations = calls
+        .iter()
+        .map(|call| (call.provider.as_str(), call.operation.as_str()))
+        .collect::<Vec<_>>();
+    if operations
+        != [
+            ("tvmaze", "research.metadata"),
+            ("openai", "research.web_verify"),
+            ("youtube", "research.youtube"),
+            ("openai", "research.synthesize"),
+        ]
+    {
+        return Err(AppError::Security(
+            "M1.1 calibration plan changed provider roles".to_owned(),
+        ));
+    }
+    let preview = database.create_cost_preview(&NewCostPreview {
+        project_id: DEFAULT_PROJECT_ID,
+        run_scope_key: crate::provider_catalog::M11_CALIBRATION_RUN_SCOPE,
+        input_sha256: &input_sha256,
+        normalized_intent_json: &normalized_json,
+        calls: &calls,
+        now_ms,
+        expires_at_ms: now_ms.saturating_add(5 * 60 * 1000),
+    })?;
+    if preview.maximum_cost_micro_usd
+        != crate::provider_catalog::M11_CALIBRATION_RUN_RESERVATION_MICRO_USD
+        || preview.run_hard_limit_micro_usd
+            != crate::provider_catalog::M11_CALIBRATION_HARD_CAP_MICRO_USD
+        || preview.effective_hard_limit_micro_usd
+            != crate::provider_catalog::M11_CALIBRATION_HARD_CAP_MICRO_USD
+    {
+        return Err(AppError::Budget(
+            "M1.1 calibration preview escaped its immutable aggregate cap".to_owned(),
+        ));
+    }
+    let committed_before = preview.already_spent_or_reserved_micro_usd;
+    let job = database.consume_preview_and_create_job(&NewResearchJob {
+        consent_token: preview.consent_token,
+        input_sha256: &input_sha256,
+        input_contract_json: &input_json,
+        raw_query: M11_CALIBRATION_PROMPT,
+        schema_version: &intent.schema_version,
+        now_ms,
+    })?;
+    if !database.claim_research_execution(job.id, now_ms)? {
+        return Err(AppError::DatabaseInvariant(
+            "M1.1 calibration execution could not be claimed".to_owned(),
+        ));
+    }
+
+    let database = Arc::new(Mutex::new(database));
+    let worker = Arc::new(Mutex::new(worker));
+    let mut capture = ResearchExecutionReport::default();
+    let execution = execute_research(
+        job.id,
+        &database,
+        &worker,
+        credentials.as_ref(),
+        None,
+        true,
+        Some(&mut capture),
+    );
+    if let Ok(mut supervisor) = worker.lock() {
+        let _ = supervisor.stop();
+    }
+    let execution_error = execution
+        .as_ref()
+        .err()
+        .map(|error| crate::security::sanitized_error(&error.to_string()));
+    let execution_report = execution.unwrap_or(capture);
+    if let Some(error) = execution_error.as_deref() {
+        database
+            .lock()
+            .map_err(|_| AppError::Internal)?
+            .fail_job_safely(job.id, false, error, crate::unix_time_ms()?)?;
+    }
+
+    let database = database.lock().map_err(|_| AppError::Internal)?;
+    let record = database.job(job.id)?;
+    let result = record
+        .result_contract_json
+        .map(|value| serde_json::from_str::<serde_json::Value>(&value))
+        .transpose()
+        .map_err(|_| {
+            AppError::DatabaseInvariant("M1.1 calibration result is invalid".to_owned())
+        })?;
+    let (evidence_sources, evidence_claims): (Vec<serde_json::Value>, Vec<serde_json::Value>) =
+        database.connection().query_row(
+            "SELECT evidence_sources_json,evidence_claims_json FROM research_run WHERE job_id=?1",
+            [job.id.to_string()],
+            |row| {
+                let sources = row.get::<_, Option<String>>(0)?.unwrap_or_else(|| "[]".to_owned());
+                let claims = row.get::<_, Option<String>>(1)?.unwrap_or_else(|| "[]".to_owned());
+                Ok((sources, claims))
+            },
+        )
+        .map_err(AppError::from)
+        .and_then(|(sources, claims)| {
+            Ok((serde_json::from_str(&sources)?, serde_json::from_str(&claims)?))
+        })?;
+    let providers = load_m11_calibration_provider_runs(&database, job.id)?;
+    let cumulative = database.m11_calibration_committed_micro_usd()?;
+    let remaining = crate::provider_catalog::M11_CALIBRATION_HARD_CAP_MICRO_USD
+        .saturating_sub(cumulative);
+    let final_opportunity_count = result
+        .as_ref()
+        .and_then(|value| value.get("opportunities"))
+        .and_then(serde_json::Value::as_array)
+        .map_or(0, Vec::len);
+    let quality_target_met = final_opportunity_count >= 3
+        && result
+            .as_ref()
+            .and_then(|value| value.get("opportunities"))
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|opportunities| {
+                opportunities.iter().all(|opportunity| {
+                    opportunity
+                        .get("editorialConcepts")
+                        .and_then(serde_json::Value::as_array)
+                        .is_some_and(|concepts| !concepts.is_empty())
+                })
+            });
+    let latency_ms = total_started.elapsed().as_millis();
+    let fixture = serde_json::json!({
+        "schemaVersion": "1.0.0",
+        "fixtureKind": "M1_1_SANITIZED_CANONICAL_LIVE_REPLAY",
+        "developmentOnly": true,
+        "runScope": crate::provider_catalog::M11_CALIBRATION_RUN_SCOPE,
+        "jobId": job.id,
+        "prompt": M11_CALIBRATION_PROMPT,
+        "inputSha256": input_sha256,
+        "normalizedIntent": normalized_value,
+        "generatedAt": execution_report.generated_at,
+        "latencyMs": latency_ms,
+        "stageCounts": execution_report.stage_counts,
+        "providers": providers,
+        "cost": {
+            "hardCapMicroUsd": crate::provider_catalog::M11_CALIBRATION_HARD_CAP_MICRO_USD,
+            "reservedThisRunMicroUsd": preview.maximum_cost_micro_usd,
+            "committedBeforeThisRunMicroUsd": committed_before,
+            "cumulativeChargedOrHeldMicroUsd": cumulative,
+            "remainingAuthorizationMicroUsd": remaining,
+        },
+        "result": result,
+        "evidenceSources": evidence_sources,
+        "evidenceClaims": evidence_claims,
+        "sanitizedExecutionError": execution_error,
+    });
+    write_m11_calibration_fixture(replay_fixture_path, &fixture, credentials.as_ref())?;
+
+    Ok(M11CalibrationReport {
+        schema_version: protocol::PAYLOAD_SCHEMA_VERSION,
+        development_only: true,
+        run_scope: crate::provider_catalog::M11_CALIBRATION_RUN_SCOPE,
+        job_id: job.id,
+        prompt: M11_CALIBRATION_PROMPT,
+        normalized_intent: normalized_value,
+        hard_cap_micro_usd: crate::provider_catalog::M11_CALIBRATION_HARD_CAP_MICRO_USD,
+        reserved_this_run_micro_usd: preview.maximum_cost_micro_usd,
+        committed_before_this_run_micro_usd: committed_before,
+        cumulative_charged_or_held_micro_usd: cumulative,
+        remaining_authorization_micro_usd: remaining,
+        latency_ms,
+        stage_counts: execution_report.stage_counts,
+        final_opportunity_count,
+        evidence_source_count: evidence_sources.len(),
+        evidence_claim_count: evidence_claims.len(),
+        quality_target_met,
+        providers,
+        result,
+        sanitized_execution_error: execution_error,
+        replay_fixture_path: replay_fixture_path.display().to_string(),
+    })
+}
+
+#[cfg(debug_assertions)]
+fn load_m11_calibration_provider_runs(
+    database: &Database,
+    job_id: Uuid,
+) -> AppResult<Vec<M11CalibrationProviderRun>> {
+    let mut statement = database.connection().prepare(
+        "SELECT call.id,call.provider,call.operation,call.configured_model,call.resolved_model,
+                run.provider_request_id,COALESCE(run.outcome,'NOT_STARTED'),run.requests,
+                run.input_tokens,run.cached_input_tokens,run.output_tokens,run.reasoning_tokens,
+                run.tool_invocations,call.reservation_micro_usd
+         FROM job JOIN planned_provider_call call ON call.consent_token=job.idempotency_key
+         LEFT JOIN provider_run run ON run.planned_call_id=call.id
+         WHERE job.id=?1 ORDER BY call.display_order",
+    )?;
+    type ProviderRow = (
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        String,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        i64,
+    );
+    let rows = statement
+        .query_map([job_id.to_string()], |row| {
+            Ok((
+                row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?,
+                row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?, row.get(9)?,
+                row.get(10)?, row.get(11)?, row.get(12)?, row.get(13)?,
+            ))
+        })?
+        .collect::<Result<Vec<ProviderRow>, _>>()?;
+    rows.into_iter()
+        .map(|row| {
+            let cost = database
+                .connection()
+                .query_row(
+                    "SELECT micro_usd,state FROM cost_entry
+                     WHERE job_id=?1 AND planned_call_id=?2
+                       AND state IN ('ACTUAL','UNVERIFIED','RESERVED')
+                     ORDER BY CASE state WHEN 'ACTUAL' THEN 0 WHEN 'UNVERIFIED' THEN 1 ELSE 2 END,
+                              created_at_ms DESC LIMIT 1",
+                    rusqlite::params![job_id.to_string(), row.0],
+                    |cost_row| Ok((cost_row.get::<_, i64>(0)?, cost_row.get::<_, String>(1)?)),
+                )
+                .optional()?
+                .unwrap_or((0, "RELEASED_OR_FREE".to_owned()));
+            Ok(M11CalibrationProviderRun {
+                provider: row.1,
+                operation: row.2,
+                configured_model: row.3,
+                resolved_model: row.4,
+                provider_request_id: row.5,
+                outcome: row.6,
+                requests: row.7,
+                input_tokens: row.8,
+                cached_input_tokens: row.9,
+                output_tokens: row.10,
+                reasoning_tokens: row.11,
+                tool_invocations: row.12,
+                reservation_micro_usd: row.13,
+                charged_or_held_micro_usd: cost.0,
+                cost_state: cost.1,
+            })
+        })
+        .collect()
+}
+
+#[cfg(debug_assertions)]
+fn write_m11_calibration_fixture(
+    path: &Path,
+    fixture: &serde_json::Value,
+    credentials: &dyn CredentialStore,
+) -> AppResult<()> {
+    let bytes = serde_json::to_vec_pretty(fixture)?;
+    for provider in [CredentialProvider::Openai, CredentialProvider::Youtube] {
+        if let Some(secret) = credentials.load(provider)? {
+            if !secret.is_empty()
+                && bytes
+                    .windows(secret.len())
+                    .any(|candidate| candidate == secret.as_slice())
+            {
+                return Err(AppError::Security(
+                    "M1.1 calibration fixture contained a credential".to_owned(),
+                ));
+            }
+        }
+    }
+    let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+    file.write_all(&bytes)?;
+    file.write_all(b"\n")?;
+    file.sync_all()?;
+    Ok(())
+}
+
 #[tauri::command]
 pub fn preview_research(
     state: State<'_, AppState>,
@@ -974,7 +1576,15 @@ fn spawn_execution(
     std::thread::Builder::new()
         .name(format!("ai-edit-research-{job_id}"))
         .spawn(move || {
-            if let Err(error) = execute_research(job_id, &database, &worker, credentials.as_ref(), None, None) {
+            if let Err(error) = execute_research(
+                job_id,
+                &database,
+                &worker,
+                credentials.as_ref(),
+                None,
+                false,
+                None,
+            ) {
                 if let Ok(mut worker) = worker.lock() {
                     worker.abort_request(job_id);
                 }
@@ -994,6 +1604,7 @@ fn execute_research(
     worker: &Arc<Mutex<WorkerSupervisor>>,
     credentials: &dyn crate::credentials::CredentialStore,
     development_debug: Option<&DevelopmentDebugPayload<'_>>,
+    isolate_development_run: bool,
     mut debug_capture: Option<&mut ResearchExecutionReport>,
 ) -> AppResult<ResearchExecutionReport> {
     let (context, generated_at) = {
@@ -1024,6 +1635,11 @@ fn execute_research(
     let normalized = crate::domain::parse_intent(normalized_value.clone())?;
     intent.validate_normalized(&normalized)?;
     if context.capabilities.is_empty() {
+        if isolate_development_run {
+            return Err(AppError::Security(
+                "development calibration unexpectedly resolved to a shared cache hit".to_owned(),
+            ));
+        }
         let replay = database
             .lock()
             .map_err(|_| AppError::Internal)?
@@ -1077,7 +1693,7 @@ fn execute_research(
         (
             isolate_development_debug_reusable_evidence(
                 database.reusable_research_evidence(evidence_now_ms, 64, 128)?,
-                development_debug.is_some(),
+                isolate_development_run || development_debug.is_some(),
             ),
             database.trusted_evidence_policies(evidence_now_ms)?,
         )
@@ -1235,7 +1851,7 @@ fn execute_research(
                 let output_sha256 = sha256_hex(contract.as_bytes());
                 let now_ms = crate::unix_time_ms()?;
                 let mut database = database.lock().map_err(|_| AppError::Internal)?;
-                if development_debug.is_none() {
+                if development_debug.is_none() && !isolate_development_run {
                     database.cache_put(&CachePutInput {
                         provider: "openai",
                         namespace: crate::provider_catalog::BUNDLE_CACHE_NAMESPACE,
@@ -1508,6 +2124,26 @@ pub fn get_research_run(state: State<'_, AppState>, job_id: Uuid) -> AppResult<R
 }
 
 #[tauri::command]
+pub fn record_recommendation_feedback(
+    state: State<'_, AppState>,
+    input: RecommendationFeedbackInput,
+) -> AppResult<()> {
+    input.validate()?;
+    state
+        .database
+        .lock()
+        .map_err(|_| AppError::Internal)?
+        .record_recommendation_feedback(
+            input.job_id,
+            input.opportunity_id,
+            input.concept_id,
+            &input.rating,
+            crate::unix_time_ms()?,
+        )?;
+    Ok(())
+}
+
+#[tauri::command]
 pub fn cancel_research(state: State<'_, AppState>, job_id: Uuid) -> AppResult<ResearchRunView> {
     let record = {
         let mut database = state.database.lock().map_err(|_| AppError::Internal)?;
@@ -1564,6 +2200,9 @@ fn rekey_cached_result(result: &mut serde_json::Value, run_id: Uuid) -> AppResul
         opportunity.insert("opportunityId".to_owned(), serde_json::Value::String(new_opportunity));
         opportunity.insert("footageRequestId".to_owned(), serde_json::Value::String(new_request));
     }
+    let _ = opportunities;
+    let mut source_ids = std::collections::HashMap::new();
+    let mut intro_ids = std::collections::HashMap::new();
     let requests = object.get_mut("footageRequests").and_then(serde_json::Value::as_array_mut)
         .ok_or_else(|| AppError::DatabaseInvariant("cached footage requests are missing".to_owned()))?;
     for request in requests {
@@ -1576,22 +2215,113 @@ fn rekey_cached_result(result: &mut serde_json::Value, run_id: Uuid) -> AppResul
             .ok_or_else(|| AppError::DatabaseInvariant("cached request lost its opportunity".to_owned()))?.clone();
         let new_request = request_ids.get(old_request)
             .ok_or_else(|| AppError::DatabaseInvariant("cached request lost its reciprocal identity".to_owned()))?.clone();
-        request.insert("opportunityId".to_owned(), serde_json::Value::String(new_opportunity));
-        request.insert("footageRequestId".to_owned(), serde_json::Value::String(new_request));
-        for bucket in ["requiredSources", "optionalSources", "alternativeSources"] {
-            let sources = request.get_mut(bucket).and_then(serde_json::Value::as_array_mut)
-                .ok_or_else(|| AppError::DatabaseInvariant("cached footage source bucket is invalid".to_owned()))?;
-            for source in sources {
-                let source = source.as_object_mut().ok_or_else(|| AppError::DatabaseInvariant("cached footage source is invalid".to_owned()))?;
-                source.insert("requestedSourceId".to_owned(), serde_json::Value::String(Uuid::new_v4().to_string()));
+        rekey_cached_footage_request(
+            request,
+            &new_opportunity,
+            &new_request,
+            &mut source_ids,
+            &mut intro_ids,
+            false,
+        )?;
+    }
+    let concepts = object
+        .get_mut("editorialConcepts")
+        .and_then(serde_json::Value::as_array_mut);
+    if let Some(concepts) = concepts {
+        let mut concept_ids = std::collections::HashMap::new();
+        for concept in concepts.iter_mut() {
+            let concept = concept.as_object_mut().ok_or_else(|| {
+                AppError::DatabaseInvariant("cached editorial concept is invalid".to_owned())
+            })?;
+            let old_concept = concept.get("conceptId").and_then(serde_json::Value::as_str)
+                .ok_or_else(|| AppError::DatabaseInvariant("cached concept identity is missing".to_owned()))?.to_owned();
+            let old_opportunity = concept.get("opportunityId").and_then(serde_json::Value::as_str)
+                .ok_or_else(|| AppError::DatabaseInvariant("cached concept opportunity is missing".to_owned()))?.to_owned();
+            let new_opportunity = opportunity_ids.get(&old_opportunity)
+                .ok_or_else(|| AppError::DatabaseInvariant("cached concept lost its opportunity".to_owned()))?.clone();
+            let new_concept = Uuid::new_v4().to_string();
+            if concept_ids.insert(old_concept.clone(), new_concept.clone()).is_some() {
+                return Err(AppError::DatabaseInvariant("cached concept identities are not unique".to_owned()));
             }
+            concept.insert("conceptId".to_owned(), serde_json::Value::String(new_concept));
+            concept.insert("opportunityId".to_owned(), serde_json::Value::String(new_opportunity.clone()));
+            let nested = concept.get_mut("footageRequest").and_then(serde_json::Value::as_object_mut)
+                .ok_or_else(|| AppError::DatabaseInvariant("cached concept footage request is invalid".to_owned()))?;
+            let old_request = nested.get("footageRequestId").and_then(serde_json::Value::as_str)
+                .ok_or_else(|| AppError::DatabaseInvariant("cached concept footage identity is missing".to_owned()))?.to_owned();
+            let selected = request_ids.contains_key(&old_request);
+            let new_request = request_ids.get(&old_request).cloned().unwrap_or_else(|| Uuid::new_v4().to_string());
+            rekey_cached_footage_request(
+                nested,
+                &new_opportunity,
+                &new_request,
+                &mut source_ids,
+                &mut intro_ids,
+                selected,
+            )?;
+            let nested_leads = nested.get("introLeads").cloned()
+                .ok_or_else(|| AppError::DatabaseInvariant("cached concept intro leads are invalid".to_owned()))?;
+            concept.insert("introLeads".to_owned(), nested_leads);
         }
-        let leads = request.get_mut("introLeads").and_then(serde_json::Value::as_array_mut)
-            .ok_or_else(|| AppError::DatabaseInvariant("cached intro leads are invalid".to_owned()))?;
-        for lead in leads {
-            let lead = lead.as_object_mut().ok_or_else(|| AppError::DatabaseInvariant("cached intro lead is invalid".to_owned()))?;
-            lead.insert("introLeadId".to_owned(), serde_json::Value::String(Uuid::new_v4().to_string()));
+        let _ = concepts;
+        let opportunities = object.get_mut("opportunities").and_then(serde_json::Value::as_array_mut)
+            .ok_or_else(|| AppError::DatabaseInvariant("cached opportunities are missing".to_owned()))?;
+        for opportunity in opportunities.iter_mut() {
+            let opportunity = opportunity.as_object_mut().ok_or_else(|| AppError::DatabaseInvariant("cached opportunity is invalid".to_owned()))?;
+            let Some(old_concept) = opportunity.get("recommendedConceptId").and_then(serde_json::Value::as_str).map(str::to_owned) else { continue; };
+            let new_concept = concept_ids.get(&old_concept)
+                .ok_or_else(|| AppError::DatabaseInvariant("cached recommended concept is missing".to_owned()))?.clone();
+            opportunity.insert("recommendedConceptId".to_owned(), serde_json::Value::String(new_concept));
         }
+    }
+    Ok(())
+}
+
+fn rekey_cached_footage_request(
+    request: &mut serde_json::Map<String, serde_json::Value>,
+    new_opportunity: &str,
+    new_request: &str,
+    source_ids: &mut std::collections::HashMap<String, String>,
+    intro_ids: &mut std::collections::HashMap<String, String>,
+    reuse_existing_ids: bool,
+) -> AppResult<()> {
+    request.insert("opportunityId".to_owned(), serde_json::Value::String(new_opportunity.to_owned()));
+    request.insert("footageRequestId".to_owned(), serde_json::Value::String(new_request.to_owned()));
+    for bucket in ["requiredSources", "optionalSources", "alternativeSources"] {
+        let sources = request.get_mut(bucket).and_then(serde_json::Value::as_array_mut)
+            .ok_or_else(|| AppError::DatabaseInvariant("cached footage source bucket is invalid".to_owned()))?;
+        for source in sources {
+            let source = source.as_object_mut().ok_or_else(|| AppError::DatabaseInvariant("cached footage source is invalid".to_owned()))?;
+            let old_id = source.get("requestedSourceId").and_then(serde_json::Value::as_str)
+                .ok_or_else(|| AppError::DatabaseInvariant("cached footage source identity is missing".to_owned()))?.to_owned();
+            let new_id = if reuse_existing_ids {
+                source_ids.get(&old_id).cloned().ok_or_else(|| AppError::DatabaseInvariant("cached selected concept source lost its identity".to_owned()))?
+            } else {
+                let value = Uuid::new_v4().to_string();
+                if source_ids.insert(old_id, value.clone()).is_some() {
+                    return Err(AppError::DatabaseInvariant("cached footage source identities are not unique".to_owned()));
+                }
+                value
+            };
+            source.insert("requestedSourceId".to_owned(), serde_json::Value::String(new_id));
+        }
+    }
+    let leads = request.get_mut("introLeads").and_then(serde_json::Value::as_array_mut)
+        .ok_or_else(|| AppError::DatabaseInvariant("cached intro leads are invalid".to_owned()))?;
+    for lead in leads {
+        let lead = lead.as_object_mut().ok_or_else(|| AppError::DatabaseInvariant("cached intro lead is invalid".to_owned()))?;
+        let old_id = lead.get("introLeadId").and_then(serde_json::Value::as_str)
+            .ok_or_else(|| AppError::DatabaseInvariant("cached intro identity is missing".to_owned()))?.to_owned();
+        let new_id = if reuse_existing_ids {
+            intro_ids.get(&old_id).cloned().ok_or_else(|| AppError::DatabaseInvariant("cached selected concept intro lost its identity".to_owned()))?
+        } else {
+            let value = Uuid::new_v4().to_string();
+            if intro_ids.insert(old_id, value.clone()).is_some() {
+                return Err(AppError::DatabaseInvariant("cached intro identities are not unique".to_owned()));
+            }
+            value
+        };
+        lead.insert("introLeadId".to_owned(), serde_json::Value::String(new_id));
     }
     Ok(())
 }

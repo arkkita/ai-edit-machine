@@ -12,6 +12,39 @@ const MAX_SEASON_NUMBER: i64 = 9_999;
 const TVMAZE_SHOW_BINDING_PREFIX: &str = "tvmaze-show-title-sha256:v1:";
 const MEDIA_TITLE_BINDING_PREFIX: &str = "media-title-sha256:v1:";
 const SOURCE_BINDING_SEPARATOR: &str = ":source-sha256:v1:";
+const CONCEPT_PROVISIONAL_NOTICE: &str = "This concept is based on current story and fandom evidence. Once you provide the footage, the video analyzer will verify whether the proposed intro, quote, reactions, and montage material are actually present and usable.";
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct IntentFacet {
+    facet_id: String,
+    category: String,
+    label: String,
+    source: String,
+    removable: bool,
+    rationale: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct IntentSearchQuestion {
+    question_id: String,
+    query: String,
+    evidence_goal: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct IntentInterpretation {
+    schema_version: String,
+    facets: Vec<IntentFacet>,
+    search_questions: Vec<IntentSearchQuestion>,
+    broad_query: bool,
+    clarification_needed: bool,
+    clarification_reason: Option<String>,
+    direct_tiktok_data_used: bool,
+    short_form_inference_disclaimer: Option<String>,
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -25,6 +58,7 @@ pub struct CanonicalResearchIntent {
     spoiler_policy: String,
     exclusions: Vec<String>,
     max_results: i64,
+    interpretation: Option<IntentInterpretation>,
 }
 
 impl CanonicalResearchIntent {
@@ -36,6 +70,7 @@ impl CanonicalResearchIntent {
     pub fn focus_terms(&self) -> &[String] { &self.focus_terms }
     pub fn spoiler_policy(&self) -> &str { &self.spoiler_policy }
     pub fn exclusions(&self) -> &[String] { &self.exclusions }
+    fn interpretation(&self) -> Option<&IntentInterpretation> { self.interpretation.as_ref() }
     pub fn to_canonical_json(&self) -> AppResult<String> {
         Ok(serde_json::to_string(&serde_json::to_value(self)?)?)
     }
@@ -172,10 +207,59 @@ struct OpportunityScore {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct OpportunityRankingWeights {
+    intent_fit: f64,
+    audience_fit: f64,
+    freshness: f64,
+    fandom_velocity: f64,
+    short_form_edit_potential: f64,
+    relationship_or_character_salience: f64,
+    footage_actionability: f64,
+    evidence_quality: f64,
+    source_diversity: f64,
+    uncertainty_penalty: f64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct OpportunityQualityScore {
+    schema_version: String,
+    profile_id: String,
+    weights: OpportunityRankingWeights,
+    intent_fit: f64,
+    audience_fit: f64,
+    freshness: f64,
+    fandom_velocity: f64,
+    short_form_edit_potential: f64,
+    relationship_or_character_salience: f64,
+    footage_actionability: f64,
+    evidence_quality: f64,
+    source_diversity: f64,
+    uncertainty_penalty: f64,
+    total: f64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct ShortFormEditPotential {
+    schema_version: String,
+    metric_name: String,
+    band: String,
+    explanation: String,
+    signals: Vec<String>,
+    supporting_claim_ids: Vec<Uuid>,
+    direct_tiktok_data_used: bool,
+    disclaimer: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct Opportunity {
     schema_version: String,
     opportunity_id: Uuid,
     footage_request_id: Uuid,
+    #[serde(default)]
+    dossier_id: Option<Uuid>,
     media_kind: String,
     media_identity: MediaIdentity,
     title: String,
@@ -188,6 +272,9 @@ struct Opportunity {
     evidence_gate: String,
     confidence: f64,
     score: OpportunityScore,
+    quality_score: Option<OpportunityQualityScore>,
+    short_form_edit_potential: Option<ShortFormEditPotential>,
+    recommended_concept_id: Option<Uuid>,
     caveats: Vec<String>,
 }
 
@@ -199,6 +286,79 @@ struct FootageQuote {
     speaker: Option<String>,
     likely_context: Option<String>,
     claim_id: Uuid,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct DossierEvidenceFact {
+    text: String,
+    verification_status: String,
+    supporting_claim_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct DossierCharacter {
+    character_name: String,
+    performer_name: Option<String>,
+    show_or_title: String,
+    verification_status: String,
+    supporting_claim_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct DossierCurrentSource {
+    source_kind: String,
+    show_or_title: String,
+    source_title: String,
+    season_number: Option<i64>,
+    episode_number: Option<i64>,
+    episode_title: Option<String>,
+    verification_status: String,
+    supporting_claim_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct DossierQuoteLead {
+    quote: FootageQuote,
+    source_title: String,
+    verification_status: String,
+    supporting_claim_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct DossierFranchiseConnection {
+    connection_type: String,
+    current_title: String,
+    connected_title: String,
+    characters: Vec<String>,
+    description: String,
+    verification_status: String,
+    supporting_claim_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct FandomStoryDossier {
+    schema_version: String,
+    dossier_id: Uuid,
+    opportunity_id: Uuid,
+    dossier_key: String,
+    show_or_title: String,
+    current_event_or_hook: DossierEvidenceFact,
+    named_characters: Vec<DossierCharacter>,
+    central_relationship: Option<DossierEvidenceFact>,
+    current_source: DossierCurrentSource,
+    exact_or_likely_quote: Option<DossierQuoteLead>,
+    franchise_connections: Vec<DossierFranchiseConnection>,
+    relationship_or_character_history: Vec<DossierEvidenceFact>,
+    why_fans_currently_care: Vec<DossierEvidenceFact>,
+    audience_and_fandom_evidence: Vec<DossierEvidenceFact>,
+    uncertainties: Vec<String>,
+    evidence: Vec<OpportunityEvidenceRef>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -253,6 +413,8 @@ struct FootageRequest {
     schema_version: String,
     footage_request_id: Uuid,
     opportunity_id: Uuid,
+    #[serde(default)]
+    concept_id: Option<Uuid>,
     summary: String,
     natural_request: NaturalFootageRequest,
     required_sources: Vec<RequestedSource>,
@@ -267,6 +429,125 @@ struct FootageRequest {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct EditorialConceptScore {
+    concept_specificity: f64,
+    intro_strength: f64,
+    emotional_arc_strength: f64,
+    narrative_bridge_strength: f64,
+    fan_recognition: f64,
+    current_event_relevance: f64,
+    legacy_context_value: f64,
+    payoff_strength: f64,
+    footage_feasibility: f64,
+    source_actionability: f64,
+    originality: f64,
+    evidence_quality: f64,
+    uncertainty_penalty: f64,
+    total: f64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct EditorialConcept {
+    schema_version: String,
+    concept_id: Uuid,
+    opportunity_id: Uuid,
+    #[serde(default)]
+    dossier_id: Option<Uuid>,
+    concept_key: String,
+    title: String,
+    central_subject: String,
+    central_relationship: Option<String>,
+    core_emotion: String,
+    viewer_hook: String,
+    why_fans_may_care: String,
+    current_event: String,
+    legacy_or_contextual_connection: String,
+    legacy_connection_type: String,
+    intro_leads: Vec<IntroMaterialLead>,
+    song_handoff_idea: String,
+    montage_arc: Vec<String>,
+    ending_or_payoff: String,
+    evidence: Vec<OpportunityEvidenceRef>,
+    verification_status: String,
+    score: EditorialConceptScore,
+    known_uncertainties: Vec<String>,
+    footage_request: FootageRequest,
+    provisional_notice: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct CandidateFunnelRejection {
+    reason_code: String,
+    count: i64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct CandidateScoreTrace {
+    metric: String,
+    value: Option<f64>,
+    count_value: Option<i64>,
+    threshold: Option<f64>,
+    count_threshold: Option<i64>,
+    status: String,
+    note: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct CandidateDiagnostic {
+    candidate_name: String,
+    title: String,
+    shortlist_rank: i64,
+    shortlist_reason: String,
+    current_hook: Option<String>,
+    audience_fit_evidence: Vec<String>,
+    fandom_evidence: Vec<String>,
+    story_or_episode_evidence: Vec<String>,
+    source_categories: Vec<String>,
+    evidence_references: Vec<Uuid>,
+    inferred_short_form_edit_potential: String,
+    scores_and_thresholds: Vec<CandidateScoreTrace>,
+    exact_rejection_gate: String,
+    failure_class: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct CandidateFunnel {
+    schema_version: String,
+    parsed_intent: i64,
+    generated_search_variants: i64,
+    raw_release_candidates: i64,
+    candidates_after_freshness: i64,
+    candidates_after_hard_exclusions: i64,
+    candidates_after_audience_fit_screening: i64,
+    candidates_selected_for_social_research: i64,
+    candidates_with_usable_social_evidence: i64,
+    candidates_surviving_evidence_gates: i64,
+    candidates_surviving_deduplication: i64,
+    candidates_sent_to_final_ranker: i64,
+    final_opportunities_serialized: i64,
+    removed_by_hard_constraints: i64,
+    lacking_current_fandom_evidence: i64,
+    lacking_actionable_footage_information: i64,
+    #[serde(default)]
+    false_abstention_recovery_attempted: bool,
+    #[serde(default)]
+    recovered_candidate_count: i64,
+    #[serde(default)]
+    evidence_coverage_warning: Option<String>,
+    rejection_reasons: Vec<CandidateFunnelRejection>,
+    #[serde(default)]
+    candidate_diagnostics: Vec<CandidateDiagnostic>,
+    shortage_explanation: Option<String>,
+    suggestions: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct CanonicalResearchResult {
     schema_version: String,
     run_id: Uuid,
@@ -274,6 +555,11 @@ pub struct CanonicalResearchResult {
     intent: CanonicalResearchIntent,
     opportunities: Vec<Opportunity>,
     footage_requests: Vec<FootageRequest>,
+    #[serde(default)]
+    editorial_concepts: Vec<EditorialConcept>,
+    #[serde(default)]
+    fandom_story_dossiers: Vec<FandomStoryDossier>,
+    candidate_funnel: Option<CandidateFunnel>,
     message: String,
     applied_exclusions: Vec<String>,
     warnings: Vec<String>,
@@ -308,6 +594,74 @@ struct QuoteView {
     speaker: Option<String>,
     likely_context: Option<String>,
     claim_id: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DossierEvidenceFactView {
+    text: String,
+    verification_status: String,
+    supporting_evidence: Vec<EvidenceView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DossierCharacterView {
+    character_name: String,
+    performer_name: Option<String>,
+    show_or_title: String,
+    verification_status: String,
+    supporting_evidence: Vec<EvidenceView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DossierCurrentSourceView {
+    source_kind: String,
+    show_or_title: String,
+    source_title: String,
+    season_number: Option<i64>,
+    episode_number: Option<i64>,
+    episode_title: Option<String>,
+    verification_status: String,
+    supporting_evidence: Vec<EvidenceView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DossierQuoteLeadView {
+    quote: QuoteView,
+    source_title: String,
+    verification_status: String,
+    supporting_evidence: Vec<EvidenceView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DossierFranchiseConnectionView {
+    connection_type: String,
+    current_title: String,
+    connected_title: String,
+    characters: Vec<String>,
+    description: String,
+    verification_status: String,
+    supporting_evidence: Vec<EvidenceView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FandomStoryDossierView {
+    dossier_id: Uuid,
+    current_event_or_hook: DossierEvidenceFactView,
+    named_characters: Vec<DossierCharacterView>,
+    central_relationship: Option<DossierEvidenceFactView>,
+    current_source: DossierCurrentSourceView,
+    exact_or_likely_quote: Option<DossierQuoteLeadView>,
+    franchise_connections: Vec<DossierFranchiseConnectionView>,
+    relationship_or_character_history: Vec<DossierEvidenceFactView>,
+    why_fans_currently_care: Vec<DossierEvidenceFactView>,
+    audience_and_fandom_evidence: Vec<DossierEvidenceFactView>,
+    uncertainties: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -354,6 +708,7 @@ struct IntroMaterialLeadView {
 #[serde(rename_all = "camelCase")]
 struct FootageRequestView {
     request_id: Uuid,
+    concept_id: Option<Uuid>,
     summary: String,
     natural_request: NaturalFootageRequest,
     minimum_useful_source_keys: Vec<String>,
@@ -364,6 +719,129 @@ struct FootageRequestView {
     intro_leads: Vec<IntroMaterialLeadView>,
     search_queries: Vec<String>,
     warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IntentFacetView {
+    facet_id: String,
+    category: String,
+    label: String,
+    source: String,
+    removable: bool,
+    rationale: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IntentInterpretationView {
+    facets: Vec<IntentFacetView>,
+    broad_query: bool,
+    clarification_needed: bool,
+    clarification_reason: Option<String>,
+    direct_tiktok_data_used: bool,
+    short_form_inference_disclaimer: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CandidateFunnelView {
+    parsed_intent: i64,
+    generated_search_variants: i64,
+    raw_release_candidates: i64,
+    candidates_after_freshness: i64,
+    candidates_after_hard_exclusions: i64,
+    candidates_after_audience_fit_screening: i64,
+    candidates_selected_for_social_research: i64,
+    candidates_with_usable_social_evidence: i64,
+    candidates_surviving_evidence_gates: i64,
+    candidates_surviving_deduplication: i64,
+    candidates_sent_to_final_ranker: i64,
+    final_opportunities_serialized: i64,
+    final_opportunities_received_by_rust: usize,
+    final_opportunities_displayed_by_ui: usize,
+    removed_by_hard_constraints: i64,
+    lacking_current_fandom_evidence: i64,
+    lacking_actionable_footage_information: i64,
+    false_abstention_recovery_attempted: bool,
+    recovered_candidate_count: i64,
+    evidence_coverage_warning: Option<String>,
+    rejection_reasons: Vec<CandidateFunnelRejection>,
+    candidate_diagnostics: Vec<CandidateDiagnostic>,
+    shortage_explanation: Option<String>,
+    suggestions: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpportunityQualityScoreView {
+    profile_id: String,
+    intent_fit: f64,
+    audience_fit: f64,
+    freshness: f64,
+    fandom_velocity: f64,
+    short_form_edit_potential: f64,
+    relationship_or_character_salience: f64,
+    footage_actionability: f64,
+    evidence_quality: f64,
+    source_diversity: f64,
+    uncertainty_penalty: f64,
+    total: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShortFormEditPotentialView {
+    metric_name: String,
+    band: String,
+    explanation: String,
+    signals: Vec<String>,
+    direct_tiktok_data_used: bool,
+    disclaimer: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorialConceptScoreView {
+    concept_specificity: f64,
+    intro_strength: f64,
+    emotional_arc_strength: f64,
+    narrative_bridge_strength: f64,
+    fan_recognition: f64,
+    current_event_relevance: f64,
+    legacy_context_value: f64,
+    payoff_strength: f64,
+    footage_feasibility: f64,
+    source_actionability: f64,
+    originality: f64,
+    evidence_quality: f64,
+    uncertainty_penalty: f64,
+    total: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorialConceptView {
+    concept_id: Uuid,
+    dossier_id: Option<Uuid>,
+    title: String,
+    central_subject: String,
+    central_relationship: Option<String>,
+    core_emotion: String,
+    viewer_hook: String,
+    why_fans_may_care: String,
+    current_event: String,
+    legacy_or_contextual_connection: String,
+    legacy_connection_type: String,
+    intro_leads: Vec<IntroMaterialLeadView>,
+    song_handoff_idea: String,
+    montage_arc: Vec<String>,
+    ending_or_payoff: String,
+    verification_status: String,
+    score: EditorialConceptScoreView,
+    known_uncertainties: Vec<String>,
+    footage_request: FootageRequestView,
+    provisional_notice: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -382,6 +860,11 @@ pub struct OpportunityView {
     intro_caveat: String,
     evidence_gate: String,
     confidence: f64,
+    quality_score: Option<OpportunityQualityScoreView>,
+    short_form_edit_potential: Option<ShortFormEditPotentialView>,
+    fandom_story_dossier: Option<FandomStoryDossierView>,
+    editorial_concepts: Vec<EditorialConceptView>,
+    recommended_concept_id: Option<Uuid>,
     evidence: Vec<EvidenceView>,
     footage_request: FootageRequestView,
     caveats: Vec<String>,
@@ -399,14 +882,26 @@ pub struct EvidenceReviewBreakdownView {
 #[serde(tag = "outcome", rename_all = "SCREAMING_SNAKE_CASE", rename_all_fields = "camelCase")]
 pub enum ResearchResultView {
     Opportunities {
+        research_run_id: Uuid,
+        run_timestamp: String,
+        pipeline_version: &'static str,
+        provider_config_id: &'static str,
         query_summary: String,
         freshness_cutoff: String,
+        interpretation: Option<IntentInterpretationView>,
+        candidate_funnel: Option<CandidateFunnelView>,
         opportunities: Vec<OpportunityView>,
     },
     NoStrongOpportunity {
+        research_run_id: Uuid,
+        run_timestamp: String,
+        pipeline_version: &'static str,
+        provider_config_id: &'static str,
         query_summary: String,
         freshness_cutoff: String,
         explanation: String,
+        interpretation: Option<IntentInterpretationView>,
+        candidate_funnel: Option<CandidateFunnelView>,
         evidence_reviewed: usize,
         evidence_breakdown: EvidenceReviewBreakdownView,
         suggestions: Vec<String>,
@@ -789,10 +1284,144 @@ fn validate_intent(intent: &CanonicalResearchIntent) -> AppResult<()> {
         || !unique_casefolded(&intent.media_kinds)
         || !unique_casefolded(&intent.focus_terms)
         || !unique_casefolded(&intent.exclusions)
+        || intent.interpretation.as_ref().is_some_and(|value| !valid_intent_interpretation(value))
     {
         return Err(AppError::Worker("canonical research intent failed domain validation".to_owned()));
     }
     Ok(())
+}
+
+fn valid_intent_interpretation(value: &IntentInterpretation) -> bool {
+    if value.schema_version != "1.0.0"
+        || value.facets.len() > 30
+        || value.search_questions.len() > 20
+        || value.clarification_needed != value.clarification_reason.is_some()
+        || value.clarification_reason.as_deref().is_some_and(|text| !valid_text(text, 500))
+        || (value.direct_tiktok_data_used && value.short_form_inference_disclaimer.is_some())
+        || value.short_form_inference_disclaimer.as_deref().is_some_and(|text| !valid_text(text, 500))
+    {
+        return false;
+    }
+    let facet_ids = value.facets.iter().map(|item| item.facet_id.as_str()).collect::<Vec<_>>();
+    let question_ids = value.search_questions.iter().map(|item| item.question_id.as_str()).collect::<Vec<_>>();
+    facet_ids.iter().all(|id| valid_identifier(id, 64))
+        && question_ids.iter().all(|id| valid_identifier(id, 64))
+        && unique_borrowed(&facet_ids)
+        && unique_borrowed(&question_ids)
+        && value.facets.iter().all(|item| {
+            matches!(item.category.as_str(), "HARD_CONSTRAINT" | "SOFT_PREFERENCE" | "AUDIENCE" | "PLATFORM_FIT" | "CREATIVE_EDIT")
+                && matches!(item.source.as_str(), "EXPLICIT" | "INFERRED_PRIOR")
+                && valid_text(&item.label, 80)
+                && valid_text(&item.rationale, 300)
+        })
+        && value.search_questions.iter().all(|item| {
+            valid_text(&item.query, 500) && valid_text(&item.evidence_goal, 300)
+        })
+}
+
+fn valid_candidate_diagnostic(value: &CandidateDiagnostic) -> bool {
+    let mut metrics = HashSet::new();
+    let valid_scores = value.scores_and_thresholds.len() <= 30
+        && !value.scores_and_thresholds.is_empty()
+        && value.scores_and_thresholds.iter().all(|score| {
+            let float_values = [score.value, score.threshold];
+            let count_values = [score.count_value, score.count_threshold];
+            valid_text(&score.metric, 80)
+                && score.metric.bytes().all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+                && metrics.insert(score.metric.as_str())
+                && float_values.into_iter().flatten().all(|item| item.is_finite() && (0.0..=1.0).contains(&item))
+                && count_values.into_iter().flatten().all(|item| (0..=1_000).contains(&item))
+                && !(score.value.is_some() && score.count_value.is_some())
+                && !(score.threshold.is_some() && score.count_threshold.is_some())
+                && matches!(score.status.as_str(), "PASSED" | "FAILED" | "INFORMATIONAL" | "NOT_COMPUTED")
+                && (score.status != "NOT_COMPUTED" || (score.value.is_none() && score.count_value.is_none()))
+                && valid_text(&score.note, 500)
+        });
+    let valid_gate = !value.exact_rejection_gate.is_empty()
+        && value.exact_rejection_gate.len() <= 160
+        && value.exact_rejection_gate.bytes().all(|byte| {
+            byte.is_ascii_uppercase() || byte.is_ascii_digit() || matches!(byte, b':' | b'.' | b'_' | b'-')
+        });
+    (1..=1_000).contains(&value.shortlist_rank)
+        && valid_text(&value.candidate_name, 500)
+        && valid_text(&value.title, 500)
+        && valid_text(&value.shortlist_reason, 500)
+        && value.current_hook.as_deref().is_none_or(|item| valid_text(item, 500))
+        && value.audience_fit_evidence.len() <= 12
+        && value.fandom_evidence.len() <= 12
+        && value.story_or_episode_evidence.len() <= 12
+        && value.source_categories.len() <= 20
+        && value.evidence_references.len() <= 40
+        && value.audience_fit_evidence.iter().all(|item| valid_text(item, 500))
+        && value.fandom_evidence.iter().all(|item| valid_text(item, 500))
+        && value.story_or_episode_evidence.iter().all(|item| valid_text(item, 500))
+        && value.source_categories.iter().all(|item| valid_text(item, 500))
+        && value.evidence_references.iter().copied().collect::<HashSet<_>>().len()
+            == value.evidence_references.len()
+        && valid_text(&value.inferred_short_form_edit_potential, 500)
+        && valid_scores
+        && valid_gate
+        && matches!(
+            value.failure_class.as_str(),
+            "RETRIEVAL_RELATED" | "EVIDENCE_RELATED" | "THRESHOLD_RELATED" | "SUPPORTED"
+        )
+        && ((value.failure_class == "SUPPORTED") == (value.exact_rejection_gate == "SUPPORTED"))
+}
+
+fn valid_candidate_funnel(value: &CandidateFunnel, result_count: usize) -> bool {
+    let counts = [
+        value.parsed_intent,
+        value.generated_search_variants,
+        value.raw_release_candidates,
+        value.candidates_after_freshness,
+        value.candidates_after_hard_exclusions,
+        value.candidates_after_audience_fit_screening,
+        value.candidates_selected_for_social_research,
+        value.candidates_with_usable_social_evidence,
+        value.candidates_surviving_evidence_gates,
+        value.candidates_surviving_deduplication,
+        value.candidates_sent_to_final_ranker,
+        value.final_opportunities_serialized,
+        value.removed_by_hard_constraints,
+        value.lacking_current_fandom_evidence,
+        value.lacking_actionable_footage_information,
+        value.recovered_candidate_count,
+    ];
+    let reason_codes = value.rejection_reasons.iter().map(|item| item.reason_code.as_str()).collect::<Vec<_>>();
+    let diagnostic_titles = value.candidate_diagnostics.iter().map(|item| item.title.to_lowercase()).collect::<Vec<_>>();
+    let diagnostic_ranks = value.candidate_diagnostics.iter().map(|item| item.shortlist_rank).collect::<Vec<_>>();
+    value.schema_version == "1.0.0"
+        && value.parsed_intent <= 1
+        && counts.into_iter().all(|count| (0..=1_000_000).contains(&count))
+        && value.final_opportunities_serialized as usize == result_count
+        && value.rejection_reasons.len() <= 50
+        && value.rejection_reasons.iter().all(|item| {
+            (1..=1_000_000).contains(&item.count)
+                && !item.reason_code.is_empty()
+                && item.reason_code.len() <= 120
+                && item.reason_code.bytes().all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b':' | b'.' | b'_' | b'-'))
+        })
+        && unique_borrowed(&reason_codes)
+        && value.candidate_diagnostics.len() <= 30
+        && value.candidate_diagnostics.iter().all(valid_candidate_diagnostic)
+        && diagnostic_titles.iter().collect::<HashSet<_>>().len() == diagnostic_titles.len()
+        && diagnostic_ranks.iter().collect::<HashSet<_>>().len() == diagnostic_ranks.len()
+        && value.suggestions.len() <= 10
+        && value.suggestions.iter().all(|item| valid_text(item, 500))
+        && value.shortage_explanation.as_deref().is_none_or(|item| result_count < 3 && valid_text(item, 1_000))
+        && (result_count < 3 || value.shortage_explanation.is_none())
+        && (!value.false_abstention_recovery_attempted
+            || value.evidence_coverage_warning.as_deref().is_none_or(|item| {
+                result_count == 0 && valid_text(item, 1_000)
+            }))
+        && (value.false_abstention_recovery_attempted
+            || (value.recovered_candidate_count == 0 && value.evidence_coverage_warning.is_none()))
+        && value.removed_by_hard_constraints
+            == (value.candidates_after_freshness - value.candidates_after_hard_exclusions).max(0)
+        && value.lacking_current_fandom_evidence
+            == (value.candidates_selected_for_social_research - value.candidates_with_usable_social_evidence).max(0)
+        && value.lacking_actionable_footage_information
+            == (value.candidates_surviving_evidence_gates - value.candidates_sent_to_final_ranker).max(0)
 }
 
 fn validate_bundle(
@@ -804,6 +1433,9 @@ fn validate_bundle(
     validate_intent(&result.intent)?;
     let Some(now) = parse_timestamp(&result.generated_at) else { return invalid_bundle_at("generated_at"); };
     if result.schema_version != V2 { return invalid_bundle_at("result_schema"); }
+    if result.candidate_funnel.as_ref().is_some_and(|value| !valid_candidate_funnel(value, result.opportunities.len())) {
+        return invalid_bundle_at("candidate_funnel");
+    }
     if !valid_text(&result.message, 2_000) { return invalid_bundle_at("result_message_shape"); }
     if result.opportunities.len() > result.intent.max_results as usize { return invalid_bundle_at("result_count"); }
     if result.warnings.len() > 30 { return invalid_bundle_at("result_warning_count"); }
@@ -821,6 +1453,8 @@ fn validate_bundle(
     if (result.status == "NO_STRONG_OPPORTUNITY") != (result.opportunities.is_empty() && result.footage_requests.is_empty())
         || !matches!(result.status.as_str(), "OPPORTUNITIES" | "NO_STRONG_OPPORTUNITY")
         || result.opportunities.len() != result.footage_requests.len()
+        || (result.status == "NO_STRONG_OPPORTUNITY"
+            && (!result.editorial_concepts.is_empty() || !result.fandom_story_dossiers.is_empty()))
     {
         return invalid_bundle_at("result_shape");
     }
@@ -872,11 +1506,20 @@ fn validate_bundle(
         ) {
             return invalid_bundle_at(stage);
         }
-        let sort_key = (-opportunity.score.total, opportunity.title.to_lowercase());
+        let sort_key = (
+            -opportunity.quality_score.as_ref().map_or(opportunity.score.total, |score| score.total),
+            opportunity.title.to_lowercase(),
+        );
         if prior_sort_key.as_ref().is_some_and(|prior| prior > &sort_key) {
             return invalid_bundle_at("opportunity_sort");
         }
         prior_sort_key = Some(sort_key);
+    }
+    if let Err(stage) = validate_fandom_story_dossiers(result, &source_by_id, &claim_by_id, &mut all_ids) {
+        return invalid_bundle_at(stage);
+    }
+    if let Err(stage) = validate_editorial_concepts(result, &request_by_opportunity, &source_by_id, &claim_by_id, &mut all_ids) {
+        return invalid_bundle_at(stage);
     }
     Ok(())
 }
@@ -1010,13 +1653,25 @@ fn validate_opportunity_and_request(
         || !matches!(opportunity.evidence_gate.as_str(), "PASSED" | "LOW_CONFIDENCE")
         || opportunity.evidence.is_empty() || opportunity.evidence.len() > 30
         || !valid_score(&opportunity.score)
+        || opportunity.quality_score.as_ref().is_some_and(|score| !valid_quality_score(score))
+        || opportunity.short_form_edit_potential.as_ref().is_some_and(|value| {
+            !valid_short_form_potential(value, claims)
+        })
     {
         return Err("opportunity_header");
     }
     if !required_focus_is_supported(opportunity, intent, now, sources, claims) {
         return Err("opportunity_required_focus");
     }
-    if !validate_footage_request(request, opportunity, intent, sources, claims, all_ids) {
+    if !validate_footage_request(
+        request,
+        opportunity,
+        intent,
+        sources,
+        claims,
+        all_ids,
+        opportunity.recommended_concept_id.is_some(),
+    ) {
         return Err("footage_request");
     }
     if contains_prohibited_or_viral(&[&opportunity.title, &opportunity.why_now, &opportunity.what_viewers_are_discussing, &opportunity.creative_hook, &opportunity.emotional_edit_direction]) {
@@ -1117,6 +1772,478 @@ fn validate_opportunity_and_request(
         return Err("opportunity_focus_support");
     }
     Ok(())
+}
+
+fn valid_quality_score(score: &OpportunityQualityScore) -> bool {
+    let weights = &score.weights;
+    let positive_weights = [
+        weights.intent_fit,
+        weights.audience_fit,
+        weights.freshness,
+        weights.fandom_velocity,
+        weights.short_form_edit_potential,
+        weights.relationship_or_character_salience,
+        weights.footage_actionability,
+        weights.evidence_quality,
+        weights.source_diversity,
+    ];
+    let values = [
+        score.intent_fit,
+        score.audience_fit,
+        score.freshness,
+        score.fandom_velocity,
+        score.short_form_edit_potential,
+        score.relationship_or_character_salience,
+        score.footage_actionability,
+        score.evidence_quality,
+        score.source_diversity,
+        score.uncertainty_penalty,
+        score.total,
+        weights.uncertainty_penalty,
+    ];
+    if score.schema_version != "1.0.0"
+        || !valid_text(&score.profile_id, 100)
+        || !values.into_iter().all(valid_confidence)
+        || !positive_weights.into_iter().all(valid_confidence)
+        || !approx(positive_weights.iter().sum::<f64>(), 1.0)
+    {
+        return false;
+    }
+    let weighted = score.intent_fit * weights.intent_fit
+        + score.audience_fit * weights.audience_fit
+        + score.freshness * weights.freshness
+        + score.fandom_velocity * weights.fandom_velocity
+        + score.short_form_edit_potential * weights.short_form_edit_potential
+        + score.relationship_or_character_salience * weights.relationship_or_character_salience
+        + score.footage_actionability * weights.footage_actionability
+        + score.evidence_quality * weights.evidence_quality
+        + score.source_diversity * weights.source_diversity;
+    approx(
+        score.total,
+        (weighted - score.uncertainty_penalty * weights.uncertainty_penalty).clamp(0.0, 1.0),
+    )
+}
+
+fn valid_short_form_potential(
+    value: &ShortFormEditPotential,
+    claims: &HashMap<Uuid, &EvidenceClaim>,
+) -> bool {
+    value.schema_version == "1.0.0"
+        && value.metric_name == "SHORT_FORM_EDIT_POTENTIAL"
+        && matches!(value.band.as_str(), "LOW" | "MODERATE" | "HIGH")
+        && !value.direct_tiktok_data_used
+        && value.disclaimer == "TikTok potential is inferred from cross-platform fandom and editability signals. Direct TikTok trend data was not used."
+        && valid_text(&value.explanation, 2_000)
+        && (1..=12).contains(&value.signals.len())
+        && value.signals.iter().all(|item| valid_text(item, 500))
+        && (1..=30).contains(&value.supporting_claim_ids.len())
+        && unique_uuids(&value.supporting_claim_ids)
+        && value.supporting_claim_ids.iter().all(|id| claims.contains_key(id))
+}
+
+fn valid_dossier_verification(value: &str) -> bool {
+    matches!(value, "VERIFIED" | "STRONGLY_SUPPORTED" | "LIKELY_INFERRED" | "UNKNOWN")
+}
+
+fn generic_editorial_placeholder(value: &str) -> bool {
+    let normalized = normalized_words(value);
+    [
+        "current character discussion",
+        "any relevant material",
+        "exact scene unknown",
+        "exact scene is unknown",
+        "clips from the show",
+        "clips from this show",
+        "get clips from this show",
+        "intro montage payoff",
+    ]
+    .iter()
+    .any(|needle| normalized.contains(needle))
+}
+
+fn valid_dossier_fact(
+    fact: &DossierEvidenceFact,
+    evidence_ids: &HashSet<Uuid>,
+    claims: &HashMap<Uuid, &EvidenceClaim>,
+) -> bool {
+    valid_text(&fact.text, 2_000)
+        && !generic_editorial_placeholder(&fact.text)
+        && valid_dossier_verification(&fact.verification_status)
+        && !fact.supporting_claim_ids.is_empty()
+        && fact.supporting_claim_ids.len() <= 30
+        && unique_uuids(&fact.supporting_claim_ids)
+        && fact
+            .supporting_claim_ids
+            .iter()
+            .all(|id| evidence_ids.contains(id) && claims.contains_key(id))
+        && match fact.verification_status.as_str() {
+            "VERIFIED" => fact.supporting_claim_ids.iter().any(|id| claims[id].verification == "PRIMARY_VERIFIED"),
+            "STRONGLY_SUPPORTED" => fact.supporting_claim_ids.iter().any(|id| {
+                matches!(claims[id].verification.as_str(), "PRIMARY_VERIFIED" | "SECONDARY_CORROBORATED")
+            }),
+            "LIKELY_INFERRED" => fact.supporting_claim_ids.iter().any(|id| {
+                !matches!(claims[id].verification.as_str(), "STALE" | "RETRACTED")
+            }),
+            "UNKNOWN" => true,
+            _ => false,
+        }
+}
+
+fn validate_fandom_story_dossiers(
+    result: &CanonicalResearchResult,
+    sources: &HashMap<Uuid, &EvidenceSource>,
+    claims: &HashMap<Uuid, &EvidenceClaim>,
+    all_ids: &mut HashSet<Uuid>,
+) -> Result<(), &'static str> {
+    if result.fandom_story_dossiers.is_empty() {
+        return if result.opportunities.iter().all(|item| item.dossier_id.is_none())
+            && result.editorial_concepts.iter().all(|item| item.dossier_id.is_none())
+        {
+            Ok(())
+        } else {
+            Err("dossier_selection")
+        };
+    }
+    if result.fandom_story_dossiers.len() != result.opportunities.len() {
+        return Err("dossier_count");
+    }
+    let opportunity_by_id = result
+        .opportunities
+        .iter()
+        .map(|item| (item.opportunity_id, item))
+        .collect::<HashMap<_, _>>();
+    let mut dossier_by_opportunity = HashMap::new();
+    for dossier in &result.fandom_story_dossiers {
+        let Some(opportunity) = opportunity_by_id.get(&dossier.opportunity_id).copied() else {
+            return Err("dossier_opportunity_join");
+        };
+        if !insert_uuid_v4(all_ids, dossier.dossier_id)
+            || dossier.schema_version != "1.0.0"
+            || !source_key_is_valid(&dossier.dossier_key)
+            || dossier_by_opportunity.insert(dossier.opportunity_id, dossier).is_some()
+            || opportunity.dossier_id != Some(dossier.dossier_id)
+            || !same_text(&dossier.show_or_title, &opportunity.media_identity.show_or_title)
+            || dossier.named_characters.is_empty()
+            || dossier.named_characters.len() > 30
+            || dossier.why_fans_currently_care.is_empty()
+            || dossier.why_fans_currently_care.len() > 20
+            || dossier.audience_and_fandom_evidence.is_empty()
+            || dossier.audience_and_fandom_evidence.len() > 20
+            || dossier.relationship_or_character_history.len() > 20
+            || dossier.franchise_connections.len() > 20
+            || dossier.uncertainties.len() > 30
+            || dossier.uncertainties.iter().any(|value| !valid_text(value, 500))
+            || dossier.evidence.is_empty()
+            || dossier.evidence.len() > 60
+        {
+            return Err("dossier_header");
+        }
+        let mut evidence_ids = HashSet::new();
+        for reference in &dossier.evidence {
+            let Some(claim) = claims.get(&reference.claim_id).copied() else {
+                return Err("dossier_evidence");
+            };
+            let Some(source) = sources.get(&claim.source_id).copied() else {
+                return Err("dossier_evidence");
+            };
+            if !evidence_ids.insert(reference.claim_id)
+                || !matches!(reference.role.as_str(), "PRIMARY_WHY_NOW" | "QUALITATIVE_SIGNAL" | "QUOTE_PROOF" | "CONTEXT")
+                || reference.supports_why_now != claim.supports_why_now
+                || reference.independence_group != source.independence_group
+            {
+                return Err("dossier_evidence");
+            }
+        }
+        if !opportunity.evidence.iter().all(|reference| evidence_ids.contains(&reference.claim_id))
+            || !valid_dossier_fact(&dossier.current_event_or_hook, &evidence_ids, claims)
+            || dossier.current_event_or_hook.verification_status == "UNKNOWN"
+            || dossier.central_relationship.as_ref().is_some_and(|fact| !valid_dossier_fact(fact, &evidence_ids, claims))
+            || dossier.relationship_or_character_history.iter().any(|fact| !valid_dossier_fact(fact, &evidence_ids, claims))
+            || dossier.why_fans_currently_care.iter().any(|fact| !valid_dossier_fact(fact, &evidence_ids, claims))
+            || dossier.audience_and_fandom_evidence.iter().any(|fact| !valid_dossier_fact(fact, &evidence_ids, claims))
+        {
+            return Err("dossier_fact");
+        }
+        let character_names = dossier.named_characters.iter().map(|item| item.character_name.as_str()).collect::<Vec<_>>();
+        if !unique_borrowed(&character_names)
+            || dossier.named_characters.iter().any(|character| {
+                !valid_text(&character.character_name, 500)
+                    || !valid_text(&character.show_or_title, 500)
+                    || character.performer_name.as_deref().is_some_and(|value| !valid_optional_text(value, 200))
+                    || !valid_dossier_verification(&character.verification_status)
+                    || character.verification_status == "UNKNOWN"
+                    || character.supporting_claim_ids.is_empty()
+                    || character.supporting_claim_ids.len() > 20
+                    || !unique_uuids(&character.supporting_claim_ids)
+                    || character.supporting_claim_ids.iter().any(|id| !evidence_ids.contains(id) || !claims.contains_key(id))
+            })
+        {
+            return Err("dossier_characters");
+        }
+        let current = &dossier.current_source;
+        let locator_pair = current.season_number.is_some() == current.episode_number.is_some();
+        if !matches!(current.source_kind.as_str(), "EPISODE" | "SEASON" | "TRAILER" | "OFFICIAL_CLIP" | "ANNOUNCEMENT" | "INTERVIEW" | "ARTICLE" | "OTHER")
+            || !valid_text(&current.show_or_title, 500)
+            || !valid_text(&current.source_title, 500)
+            || !valid_dossier_verification(&current.verification_status)
+            || current.verification_status == "UNKNOWN"
+            || !locator_pair
+            || (current.source_kind == "EPISODE") != current.season_number.is_some()
+            || (current.source_kind != "EPISODE" && current.episode_title.is_some())
+            || current.season_number.is_some_and(|value| !(0..=MAX_SEASON_NUMBER).contains(&value))
+            || current.episode_number.is_some_and(|value| !(1..=9_999).contains(&value))
+            || current.supporting_claim_ids.is_empty()
+            || current.supporting_claim_ids.len() > 30
+            || !unique_uuids(&current.supporting_claim_ids)
+            || current.supporting_claim_ids.iter().any(|id| !evidence_ids.contains(id) || !claims.contains_key(id))
+        {
+            return Err("dossier_current_source");
+        }
+        if let Some(quote) = &dossier.exact_or_likely_quote {
+            if !valid_text(&quote.source_title, 500)
+                || !valid_dossier_verification(&quote.verification_status)
+                || quote.supporting_claim_ids.is_empty()
+                || quote.supporting_claim_ids.len() > 20
+                || !unique_uuids(&quote.supporting_claim_ids)
+                || !quote.supporting_claim_ids.contains(&quote.quote.claim_id)
+                || quote.supporting_claim_ids.iter().any(|id| !evidence_ids.contains(id) || !claims.contains_key(id))
+                || !validate_footage_quote(&quote.quote, None, sources, claims)
+            {
+                return Err("dossier_quote");
+            }
+        }
+        for connection in &dossier.franchise_connections {
+            if !matches!(connection.connection_type.as_str(), "SAME_CHARACTER" | "SAME_CANONICAL_UNIVERSE" | "EXPLICIT_CALLBACK" | "THEMATIC_PARALLEL" | "ACTOR_CONNECTION_ONLY" | "FAN_INTERPRETATION")
+                || !valid_text(&connection.current_title, 500)
+                || !valid_text(&connection.connected_title, 500)
+                || !valid_text(&connection.description, 2_000)
+                || connection.characters.len() > 20
+                || connection.characters.iter().any(|value| !valid_text(value, 500))
+                || !unique_casefolded(&connection.characters)
+                || !valid_dossier_verification(&connection.verification_status)
+                || (connection.connection_type == "FAN_INTERPRETATION"
+                    && matches!(connection.verification_status.as_str(), "VERIFIED" | "STRONGLY_SUPPORTED"))
+                || connection.supporting_claim_ids.is_empty()
+                || connection.supporting_claim_ids.len() > 30
+                || !unique_uuids(&connection.supporting_claim_ids)
+                || connection.supporting_claim_ids.iter().any(|id| !evidence_ids.contains(id) || !claims.contains_key(id))
+            {
+                return Err("dossier_franchise_connection");
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_editorial_concepts(
+    result: &CanonicalResearchResult,
+    request_by_opportunity: &HashMap<Uuid, &FootageRequest>,
+    sources: &HashMap<Uuid, &EvidenceSource>,
+    claims: &HashMap<Uuid, &EvidenceClaim>,
+    all_ids: &mut HashSet<Uuid>,
+) -> Result<(), &'static str> {
+    if result.editorial_concepts.is_empty() {
+        return if result.opportunities.iter().all(|item| item.recommended_concept_id.is_none()) {
+            Ok(())
+        } else {
+            Err("concept_selection")
+        };
+    }
+    let opportunity_by_id = result.opportunities.iter().map(|item| (item.opportunity_id, item)).collect::<HashMap<_, _>>();
+    let dossier_by_opportunity = result.fandom_story_dossiers.iter().map(|item| (item.opportunity_id, item)).collect::<HashMap<_, _>>();
+    let dossier_path = !result.fandom_story_dossiers.is_empty();
+    let mut keys_by_opportunity: HashMap<Uuid, HashSet<&str>> = HashMap::new();
+    for concept in &result.editorial_concepts {
+        let Some(opportunity) = opportunity_by_id.get(&concept.opportunity_id).copied() else {
+            return Err("concept_opportunity_join");
+        };
+        let dossier = dossier_by_opportunity.get(&concept.opportunity_id).copied();
+        if !insert_uuid_v4(all_ids, concept.concept_id)
+            || concept.schema_version != "1.0.0"
+            || (dossier_path
+                && dossier.is_none_or(|item| concept.dossier_id != Some(item.dossier_id)))
+            || !source_key_is_valid(&concept.concept_key)
+            || !keys_by_opportunity.entry(concept.opportunity_id).or_default().insert(&concept.concept_key)
+            || !valid_text(&concept.title, 500)
+            || !valid_text(&concept.central_subject, 2_000)
+            || concept.central_relationship.as_deref().is_some_and(|value| !valid_optional_text(value, 500))
+            || !valid_text(&concept.core_emotion, 500)
+            || !valid_text(&concept.viewer_hook, 2_000)
+            || !valid_text(&concept.why_fans_may_care, 2_000)
+            || !valid_text(&concept.current_event, 2_000)
+            || !valid_text(&concept.legacy_or_contextual_connection, 2_000)
+            || !matches!(concept.legacy_connection_type.as_str(), "NONE" | "SAME_CHARACTER" | "SAME_CANONICAL_UNIVERSE" | "EXPLICIT_CALLBACK" | "THEMATIC_PARALLEL" | "ACTOR_CONNECTION_ONLY" | "FAN_INTERPRETATION")
+            || !(1..=3).contains(&concept.intro_leads.len())
+            || !valid_text(&concept.song_handoff_idea, 2_000)
+            || !(3..=6).contains(&concept.montage_arc.len())
+            || concept.montage_arc.iter().any(|value| !valid_text(value, 2_000))
+            || !unique_casefolded(&concept.montage_arc)
+            || !valid_text(&concept.ending_or_payoff, 2_000)
+            || concept.evidence.is_empty()
+            || concept.evidence.len() > 30
+            || !matches!(concept.verification_status.as_str(), "VERIFIED" | "STRONGLY_SUPPORTED" | "LIKELY_INFERRED" | "UNKNOWN")
+            || concept.known_uncertainties.len() > 20
+            || concept.known_uncertainties.iter().any(|value| !valid_text(value, 500))
+            || concept.provisional_notice != CONCEPT_PROVISIONAL_NOTICE
+            || (concept.legacy_connection_type == "FAN_INTERPRETATION"
+                && matches!(concept.verification_status.as_str(), "VERIFIED" | "STRONGLY_SUPPORTED"))
+            || !valid_editorial_concept_score(&concept.score)
+            || concept.footage_request.opportunity_id != concept.opportunity_id
+            || (dossier_path && concept.footage_request.concept_id != Some(concept.concept_id))
+            || serde_json::to_value(&concept.intro_leads).ok() != serde_json::to_value(&concept.footage_request.intro_leads).ok()
+            || generic_concept_copy(concept)
+            || contains_prohibited_or_viral(&[
+                &concept.title,
+                &concept.central_subject,
+                &concept.core_emotion,
+                &concept.viewer_hook,
+                &concept.why_fans_may_care,
+                &concept.current_event,
+                &concept.legacy_or_contextual_connection,
+                &concept.song_handoff_idea,
+                &concept.ending_or_payoff,
+            ])
+            || concept.montage_arc.iter().any(|value| contains_prohibited_or_viral_text(value))
+            || concept.known_uncertainties.iter().any(|value| contains_prohibited_or_viral_text(value))
+        {
+            return Err("concept_header");
+        }
+        let mut seen_claims = HashSet::new();
+        for reference in &concept.evidence {
+            let Some(claim) = claims.get(&reference.claim_id).copied() else {
+                return Err("concept_evidence");
+            };
+            let Some(source) = sources.get(&claim.source_id).copied() else {
+                return Err("concept_evidence");
+            };
+            if !insert_uuid_v4(&mut seen_claims, reference.claim_id)
+                || !matches!(reference.role.as_str(), "PRIMARY_WHY_NOW" | "QUALITATIVE_SIGNAL" | "QUOTE_PROOF" | "CONTEXT")
+                || reference.supports_why_now != claim.supports_why_now
+                || reference.independence_group != source.independence_group
+            {
+                return Err("concept_evidence");
+            }
+        }
+        if dossier_path && dossier.is_some_and(|item| {
+            let dossier_ids = item.evidence.iter().map(|reference| reference.claim_id).collect::<HashSet<_>>();
+            concept.evidence.iter().any(|reference| !dossier_ids.contains(&reference.claim_id))
+        }) {
+            return Err("concept_dossier_evidence");
+        }
+        if matches!(
+            concept.legacy_connection_type.as_str(),
+            "SAME_CHARACTER" | "SAME_CANONICAL_UNIVERSE" | "EXPLICIT_CALLBACK"
+        ) && !canonical_connection_is_supported(concept, sources, claims)
+        {
+            return Err("concept_connection");
+        }
+        if concept.verification_status == "VERIFIED"
+            && concept.intro_leads.iter().any(|lead| lead.verification_level != "VERIFIED")
+        {
+            return Err("concept_verification");
+        }
+        let selected = opportunity.recommended_concept_id == Some(concept.concept_id);
+        if selected {
+            let Some(top_level) = request_by_opportunity.get(&concept.opportunity_id).copied() else {
+                return Err("concept_footage_join");
+            };
+            if serde_json::to_value(top_level).ok() != serde_json::to_value(&concept.footage_request).ok() {
+                return Err("concept_selected_footage");
+            }
+        } else {
+            if !insert_uuid_v4(all_ids, concept.footage_request.footage_request_id)
+                || !validate_footage_request(
+                    &concept.footage_request,
+                    opportunity,
+                    &result.intent,
+                    sources,
+                    claims,
+                    all_ids,
+                    true,
+                )
+            {
+                return Err("concept_footage_request");
+            }
+        }
+    }
+    for opportunity in &result.opportunities {
+        let concepts = result.editorial_concepts.iter().filter(|item| item.opportunity_id == opportunity.opportunity_id).collect::<Vec<_>>();
+        if !(1..=4).contains(&concepts.len())
+            || opportunity.recommended_concept_id.is_none()
+            || concepts.iter().filter(|item| Some(item.concept_id) == opportunity.recommended_concept_id).count() != 1
+            || (dossier_path && opportunity.dossier_id.is_none())
+        {
+            return Err("concept_selection");
+        }
+    }
+    Ok(())
+}
+
+fn valid_editorial_concept_score(score: &EditorialConceptScore) -> bool {
+    let positive = [
+        score.concept_specificity,
+        score.intro_strength,
+        score.emotional_arc_strength,
+        score.narrative_bridge_strength,
+        score.fan_recognition,
+        score.current_event_relevance,
+        score.legacy_context_value,
+        score.payoff_strength,
+        score.footage_feasibility,
+        score.source_actionability,
+        score.originality,
+        score.evidence_quality,
+    ];
+    positive.into_iter().chain([score.uncertainty_penalty, score.total]).all(valid_confidence)
+        && approx(
+            score.total,
+            (positive.iter().sum::<f64>() / positive.len() as f64 - 0.25 * score.uncertainty_penalty).clamp(0.0, 1.0),
+        )
+}
+
+fn generic_concept_copy(concept: &EditorialConcept) -> bool {
+    let normalized = normalized_words(&format!(
+        "{} {} {}",
+        concept.central_subject, concept.viewer_hook, concept.montage_arc.join(" ")
+    ));
+    normalized.starts_with("this show is current get clips from this show")
+        || normalized.starts_with("this show is trending get clips from this show")
+        || normalized.starts_with("get clips from this show")
+        || normalized.starts_with("use clips from this show")
+        || normalized.starts_with("find clips from this show")
+}
+
+fn canonical_connection_is_supported(
+    concept: &EditorialConcept,
+    sources: &HashMap<Uuid, &EvidenceSource>,
+    claims: &HashMap<Uuid, &EvidenceClaim>,
+) -> bool {
+    let mut parts = Vec::new();
+    for reference in &concept.evidence {
+        let Some(claim) = claims.get(&reference.claim_id) else { return false; };
+        let Some(source) = sources.get(&claim.source_id) else { return false; };
+        parts.push(claim.text.as_str());
+        parts.push(source.title.as_str());
+    }
+    let corpus = format!(" {} ", normalized_words(&parts.join(" ")));
+    [
+        " spinoff ",
+        " spin off ",
+        " sequel ",
+        " prequel ",
+        " same universe ",
+        " return ",
+        " returns ",
+        " returning ",
+        " reunion ",
+        " callback ",
+        " continuation ",
+        " parent series ",
+        " reprise ",
+        " reprising ",
+    ]
+    .iter()
+    .any(|term| corpus.contains(term))
 }
 
 struct GateComputation {
@@ -1298,6 +2425,7 @@ fn validate_footage_request(
     sources: &HashMap<Uuid, &EvidenceSource>,
     claims: &HashMap<Uuid, &EvidenceClaim>,
     all_ids: &mut HashSet<Uuid>,
+    allow_cross_title_sources: bool,
 ) -> bool {
     if request.required_sources.is_empty() || request.required_sources.len() > 30
         || request.optional_sources.len() > 30 || request.alternative_sources.len() > 30
@@ -1342,6 +2470,19 @@ fn validate_footage_request(
         return false;
     }
     let all_sources = request.required_sources.iter().chain(&request.optional_sources).chain(&request.alternative_sources).collect::<Vec<_>>();
+    let cross_title_sources = all_sources
+        .iter()
+        .filter(|source| !same_text(&source.show_or_title, &opportunity.media_identity.show_or_title))
+        .collect::<Vec<_>>();
+    if !cross_title_sources.is_empty()
+        && (!allow_cross_title_sources
+            || cross_title_sources.iter().any(|source| {
+                source.verification_level == "UNKNOWN"
+                    || source.supporting_claim_ids.is_empty()
+            }))
+    {
+        return false;
+    }
     let expected_natural = render_natural_request(&request.required_sources, &request.optional_sources, &request.alternative_sources);
     let expected_searches = unique_strings(all_sources.iter().flat_map(|source| source.search_queries.iter().map(String::as_str))).into_iter().take(30).collect::<Vec<_>>();
     let has_unknown = all_sources.iter().any(|source| source.verification_level == "UNKNOWN");
@@ -1356,7 +2497,12 @@ fn validate_footage_request(
         && request.natural_request.optional_improvement == expected_natural.optional_improvement
         && request.search_queries == expected_searches
         && request.warnings == expected_warnings
-        && validate_opportunity_request_pair(opportunity, request, intent)
+        && validate_opportunity_request_pair(
+            opportunity,
+            request,
+            intent,
+            allow_cross_title_sources,
+        )
 }
 
 fn validate_requested_source(
@@ -1519,6 +2665,9 @@ fn validate_intro_lead(
             !matches!(claim.verification.as_str(), "STALE" | "RETRACTED")
                 && (requested.asset_kind != "EPISODE" || claim_carries_matching_episode_locator(requested, claim))
                 && (scene_fact_matches(requested, claim, &lead.moment_description)
+                || (claim.claim_kind == "OFFICIAL_CLIP"
+                    && asset_identity_matches(requested, claim)
+                    && same_text(&claim.text, &lead.moment_description))
                 || (claim.claim_kind == "VIEWER_DISCUSSION"
                     && matches!(claim.excerpt_type.as_str(), "PARAPHRASE" | "UNVERIFIED_QUOTE_LEAD")
                     && same_text(&claim.text, &lead.moment_description)
@@ -1531,9 +2680,12 @@ fn validate_opportunity_request_pair(
     opportunity: &Opportunity,
     request: &FootageRequest,
     intent: &CanonicalResearchIntent,
+    allow_cross_title_sources: bool,
 ) -> bool {
     let all = request.required_sources.iter().chain(&request.optional_sources).chain(&request.alternative_sources).collect::<Vec<_>>();
-    if all.iter().any(|source| !same_text(&source.show_or_title, &opportunity.media_identity.show_or_title)) {
+    if !allow_cross_title_sources
+        && all.iter().any(|source| !same_text(&source.show_or_title, &opportunity.media_identity.show_or_title))
+    {
         return false;
     }
     let requested_characters = all.iter().flat_map(|source| source.characters.iter()).map(|value| same_key(value)).collect::<HashSet<_>>();
@@ -1613,10 +2765,11 @@ fn required_focus_is_supported(
     if !intent.focus_terms.iter().any(|value| normalized_words(value) == "female centered") {
         return true;
     }
-    opportunity.evidence.iter().any(|reference| {
+    let mut relevant = Vec::new();
+    for reference in &opportunity.evidence {
         let Some(claim) = claims.get(&reference.claim_id) else { return false; };
         let Some(source) = sources.get(&claim.source_id) else { return false; };
-        if !usable_evidence(claim, source, now) { return false; }
+        if !usable_evidence(claim, source, now) { continue; }
         let structured_title_matches = [
             claim.episode_locator.as_ref().map(|value| value.show_or_title.as_str()),
             claim.quote_fact.as_ref().map(|value| value.media_identity.show_or_title.as_str()),
@@ -1625,19 +2778,64 @@ fn required_focus_is_supported(
             claim.cast_fact.as_ref().map(|value| value.show_or_title.as_str()),
         ].into_iter().flatten().any(|value| same_text(value, &opportunity.media_identity.show_or_title));
         if !structured_title_matches && !evidence_source_binds_title(source, &opportunity.media_identity.show_or_title) {
-            return false;
+            continue;
         }
-        female_centered_evidence(&source.title)
-    })
+        relevant.push(source.title.as_str());
+        relevant.push(claim.text.as_str());
+    }
+    female_audience_evidence(&relevant.join(" "))
 }
 
-fn female_centered_evidence(value: &str) -> bool {
+fn female_audience_evidence(value: &str) -> bool {
     let normalized = format!(" {} ", normalized_words(value));
+    let direct = [
+        " female skewing audience ",
+        " female skewing fandom ",
+        " female audience ",
+        " female fandom ",
+        " women audience ",
+        " women fandom ",
+        " women viewers ",
+        " girls audience ",
+        " girls fandom ",
+        " girls viewers ",
+        " popular among women ",
+        " popular with women ",
+        " popular among girls ",
+        " popular with girls ",
+    ]
+    .iter()
+    .any(|term| normalized.contains(term));
+    if direct {
+        return true;
+    }
     [
-        " female centered ", " female centred ", " female focused ", " female led ",
-        " girl ", " girls ", " woman ", " women ", " mother ", " mothers ",
-        " daughter ", " daughters ", " sister ", " sisters ",
-    ].iter().any(|term| normalized.contains(term))
+        " female centered ",
+        " female centred ",
+        " female focused ",
+        " female led ",
+        " women at the center ",
+        " centers its women ",
+        " centres its women ",
+        " heroine ",
+        " heroines ",
+        " mother ",
+        " daughter ",
+        " sister ",
+        " young adult ",
+        " teen ",
+        " romance ",
+        " romcom ",
+        " shipping ",
+        " couple ",
+        " chemistry ",
+        " confession ",
+        " relationship fandom ",
+    ]
+    .iter()
+    .filter(|term| normalized.contains(*term))
+    .count()
+        >= 2
 }
 
 fn discussion_matches_opportunity(opportunity: &Opportunity, source: &EvidenceSource) -> bool {
@@ -2189,6 +3387,14 @@ fn valid_text(value: &str, max: usize) -> bool {
     !value.trim().is_empty() && value.trim() == value && value.chars().count() <= max
 }
 fn valid_optional_text(value: &str, max: usize) -> bool { value.trim() == value && value.chars().count() <= max }
+fn valid_identifier(value: &str, max: usize) -> bool {
+    (2..=max).contains(&value.len())
+        && value.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
+        && value.bytes().all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+}
+fn unique_borrowed(values: &[&str]) -> bool {
+    values.iter().copied().collect::<HashSet<_>>().len() == values.len()
+}
 fn same_text(left: &str, right: &str) -> bool { same_key(left) == same_key(right) }
 fn same_key(value: &str) -> String { value.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase() }
 fn normalized_words(value: &str) -> String {
@@ -2232,6 +3438,10 @@ fn truncate_chars(value: &str, max: usize) -> String { value.chars().take(max).c
 fn map_view(result: &CanonicalResearchResult, sources: &[EvidenceSource], claims: &[EvidenceClaim]) -> AppResult<ResearchResultView> {
     let source_by_id = sources.iter().map(|source| (source.source_id, source)).collect::<HashMap<_, _>>();
     let claim_by_id = claims.iter().map(|claim| (claim.claim_id, claim)).collect::<HashMap<_, _>>();
+    let interpretation = result.intent.interpretation().map(map_interpretation);
+    let candidate_funnel = result.candidate_funnel.as_ref().map(|value| {
+        map_candidate_funnel(value, result.opportunities.len())
+    });
     if result.status == "NO_STRONG_OPPORTUNITY" {
         let evidence_breakdown = EvidenceReviewBreakdownView {
             metadata_records: sources
@@ -2256,21 +3466,56 @@ fn map_view(result: &CanonicalResearchResult, sources: &[EvidenceSource], claims
                 .count(),
         };
         return Ok(ResearchResultView::NoStrongOpportunity {
+            research_run_id: result.run_id,
+            run_timestamp: result.generated_at.clone(),
+            pipeline_version: crate::build_provenance::PIPELINE_VERSION,
+            provider_config_id: crate::provider_catalog::CATALOG_REGISTRY,
             query_summary: result.intent.query.clone(),
             freshness_cutoff: freshness_cutoff(result)?,
             explanation: result.message.clone(),
+            interpretation,
+            candidate_funnel: candidate_funnel.clone(),
             evidence_reviewed: sources.len(),
             evidence_breakdown,
-            suggestions: result.warnings.clone(),
+            suggestions: unique_strings(
+                candidate_funnel
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(|value| value.suggestions.iter().map(String::as_str))
+                    .chain(result.warnings.iter().map(String::as_str)),
+            ),
         });
     }
     let request_by_id = result.footage_requests.iter().map(|request| (request.footage_request_id, request)).collect::<HashMap<_, _>>();
+    let concepts_by_opportunity = result.editorial_concepts.iter().fold(
+        HashMap::<Uuid, Vec<&EditorialConcept>>::new(),
+        |mut values, concept| {
+            values.entry(concept.opportunity_id).or_default().push(concept);
+            values
+        },
+    );
+    let dossier_by_opportunity = result
+        .fandom_story_dossiers
+        .iter()
+        .map(|dossier| (dossier.opportunity_id, dossier))
+        .collect::<HashMap<_, _>>();
     let mut output = Vec::with_capacity(result.opportunities.len());
     for (index, opportunity) in result.opportunities.iter().enumerate() {
         let request = request_by_id.get(&opportunity.footage_request_id)
             .ok_or_else(|| AppError::Worker("canonical opportunity lost its footage request".to_owned()))?;
         let evidence = map_evidence(opportunity.evidence.iter().map(|reference| reference.claim_id), &claim_by_id, &source_by_id)?;
         let footage = map_footage(request, &claim_by_id, &source_by_id)?;
+        let editorial_concepts = concepts_by_opportunity
+            .get(&opportunity.opportunity_id)
+            .into_iter()
+            .flat_map(|values| values.iter().copied())
+            .map(|concept| map_editorial_concept(concept, &claim_by_id, &source_by_id))
+            .collect::<AppResult<Vec<_>>>()?;
+        let fandom_story_dossier = dossier_by_opportunity
+            .get(&opportunity.opportunity_id)
+            .copied()
+            .map(|dossier| map_fandom_story_dossier(dossier, &claim_by_id, &source_by_id))
+            .transpose()?;
         let focus = if opportunity.focus.characters.is_empty() {
             opportunity.focus.relationship_or_topic.clone()
         } else {
@@ -2290,15 +3535,234 @@ fn map_view(result: &CanonicalResearchResult, sources: &[EvidenceSource], claims
             intro_caveat: "Promising research lead only; the future creative video pass must inspect supplied footage before choosing an intro.".to_owned(),
             evidence_gate: opportunity.evidence_gate.clone(),
             confidence: opportunity.confidence,
+            quality_score: opportunity.quality_score.as_ref().map(map_quality_score),
+            short_form_edit_potential: opportunity.short_form_edit_potential.as_ref().map(map_short_form_potential),
+            fandom_story_dossier,
+            editorial_concepts,
+            recommended_concept_id: opportunity.recommended_concept_id,
             evidence,
             footage_request: footage,
             caveats: opportunity.caveats.clone(),
         });
     }
     Ok(ResearchResultView::Opportunities {
+        research_run_id: result.run_id,
+        run_timestamp: result.generated_at.clone(),
+        pipeline_version: crate::build_provenance::PIPELINE_VERSION,
+        provider_config_id: crate::provider_catalog::CATALOG_REGISTRY,
         query_summary: result.intent.query.clone(),
         freshness_cutoff: freshness_cutoff(result)?,
+        interpretation,
+        candidate_funnel,
         opportunities: output,
+    })
+}
+
+fn map_interpretation(value: &IntentInterpretation) -> IntentInterpretationView {
+    IntentInterpretationView {
+        facets: value.facets.iter().map(|item| IntentFacetView {
+            facet_id: item.facet_id.clone(),
+            category: item.category.clone(),
+            label: item.label.clone(),
+            source: item.source.clone(),
+            removable: item.removable,
+            rationale: item.rationale.clone(),
+        }).collect(),
+        broad_query: value.broad_query,
+        clarification_needed: value.clarification_needed,
+        clarification_reason: value.clarification_reason.clone(),
+        direct_tiktok_data_used: value.direct_tiktok_data_used,
+        short_form_inference_disclaimer: value.short_form_inference_disclaimer.clone(),
+    }
+}
+
+fn map_candidate_funnel(value: &CandidateFunnel, result_count: usize) -> CandidateFunnelView {
+    CandidateFunnelView {
+        parsed_intent: value.parsed_intent,
+        generated_search_variants: value.generated_search_variants,
+        raw_release_candidates: value.raw_release_candidates,
+        candidates_after_freshness: value.candidates_after_freshness,
+        candidates_after_hard_exclusions: value.candidates_after_hard_exclusions,
+        candidates_after_audience_fit_screening: value.candidates_after_audience_fit_screening,
+        candidates_selected_for_social_research: value.candidates_selected_for_social_research,
+        candidates_with_usable_social_evidence: value.candidates_with_usable_social_evidence,
+        candidates_surviving_evidence_gates: value.candidates_surviving_evidence_gates,
+        candidates_surviving_deduplication: value.candidates_surviving_deduplication,
+        candidates_sent_to_final_ranker: value.candidates_sent_to_final_ranker,
+        final_opportunities_serialized: value.final_opportunities_serialized,
+        final_opportunities_received_by_rust: result_count,
+        final_opportunities_displayed_by_ui: result_count,
+        removed_by_hard_constraints: value.removed_by_hard_constraints,
+        lacking_current_fandom_evidence: value.lacking_current_fandom_evidence,
+        lacking_actionable_footage_information: value.lacking_actionable_footage_information,
+        false_abstention_recovery_attempted: value.false_abstention_recovery_attempted,
+        recovered_candidate_count: value.recovered_candidate_count,
+        evidence_coverage_warning: value.evidence_coverage_warning.clone(),
+        rejection_reasons: value.rejection_reasons.clone(),
+        candidate_diagnostics: value.candidate_diagnostics.clone(),
+        shortage_explanation: value.shortage_explanation.clone(),
+        suggestions: value.suggestions.clone(),
+    }
+}
+
+fn map_quality_score(value: &OpportunityQualityScore) -> OpportunityQualityScoreView {
+    OpportunityQualityScoreView {
+        profile_id: value.profile_id.clone(),
+        intent_fit: value.intent_fit,
+        audience_fit: value.audience_fit,
+        freshness: value.freshness,
+        fandom_velocity: value.fandom_velocity,
+        short_form_edit_potential: value.short_form_edit_potential,
+        relationship_or_character_salience: value.relationship_or_character_salience,
+        footage_actionability: value.footage_actionability,
+        evidence_quality: value.evidence_quality,
+        source_diversity: value.source_diversity,
+        uncertainty_penalty: value.uncertainty_penalty,
+        total: value.total,
+    }
+}
+
+fn map_short_form_potential(value: &ShortFormEditPotential) -> ShortFormEditPotentialView {
+    ShortFormEditPotentialView {
+        metric_name: value.metric_name.clone(),
+        band: value.band.clone(),
+        explanation: value.explanation.clone(),
+        signals: value.signals.clone(),
+        direct_tiktok_data_used: value.direct_tiktok_data_used,
+        disclaimer: value.disclaimer.clone(),
+    }
+}
+
+fn map_dossier_fact(
+    fact: &DossierEvidenceFact,
+    claims: &HashMap<Uuid, &EvidenceClaim>,
+    sources: &HashMap<Uuid, &EvidenceSource>,
+) -> AppResult<DossierEvidenceFactView> {
+    Ok(DossierEvidenceFactView {
+        text: fact.text.clone(),
+        verification_status: fact.verification_status.clone(),
+        supporting_evidence: map_evidence(fact.supporting_claim_ids.iter().copied(), claims, sources)?,
+    })
+}
+
+fn map_fandom_story_dossier(
+    dossier: &FandomStoryDossier,
+    claims: &HashMap<Uuid, &EvidenceClaim>,
+    sources: &HashMap<Uuid, &EvidenceSource>,
+) -> AppResult<FandomStoryDossierView> {
+    let map_facts = |facts: &[DossierEvidenceFact]| {
+        facts
+            .iter()
+            .map(|fact| map_dossier_fact(fact, claims, sources))
+            .collect::<AppResult<Vec<_>>>()
+    };
+    Ok(FandomStoryDossierView {
+        dossier_id: dossier.dossier_id,
+        current_event_or_hook: map_dossier_fact(&dossier.current_event_or_hook, claims, sources)?,
+        named_characters: dossier
+            .named_characters
+            .iter()
+            .map(|character| {
+                Ok(DossierCharacterView {
+                    character_name: character.character_name.clone(),
+                    performer_name: character.performer_name.clone(),
+                    show_or_title: character.show_or_title.clone(),
+                    verification_status: character.verification_status.clone(),
+                    supporting_evidence: map_evidence(character.supporting_claim_ids.iter().copied(), claims, sources)?,
+                })
+            })
+            .collect::<AppResult<Vec<_>>>()?,
+        central_relationship: dossier
+            .central_relationship
+            .as_ref()
+            .map(|fact| map_dossier_fact(fact, claims, sources))
+            .transpose()?,
+        current_source: DossierCurrentSourceView {
+            source_kind: dossier.current_source.source_kind.clone(),
+            show_or_title: dossier.current_source.show_or_title.clone(),
+            source_title: dossier.current_source.source_title.clone(),
+            season_number: dossier.current_source.season_number,
+            episode_number: dossier.current_source.episode_number,
+            episode_title: dossier.current_source.episode_title.clone(),
+            verification_status: dossier.current_source.verification_status.clone(),
+            supporting_evidence: map_evidence(dossier.current_source.supporting_claim_ids.iter().copied(), claims, sources)?,
+        },
+        exact_or_likely_quote: dossier
+            .exact_or_likely_quote
+            .as_ref()
+            .map(|lead| -> AppResult<DossierQuoteLeadView> {
+                Ok(DossierQuoteLeadView {
+                    quote: map_quote(&lead.quote),
+                    source_title: lead.source_title.clone(),
+                    verification_status: lead.verification_status.clone(),
+                    supporting_evidence: map_evidence(lead.supporting_claim_ids.iter().copied(), claims, sources)?,
+                })
+            })
+            .transpose()?,
+        franchise_connections: dossier
+            .franchise_connections
+            .iter()
+            .map(|connection| {
+                Ok(DossierFranchiseConnectionView {
+                    connection_type: connection.connection_type.clone(),
+                    current_title: connection.current_title.clone(),
+                    connected_title: connection.connected_title.clone(),
+                    characters: connection.characters.clone(),
+                    description: connection.description.clone(),
+                    verification_status: connection.verification_status.clone(),
+                    supporting_evidence: map_evidence(connection.supporting_claim_ids.iter().copied(), claims, sources)?,
+                })
+            })
+            .collect::<AppResult<Vec<_>>>()?,
+        relationship_or_character_history: map_facts(&dossier.relationship_or_character_history)?,
+        why_fans_currently_care: map_facts(&dossier.why_fans_currently_care)?,
+        audience_and_fandom_evidence: map_facts(&dossier.audience_and_fandom_evidence)?,
+        uncertainties: dossier.uncertainties.clone(),
+    })
+}
+
+fn map_editorial_concept(
+    concept: &EditorialConcept,
+    claims: &HashMap<Uuid, &EvidenceClaim>,
+    sources: &HashMap<Uuid, &EvidenceSource>,
+) -> AppResult<EditorialConceptView> {
+    let footage_request = map_footage(&concept.footage_request, claims, sources)?;
+    Ok(EditorialConceptView {
+        concept_id: concept.concept_id,
+        dossier_id: concept.dossier_id,
+        title: concept.title.clone(),
+        central_subject: concept.central_subject.clone(),
+        central_relationship: concept.central_relationship.clone(),
+        core_emotion: concept.core_emotion.clone(),
+        viewer_hook: concept.viewer_hook.clone(),
+        why_fans_may_care: concept.why_fans_may_care.clone(),
+        current_event: concept.current_event.clone(),
+        legacy_or_contextual_connection: concept.legacy_or_contextual_connection.clone(),
+        legacy_connection_type: concept.legacy_connection_type.clone(),
+        intro_leads: footage_request.intro_leads.clone(),
+        song_handoff_idea: concept.song_handoff_idea.clone(),
+        montage_arc: concept.montage_arc.clone(),
+        ending_or_payoff: concept.ending_or_payoff.clone(),
+        verification_status: concept.verification_status.clone(),
+        score: EditorialConceptScoreView {
+            concept_specificity: concept.score.concept_specificity,
+            intro_strength: concept.score.intro_strength,
+            emotional_arc_strength: concept.score.emotional_arc_strength,
+            narrative_bridge_strength: concept.score.narrative_bridge_strength,
+            fan_recognition: concept.score.fan_recognition,
+            current_event_relevance: concept.score.current_event_relevance,
+            legacy_context_value: concept.score.legacy_context_value,
+            payoff_strength: concept.score.payoff_strength,
+            footage_feasibility: concept.score.footage_feasibility,
+            source_actionability: concept.score.source_actionability,
+            originality: concept.score.originality,
+            evidence_quality: concept.score.evidence_quality,
+            uncertainty_penalty: concept.score.uncertainty_penalty,
+            total: concept.score.total,
+        },
+        known_uncertainties: concept.known_uncertainties.clone(),
+        footage_request,
+        provisional_notice: concept.provisional_notice.clone(),
     })
 }
 
@@ -2348,6 +3812,7 @@ fn map_footage(request: &FootageRequest, claims: &HashMap<Uuid, &EvidenceClaim>,
     })).collect::<AppResult<Vec<_>>>()?;
     Ok(FootageRequestView {
         request_id: request.footage_request_id,
+        concept_id: request.concept_id,
         summary: request.summary.clone(),
         natural_request: request.natural_request.clone(),
         minimum_useful_source_keys: request.minimum_useful_source_keys.clone(),
@@ -2891,7 +4356,7 @@ mod tests {
         let mut fixture = metadata_low_scene_fixture();
         fixture.intent.focus_terms = vec!["female-centered".into()];
         fixture.result["intent"]["focusTerms"] = serde_json::json!(["female-centered"]);
-        fixture.sources[1]["title"] = "Example Show: a female-centered discussion of Ada and Bea".into();
+        fixture.sources[1]["title"] = "Example Show: female-skewing fandom discussion of Ada and Bea".into();
         fixture.sources[1] = finish_source(fixture.sources[1].clone());
         fixture.claims[1] = finish_claim(fixture.claims[1].clone(), &fixture.sources[1]);
 

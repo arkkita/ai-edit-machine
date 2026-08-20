@@ -4,7 +4,9 @@ import { tauriBackend, type BackendApi } from "./api/backend";
 import { userFacingError } from "./api/errors";
 import type {
   CostPreview,
+  EditorialConceptView,
   OpportunityView,
+  RecommendationFeedback,
   ResearchIntentInput,
   ResearchRunView,
   ScreenId,
@@ -31,6 +33,7 @@ export function App({ api = tauriBackend }: AppProps) {
   const [preview, setPreview] = useState<CostPreview | null>(null);
   const [run, setRun] = useState<ResearchRunView | null>(null);
   const [selectedOpportunityId, setSelectedOpportunityId] = useState<string | null>(null);
+  const [selectedConceptId, setSelectedConceptId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,6 +41,13 @@ export function App({ api = tauriBackend }: AppProps) {
     if (selectedOpportunityId === null || run?.result?.outcome !== "OPPORTUNITIES") return null;
     return run.result.opportunities.find((item) => item.opportunityId === selectedOpportunityId) ?? null;
   }, [run, selectedOpportunityId]);
+  const selectedConcept = useMemo<EditorialConceptView | null>(() => {
+    if (selectedOpportunity === null) return null;
+    const conceptId = selectedConceptId ?? selectedOpportunity.recommendedConceptId;
+    return selectedOpportunity.editorialConcepts.find((item) => item.conceptId === conceptId) ?? null;
+  }, [selectedConceptId, selectedOpportunity]);
+  const footageRequestAvailable = selectedConcept !== null
+    && selectedConcept.footageRequest.conceptId === selectedConcept.conceptId;
   const researchIsActive = run !== null
     && (run.status === "QUEUED" || run.status === "RUNNING" || run.status === "CANCELLING");
 
@@ -115,7 +125,52 @@ export function App({ api = tauriBackend }: AppProps) {
     setPreview(null);
     setRun(null);
     setSelectedOpportunityId(null);
+    setSelectedConceptId(null);
     setError(null);
+  }
+
+  function adjustSearch(): void {
+    if (researchIsActive) return;
+    setScreen("find");
+    setIntent(null);
+    setPreview(null);
+    setRun(null);
+    setSelectedOpportunityId(null);
+    setSelectedConceptId(null);
+    setError(null);
+  }
+
+  function generateAnotherIdea(opportunity: OpportunityView, conceptTitle: string): void {
+    if (researchIsActive) return;
+    const instruction = [
+      `Generate another distinct, research-backed edit concept for "${opportunity.title}".`,
+      `Do not repeat the angle "${conceptTitle}".`,
+      "Preserve the audience and platform intent above; require a specific current hook, intro, montage progression, payoff, and concept-specific minimum footage set.",
+    ].join(" ");
+    setResearchDraft((value) => {
+      const original = value.prompt.trim();
+      const available = Math.max(0, 4_000 - instruction.length - 2);
+      return {
+        ...value,
+        prompt: `${original.slice(0, available)}\n\n${instruction}`.trim(),
+      };
+    });
+    adjustSearch();
+  }
+
+  async function recordFeedback(
+    opportunityId: string,
+    conceptId: string | null,
+    rating: RecommendationFeedback,
+  ): Promise<void> {
+    if (run === null) return;
+    try {
+      await api.recordRecommendationFeedback(run.jobId, opportunityId, conceptId, rating);
+      setError(null);
+    } catch (reason: unknown) {
+      setError(userFacingError(reason, "The local preference could not be saved."));
+      throw reason;
+    }
   }
 
   function openSettings(): void {
@@ -148,7 +203,10 @@ export function App({ api = tauriBackend }: AppProps) {
           <ol className="step-list">
             <li className={screen === "find" ? "active" : ""}>Find</li>
             <li className={screen === "opportunities" ? "active" : ""}>Opportunities</li>
-            <li className={screen === "footage" ? "active" : ""}>Footage request</li>
+            <li
+              className={`${screen === "footage" ? "active" : ""} ${footageRequestAvailable ? "" : "disabled"}`.trim()}
+              aria-disabled={!footageRequestAvailable}
+            >Footage request</li>
           </ol>
         </nav>
         <button type="button" className="settings-button" onClick={openSettings}>Settings & diagnostics</button>
@@ -169,15 +227,24 @@ export function App({ api = tauriBackend }: AppProps) {
       {screen === "opportunities" && run !== null ? (
         <OpportunitiesScreen
           run={run}
-          onSelect={(opportunity) => { setSelectedOpportunityId(opportunity.opportunityId); setScreen("footage"); }}
+          onSelect={(opportunity, conceptId) => {
+            setSelectedOpportunityId(opportunity.opportunityId);
+            setSelectedConceptId(conceptId ?? opportunity.recommendedConceptId);
+            setScreen("footage");
+          }}
           onOpenEvidence={openEvidence}
+          onFeedback={recordFeedback}
+          onGenerateAnotherIdea={generateAnotherIdea}
           onCancel={() => void handleCancel()}
           onStartOver={startOver}
+          onAdjustSearch={adjustSearch}
         />
       ) : null}
       {screen === "footage" && selectedOpportunity !== null ? (
         <FootageRequestScreen
           opportunity={selectedOpportunity}
+          concept={selectedConcept}
+          provenance={run!.provenance}
           onBack={() => setScreen("opportunities")}
           onStartOver={startOver}
           onOpenEvidence={openEvidence}

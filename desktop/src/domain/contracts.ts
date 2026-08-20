@@ -118,6 +118,7 @@ export interface IntroMaterialLeadView {
 
 export interface FootageRequestView {
   readonly requestId: string;
+  readonly conceptId: string | null;
   readonly summary: string;
   readonly naturalRequest: {
     readonly best: string;
@@ -135,6 +136,192 @@ export interface FootageRequestView {
   readonly warnings: readonly string[];
 }
 
+export interface DossierEvidenceFactView {
+  readonly text: string;
+  readonly verificationStatus: VerificationLevel;
+  readonly supportingEvidence: readonly EvidenceView[];
+}
+
+export interface DossierCharacterView {
+  readonly characterName: string;
+  readonly performerName: string | null;
+  readonly showOrTitle: string;
+  readonly verificationStatus: VerificationLevel;
+  readonly supportingEvidence: readonly EvidenceView[];
+}
+
+export interface DossierCurrentSourceView {
+  readonly sourceKind: "EPISODE" | "SEASON" | "TRAILER" | "OFFICIAL_CLIP" | "ANNOUNCEMENT" | "INTERVIEW" | "ARTICLE" | "OTHER";
+  readonly showOrTitle: string;
+  readonly sourceTitle: string;
+  readonly seasonNumber: number | null;
+  readonly episodeNumber: number | null;
+  readonly episodeTitle: string | null;
+  readonly verificationStatus: VerificationLevel;
+  readonly supportingEvidence: readonly EvidenceView[];
+}
+
+export interface FandomStoryDossierView {
+  readonly dossierId: string;
+  readonly currentEventOrHook: DossierEvidenceFactView;
+  readonly namedCharacters: readonly DossierCharacterView[];
+  readonly centralRelationship: DossierEvidenceFactView | null;
+  readonly currentSource: DossierCurrentSourceView;
+  readonly exactOrLikelyQuote: {
+    readonly quote: QuoteView;
+    readonly sourceTitle: string;
+    readonly verificationStatus: VerificationLevel;
+    readonly supportingEvidence: readonly EvidenceView[];
+  } | null;
+  readonly franchiseConnections: readonly {
+    readonly connectionType: "SAME_CHARACTER" | "SAME_CANONICAL_UNIVERSE" | "EXPLICIT_CALLBACK" | "THEMATIC_PARALLEL" | "ACTOR_CONNECTION_ONLY" | "FAN_INTERPRETATION";
+    readonly currentTitle: string;
+    readonly connectedTitle: string;
+    readonly characters: readonly string[];
+    readonly description: string;
+    readonly verificationStatus: VerificationLevel;
+    readonly supportingEvidence: readonly EvidenceView[];
+  }[];
+  readonly relationshipOrCharacterHistory: readonly DossierEvidenceFactView[];
+  readonly whyFansCurrentlyCare: readonly DossierEvidenceFactView[];
+  readonly audienceAndFandomEvidence: readonly DossierEvidenceFactView[];
+  readonly uncertainties: readonly string[];
+}
+
+export interface IntentFacetView {
+  readonly facetId: string;
+  readonly category: "HARD_CONSTRAINT" | "SOFT_PREFERENCE" | "AUDIENCE" | "PLATFORM_FIT" | "CREATIVE_EDIT";
+  readonly label: string;
+  readonly source: "EXPLICIT" | "INFERRED_PRIOR";
+  readonly removable: boolean;
+  readonly rationale: string;
+}
+
+export interface IntentInterpretationView {
+  readonly facets: readonly IntentFacetView[];
+  readonly broadQuery: boolean;
+  readonly clarificationNeeded: boolean;
+  readonly clarificationReason: string | null;
+  readonly directTiktokDataUsed: boolean;
+  readonly shortFormInferenceDisclaimer: string | null;
+}
+
+export interface CandidateScoreTraceView {
+  readonly metric: string;
+  readonly value: number | null;
+  readonly countValue: number | null;
+  readonly threshold: number | null;
+  readonly countThreshold: number | null;
+  readonly status: "PASSED" | "FAILED" | "INFORMATIONAL" | "NOT_COMPUTED";
+  readonly note: string;
+}
+
+export interface CandidateDiagnosticView {
+  readonly candidateName: string;
+  readonly title: string;
+  readonly shortlistRank: number;
+  readonly shortlistReason: string;
+  readonly currentHook: string | null;
+  readonly audienceFitEvidence: readonly string[];
+  readonly fandomEvidence: readonly string[];
+  readonly storyOrEpisodeEvidence: readonly string[];
+  readonly sourceCategories: readonly string[];
+  readonly evidenceReferences: readonly string[];
+  readonly inferredShortFormEditPotential: string;
+  readonly scoresAndThresholds: readonly CandidateScoreTraceView[];
+  readonly exactRejectionGate: string;
+  readonly failureClass: "RETRIEVAL_RELATED" | "EVIDENCE_RELATED" | "THRESHOLD_RELATED" | "SUPPORTED";
+}
+
+export interface CandidateFunnelView {
+  readonly parsedIntent: number;
+  readonly generatedSearchVariants: number;
+  readonly rawReleaseCandidates: number;
+  readonly candidatesAfterFreshness: number;
+  readonly candidatesAfterHardExclusions: number;
+  readonly candidatesAfterAudienceFitScreening: number;
+  readonly candidatesSelectedForSocialResearch: number;
+  readonly candidatesWithUsableSocialEvidence: number;
+  readonly candidatesSurvivingEvidenceGates: number;
+  readonly candidatesSurvivingDeduplication: number;
+  readonly candidatesSentToFinalRanker: number;
+  readonly finalOpportunitiesSerialized: number;
+  readonly finalOpportunitiesReceivedByRust: number;
+  readonly finalOpportunitiesDisplayedByUi: number;
+  readonly removedByHardConstraints: number;
+  readonly lackingCurrentFandomEvidence: number;
+  readonly lackingActionableFootageInformation: number;
+  readonly falseAbstentionRecoveryAttempted: boolean;
+  readonly recoveredCandidateCount: number;
+  readonly evidenceCoverageWarning: string | null;
+  readonly rejectionReasons: readonly { readonly reasonCode: string; readonly count: number }[];
+  readonly candidateDiagnostics: readonly CandidateDiagnosticView[];
+  readonly shortageExplanation: string | null;
+  readonly suggestions: readonly string[];
+}
+
+export interface OpportunityQualityScoreView {
+  readonly profileId: string;
+  readonly intentFit: number;
+  readonly audienceFit: number;
+  readonly freshness: number;
+  readonly fandomVelocity: number;
+  readonly shortFormEditPotential: number;
+  readonly relationshipOrCharacterSalience: number;
+  readonly footageActionability: number;
+  readonly evidenceQuality: number;
+  readonly sourceDiversity: number;
+  readonly uncertaintyPenalty: number;
+  readonly total: number;
+}
+
+export interface ShortFormEditPotentialView {
+  readonly metricName: "SHORT_FORM_EDIT_POTENTIAL";
+  readonly band: "LOW" | "MODERATE" | "HIGH";
+  readonly explanation: string;
+  readonly signals: readonly string[];
+  readonly directTiktokDataUsed: false;
+  readonly disclaimer: string;
+}
+
+export interface EditorialConceptView {
+  readonly conceptId: string;
+  readonly dossierId: string | null;
+  readonly title: string;
+  readonly centralSubject: string;
+  readonly centralRelationship: string | null;
+  readonly coreEmotion: string;
+  readonly viewerHook: string;
+  readonly whyFansMayCare: string;
+  readonly currentEvent: string;
+  readonly legacyOrContextualConnection: string;
+  readonly legacyConnectionType: "NONE" | "SAME_CHARACTER" | "SAME_CANONICAL_UNIVERSE" | "EXPLICIT_CALLBACK" | "THEMATIC_PARALLEL" | "ACTOR_CONNECTION_ONLY" | "FAN_INTERPRETATION";
+  readonly introLeads: readonly IntroMaterialLeadView[];
+  readonly songHandoffIdea: string;
+  readonly montageArc: readonly string[];
+  readonly endingOrPayoff: string;
+  readonly verificationStatus: VerificationLevel;
+  readonly score: {
+    readonly conceptSpecificity: number;
+    readonly introStrength: number;
+    readonly emotionalArcStrength: number;
+    readonly narrativeBridgeStrength: number;
+    readonly fanRecognition: number;
+    readonly currentEventRelevance: number;
+    readonly legacyContextValue: number;
+    readonly payoffStrength: number;
+    readonly footageFeasibility: number;
+    readonly sourceActionability: number;
+    readonly originality: number;
+    readonly evidenceQuality: number;
+    readonly uncertaintyPenalty: number;
+    readonly total: number;
+  };
+  readonly knownUncertainties: readonly string[];
+  readonly footageRequest: FootageRequestView;
+  readonly provisionalNotice: string;
+}
+
 export interface OpportunityView {
   readonly opportunityId: string;
   readonly rank: number;
@@ -149,6 +336,11 @@ export interface OpportunityView {
   readonly introCaveat: string;
   readonly evidenceGate: "PASSED" | "LOW_CONFIDENCE";
   readonly confidence: number;
+  readonly qualityScore: OpportunityQualityScoreView | null;
+  readonly shortFormEditPotential: ShortFormEditPotentialView | null;
+  readonly fandomStoryDossier: FandomStoryDossierView | null;
+  readonly editorialConcepts: readonly EditorialConceptView[];
+  readonly recommendedConceptId: string | null;
   readonly evidence: readonly EvidenceView[];
   readonly footageRequest: FootageRequestView;
   readonly caveats: readonly string[];
@@ -157,15 +349,27 @@ export interface OpportunityView {
 export type ResearchResultView =
   | {
       readonly outcome: "OPPORTUNITIES";
+      readonly researchRunId: string;
+      readonly runTimestamp: string;
+      readonly pipelineVersion: string;
+      readonly providerConfigId: string;
       readonly querySummary: string;
       readonly freshnessCutoff: string;
+      readonly interpretation: IntentInterpretationView | null;
+      readonly candidateFunnel: CandidateFunnelView | null;
       readonly opportunities: readonly OpportunityView[];
     }
   | {
       readonly outcome: "NO_STRONG_OPPORTUNITY";
+      readonly researchRunId: string;
+      readonly runTimestamp: string;
+      readonly pipelineVersion: string;
+      readonly providerConfigId: string;
       readonly querySummary: string;
       readonly freshnessCutoff: string;
       readonly explanation: string;
+      readonly interpretation: IntentInterpretationView | null;
+      readonly candidateFunnel: CandidateFunnelView | null;
       readonly evidenceReviewed: number;
       readonly evidenceBreakdown: {
         readonly metadataRecords: number;
@@ -181,8 +385,33 @@ export interface ResearchRunView {
   readonly progressPercent: number;
   readonly phase: string;
   readonly result: ResearchResultView | null;
+  readonly provenance: {
+    readonly buildCommit: string;
+    readonly buildIdentifier: string;
+    readonly buildIsDirty: boolean;
+    readonly buildTimestampUnixMs: number;
+    readonly pipelineVersion: string;
+    readonly workerManifestSha256: string;
+    readonly researchRunId: string | null;
+    readonly runTimestamp: string | null;
+    readonly providerConfigId: string;
+    readonly legacyResult: boolean;
+  };
   readonly sanitizedError: string | null;
 }
+
+export type RecommendationFeedback =
+  | "GREAT_RECOMMENDATION"
+  | "RELEVANT_BUT_BORING"
+  | "WRONG_AUDIENCE"
+  | "NOT_ACTUALLY_TRENDING"
+  | "WEAK_EVIDENCE"
+  | "FOOTAGE_REQUEST_TOO_VAGUE"
+  | "HIDE_THIS_TYPE"
+  | "GENERATE_ANOTHER_IDEA"
+  | "MORE_LIKE_THIS"
+  | "TOO_GENERIC"
+  | "DONT_CARE_ABOUT_THIS_ANGLE";
 
 export interface CredentialStatusView {
   readonly provider: CredentialProvider;
@@ -211,6 +440,13 @@ export interface ProviderDiagnosticView {
 
 export interface DiagnosticsView {
   readonly appVersion: string;
+  readonly buildCommit: string;
+  readonly buildIdentifier: string;
+  readonly buildIsDirty: boolean;
+  readonly buildTimestampUnixMs: number;
+  readonly pipelineVersion: string;
+  readonly workerManifestSha256: string;
+  readonly providerConfigId: string;
   readonly protocolVersion: string;
   readonly workerStatus: "READY" | "RUNNING" | "UNAVAILABLE" | "INVALID_BUNDLE" | "STOPPED";
   readonly workerVersion: string | null;

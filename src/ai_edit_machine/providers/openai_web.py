@@ -39,8 +39,11 @@ from .base import (
     CallMeter,
     CancellationToken,
     EvidenceCandidate,
+    MAX_M11_TVMAZE_DISCOVERY_SHOWS,
     MAX_TVMAZE_DISCOVERY_SHOWS,
     ProviderBatch,
+    ProviderCandidateFunnel,
+    ProviderCandidateTrace,
     ProviderError,
     ProviderLimitError,
     ProviderResearchContext,
@@ -63,7 +66,9 @@ from ..research.urls import canonicalize_public_url
 
 _MAX_VERIFIER_TV_SEEDS = 8
 _MAX_OWNER_PARTITIONED_TV_SEEDS = 5
+_MAX_M11_OWNER_PARTITIONED_TV_SEEDS = 8
 _TV_COVERAGE_DISCOVERY_OUTPUT_TOKENS = 512
+_M11_TV_COVERAGE_DISCOVERY_OUTPUT_TOKENS = 768
 _TV_EXACT_SEARCH_OUTPUT_CEILING = 1_500
 _TV_MINIMUM_SEARCH_OUTPUT_TOKENS = 256
 _MAX_PRECISION_RECOVERY_PREFIX = 4
@@ -79,6 +84,32 @@ _DISALLOWED_DIRECT_SOCIAL_HOSTS = frozenset(
         "x.com",
     }
 )
+
+
+def _m11_broad_recall_mode(intent: ResearchIntentV2, *, tool_cap: int) -> bool:
+    """Enable the wider plan only when the host explicitly funds it.
+
+    The functioning r73 fourteen-tool plan remains the exact fallback for
+    narrower capabilities and replay fixtures. M1.1 broad audience/platform
+    searches use eight two-owner exact-title lanes only when Rust supplies the
+    reviewed twenty-tool capability; no adapter-side budget expansion is
+    possible.
+    """
+
+    interpretation = intent.interpretation
+    if interpretation is None or not interpretation.broad_query or tool_cap < 20:
+        return False
+    facet_ids = {item.facet_id for item in interpretation.facets}
+    return bool(
+        facet_ids
+        & {
+            "female_skewing_fandom",
+            "male_skewing_fandom",
+            "young_adult_audience",
+            "queer_fandom",
+            "short_form_edit_potential",
+        }
+    )
 
 
 class _EvidencePayload(StrictContract):
@@ -151,6 +182,33 @@ class _TrustedTVmazeEpisodeSeed:
             .replace("+00:00", "Z"),
             "characters": list(self.characters),
         }
+
+
+def _provider_candidate_traces(
+    seeds: tuple[_TrustedTVmazeEpisodeSeed, ...],
+    *,
+    semantic_title_slate_used: bool,
+) -> tuple[ProviderCandidateTrace, ...]:
+    reason = (
+        "Selected by the bounded semantic audience/editability title-slate pass, then assigned exact-title publisher research."
+        if semantic_title_slate_used
+        else "Selected by deterministic metadata relevance/recency ordering, then assigned exact-title publisher research."
+    )
+    return tuple(
+        ProviderCandidateTrace(
+            candidate_name=(
+                f"{seed.show_or_title} — S{seed.season_number:02d}E{seed.episode_number:02d} "
+                f"{seed.episode_title}"
+            ),
+            title=seed.show_or_title,
+            shortlist_rank=index,
+            shortlist_reason=reason,
+            season_number=seed.season_number,
+            episode_number=seed.episode_number,
+            episode_title=seed.episode_title,
+        )
+        for index, seed in enumerate(seeds, start=1)
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -261,6 +319,62 @@ def _tv_coverage_discovery_query(
     )
     cutoff = (now - timedelta(days=intent.freshness_days)).date().isoformat()
     return f"({titles}) after:{cutoff}"[:1_000]
+
+
+def _tv_semantic_coverage_discovery_query(
+    seeds: tuple[_TrustedTVmazeEpisodeSeed, ...],
+    *,
+    intent: ResearchIntentV2,
+    now: datetime,
+) -> str:
+    """Execute M1.1 intent priors over one immutable title-slate partition.
+
+    This search can only reorder trusted TVmaze candidates.  The terms describe
+    evidence that would support audience fit and short-form editability; they
+    never establish those claims, and direct TikTok data is deliberately not
+    requested.  Exact owner-partitioned searches and page validation remain
+    the evidence authority after this recall-only pass.
+    """
+
+    if not seeds:
+        raise ValueError("semantic TV discovery requires at least one seed")
+    facet_ids = {
+        facet.facet_id
+        for facet in (intent.interpretation.facets if intent.interpretation else ())
+    }
+    signals = [
+        "fandom",
+        "fans",
+        "character",
+        "relationship",
+        "scene",
+        "quote",
+        "review",
+        "recap",
+    ]
+    if "female_skewing_fandom" in facet_ids:
+        signals.extend(("female-led", "women"))
+    if "male_skewing_fandom" in facet_ids:
+        signals.append("male audience")
+    if "young_adult_audience" in facet_ids:
+        signals.append("young-adult")
+    if "queer_fandom" in facet_ids:
+        signals.append("queer fandom")
+    if "heartbreaking_edit" in facet_ids:
+        signals.append("emotional")
+    if "funny_edit" in facet_ids:
+        signals.append("funny")
+
+    titles = " OR ".join(
+        f'"{" ".join(seed.show_or_title.replace(chr(34), " ").split())[:44]}"'
+        for seed in seeds
+    )
+    signal_group = " OR ".join(f'"{value}"' if " " in value else value for value in signals)
+    cutoff = (now - timedelta(days=intent.freshness_days)).date().isoformat()
+    query = f"({titles}) ({signal_group}) after:{cutoff}"
+    if len(query) > 1_000:
+        raise ValueError("semantic TV discovery query exceeded its reviewed bound")
+    return query
 
 
 def _tv_coverage_selector_lines(
@@ -387,6 +501,10 @@ def _coverage_ranked_tv_seeds(
                 continue
             owner_groups[seed].add(owner)
             source_counts[seed] += 1
+            hint = (seed, canonical)
+            if hint not in seen_fetch_hints:
+                fetch_hints.append(hint)
+                seen_fetch_hints.add(hint)
             if published_at is not None and cutoff <= published_at <= now + timedelta(minutes=5):
                 current_owner_groups[seed].add(owner)
 
@@ -469,6 +587,91 @@ def _precision_retry_tv_seed(
         )
 
     return max(seeds, key=score)
+
+
+def _m11_owner_completion_retry_assignments(
+    *,
+    payloads_by_seed: dict[
+        _TrustedTVmazeEpisodeSeed, list[dict[str, object]]
+    ],
+    seeds: tuple[_TrustedTVmazeEpisodeSeed, ...],
+    retry_partitions: tuple[tuple[str, tuple[str, ...]], ...],
+    cutoff: datetime,
+    now: datetime,
+) -> tuple[tuple[str, _TrustedTVmazeEpisodeSeed], ...]:
+    """Target M1.1 retries at distinct candidates missing one owner.
+
+    The two exact-title passes already reveal provider-owned source metadata.
+    Use it only to allocate the final bounded searches: a candidate with one
+    current owner and no result from the retry owner comes first, an uncovered
+    candidate comes next, and a title that already has two current owners is
+    last.  Every returned page still has to pass the unchanged direct-page,
+    title, date, and owner validators before it can become evidence.
+    """
+
+    if not seeds:
+        return ()
+    seed_index = {seed: index for index, seed in enumerate(seeds)}
+    owners_by_seed = {seed: set() for seed in seeds}
+    current_owners_by_seed = {seed: set() for seed in seeds}
+    current_sources_by_seed = {seed: 0 for seed in seeds}
+    for seed in seeds:
+        for payload in payloads_by_seed.get(seed, []):
+            metadata = _extract_cited_source_metadata(payload, "web_search_call")
+            for canonical in _extract_tool_source_urls(payload, "web_search_call"):
+                owner = known_publisher_owner(
+                    (urlsplit(canonical).hostname or "").casefold()
+                )
+                if owner is None:
+                    continue
+                owners_by_seed[seed].add(owner)
+                _, published_at = metadata.get(canonical, (None, None))
+                if (
+                    published_at is not None
+                    and cutoff <= published_at <= now + timedelta(minutes=5)
+                ):
+                    current_owners_by_seed[seed].add(owner)
+                    current_sources_by_seed[seed] += 1
+
+    chosen: set[_TrustedTVmazeEpisodeSeed] = set()
+    assignments: list[tuple[str, _TrustedTVmazeEpisodeSeed]] = []
+    for retry_owner, _ in retry_partitions:
+        available = [seed for seed in seeds if seed not in chosen]
+        if not available:
+            break
+
+        def priority(seed: _TrustedTVmazeEpisodeSeed) -> tuple[int, int, int, int]:
+            current_owners = current_owners_by_seed[seed]
+            all_owners = owners_by_seed[seed]
+            if (
+                len(current_owners) == 1
+                and len(all_owners) == 1
+                and retry_owner not in current_owners
+            ):
+                tier = 0
+            elif (
+                not current_owners
+                and len(all_owners) == 1
+                and retry_owner not in all_owners
+            ):
+                tier = 1
+            elif not current_owners:
+                tier = 2
+            elif len(current_owners) == 1:
+                tier = 3
+            else:
+                tier = 4
+            return (
+                tier,
+                -current_sources_by_seed[seed],
+                -len(all_owners),
+                seed_index[seed],
+            )
+
+        selected = min(available, key=priority)
+        chosen.add(selected)
+        assignments.append((retry_owner, selected))
+    return tuple(assignments)
 
 
 def _independent_followup_seeds(
@@ -1062,6 +1265,13 @@ class OpenAIWebVerifier:
         if collection_now.tzinfo is None or collection_now.utcoffset() is None:
             raise ValueError("OpenAI verifier clock must be timezone aware")
         collection_now = collection_now.astimezone(timezone.utc)
+        wider_recall_seed_slate = _m11_broad_recall_mode(
+            intent,
+            tool_cap=min(
+                self._request_max_tool_calls,
+                authorization.max_tool_calls,
+            ),
+        )
         trusted_tvmaze_seeds = _verification_seed_slate(
             _trusted_tvmaze_episode_seeds(
                 context,
@@ -1070,6 +1280,11 @@ class OpenAIWebVerifier:
             ),
             intent=intent,
             now=collection_now,
+            limit=(
+                MAX_M11_TVMAZE_DISCOVERY_SHOWS
+                if wider_recall_seed_slate
+                else _MAX_VERIFIER_TV_SEEDS
+            ),
         )
         effective_official_domains = tuple(
             sorted(set(self._official_domains).union(context.trusted_official_hosts))
@@ -1381,14 +1596,28 @@ class OpenAIWebVerifier:
         # A normal multi-result prompt needs two independently owned retrieval
         # lanes per title.  The former one-search-per-eight-titles plan spread
         # the same tool budget so thinly that only one heavily covered show
-        # could ever pass the two-owner TV gate.  Prefer up to five strongest
-        # immutable candidates and force one Future-plc search plus one
-        # reviewed non-Future search for each.  Every returned page still has
-        # to pass the unchanged title/date/content and ownership validators.
+        # could ever pass the two-owner TV gate. The proven fourteen-tool r73
+        # plan keeps five exact candidates. A broad M1.1 audience/platform
+        # request may use eight only when the host has explicitly supplied the
+        # reviewed twenty-tool capability. Both plans force one Future-plc
+        # search plus one reviewed non-Future search per title. Every returned
+        # page still has to pass the unchanged title/date/content and ownership
+        # validators.
+        m11_broad_recall = _m11_broad_recall_mode(
+            intent,
+            tool_cap=min(
+                self._request_max_tool_calls,
+                authorization.max_tool_calls,
+            ),
+        )
+        owner_seed_limit = (
+            _MAX_M11_OWNER_PARTITIONED_TV_SEEDS
+            if m11_broad_recall
+            else min(intent.max_results, _MAX_OWNER_PARTITIONED_TV_SEEDS)
+        )
         owner_partition_seed_count = min(
             len(trusted_tvmaze_seeds),
-            intent.max_results,
-            _MAX_OWNER_PARTITIONED_TV_SEEDS,
+            owner_seed_limit,
             self._request_max_tool_calls // 2,
         )
         owner_partitioned_tv_seeds = trusted_tvmaze_seeds[
@@ -1411,8 +1640,24 @@ class OpenAIWebVerifier:
             ("reviewed_future_publishers", future_domains),
             ("reviewed_non_future_publishers", independent_domains),
         )
+        tv_discovery_partitions = tv_coverage_partitions
+        tv_discovery_seed_slates = (
+            trusted_tvmaze_seeds,
+            trusted_tvmaze_seeds,
+        )
+        if m11_broad_recall:
+            reviewed_discovery_domains = reviewed_publisher_domains()
+            midpoint = (len(trusted_tvmaze_seeds) + 1) // 2
+            tv_discovery_partitions = (
+                ("semantic_intent_slate_a", reviewed_discovery_domains),
+                ("semantic_intent_slate_b", reviewed_discovery_domains),
+            )
+            tv_discovery_seed_slates = (
+                trusted_tvmaze_seeds[:midpoint],
+                trusted_tvmaze_seeds[midpoint:],
+            )
         staged_tv_tool_calls = owner_partitioned_tv_searches + len(
-            tv_coverage_partitions
+            tv_discovery_partitions
         )
         reviewed_tv_precision_retry_partitions = (
             _staged_tv_precision_retry_partitions()
@@ -1439,17 +1684,22 @@ class OpenAIWebVerifier:
             )
         else:
             tv_precision_retry_partitions = ()
+        tv_coverage_discovery_output_tokens = (
+            _M11_TV_COVERAGE_DISCOVERY_OUTPUT_TOKENS
+            if m11_broad_recall
+            else _TV_COVERAGE_DISCOVERY_OUTPUT_TOKENS
+        )
         staged_tv_mode = (
             owner_partitioned_tv_mode
             and len(trusted_tvmaze_seeds) > len(owner_partitioned_tv_seeds)
-            and len(tv_coverage_partitions) == 2
+            and len(tv_discovery_partitions) == 2
             and self._request_max_tool_calls >= staged_tv_tool_calls
             and authorization.max_tool_calls >= staged_tv_tool_calls
             and authorization.max_requests >= staged_tv_tool_calls + 2
             and authorization.max_output_tokens
             >= (
-                len(tv_coverage_partitions)
-                * _TV_COVERAGE_DISCOVERY_OUTPUT_TOKENS
+                len(tv_discovery_partitions)
+                * tv_coverage_discovery_output_tokens
                 + owner_partitioned_tv_searches * 256
             )
         )
@@ -1464,8 +1714,8 @@ class OpenAIWebVerifier:
             >= staged_tv_tool_calls + len(tv_precision_retry_partitions) + 2
             and authorization.max_output_tokens
             >= (
-                len(tv_coverage_partitions)
-                * _TV_COVERAGE_DISCOVERY_OUTPUT_TOKENS
+                len(tv_discovery_partitions)
+                * tv_coverage_discovery_output_tokens
                 + (
                     owner_partitioned_tv_searches
                     + len(tv_precision_retry_partitions)
@@ -1475,6 +1725,7 @@ class OpenAIWebVerifier:
         )
         deterministic_tv_narrow_pair_mode = (
             staged_tv_precision_retry_mode
+            and not m11_broad_recall
             and len(tv_precision_retry_partitions) == 2
             and len(trusted_tvmaze_seeds) >= 2
         )
@@ -1528,6 +1779,10 @@ class OpenAIWebVerifier:
         tv_precision_retry_specs: tuple[
             tuple[dict[str, object], _TrustedTVmazeEpisodeSeed | None], ...
         ] = ()
+        tv_precision_retry_specs_by_seed_owner: dict[
+            tuple[_TrustedTVmazeEpisodeSeed, str],
+            tuple[dict[str, object], _TrustedTVmazeEpisodeSeed | None],
+        ] = {}
         if multi_candidate_mode:
             # The staged TV calls share one aggregate capability, but equal
             # static division made every exact-title response too small. Live
@@ -1633,26 +1888,27 @@ class OpenAIWebVerifier:
                         )
                         for owner, domains in tv_precision_retry_partitions
                     )
-                    precision_seed = (
-                        trusted_tvmaze_seeds[1]
-                        if deterministic_tv_narrow_pair_mode
-                        else None
-                    )
-                    precision_query = (
-                        _tv_precision_retry_query(
-                            precision_seed,
-                            intent=intent,
-                            now=collection_now,
+                    def precision_retry_spec(
+                        owner: str,
+                        precision_tool: dict[str, object],
+                        precision_seed: _TrustedTVmazeEpisodeSeed | None,
+                    ) -> tuple[
+                        dict[str, object], _TrustedTVmazeEpisodeSeed | None
+                    ]:
+                        precision_query = (
+                            _tv_precision_retry_query(
+                                precision_seed,
+                                intent=intent,
+                                now=collection_now,
+                            )
+                            if precision_seed is not None
+                            else _tv_precision_slate_retry_query(
+                                trusted_tvmaze_seeds,
+                                intent=intent,
+                                now=collection_now,
+                            )
                         )
-                        if precision_seed is not None
-                        else _tv_precision_slate_retry_query(
-                            trusted_tvmaze_seeds,
-                            intent=intent,
-                            now=collection_now,
-                        )
-                    )
-                    tv_precision_retry_specs = tuple(
-                        (
+                        return (
                             {
                                 "model": self._model,
                                 "store": False,
@@ -1719,8 +1975,27 @@ class OpenAIWebVerifier:
                             },
                             precision_seed,
                         )
-                        for owner, precision_tool in precision_tools
-                    )
+
+                    if m11_broad_recall:
+                        tv_precision_retry_specs_by_seed_owner = {
+                            (seed, owner): precision_retry_spec(
+                                owner, precision_tool, seed
+                            )
+                            for seed in trusted_tvmaze_seeds
+                            for owner, precision_tool in precision_tools
+                        }
+                    else:
+                        precision_seed = (
+                            trusted_tvmaze_seeds[1]
+                            if deterministic_tv_narrow_pair_mode
+                            else None
+                        )
+                        tv_precision_retry_specs = tuple(
+                            precision_retry_spec(
+                                owner, precision_tool, precision_seed
+                            )
+                            for owner, precision_tool in precision_tools
+                        )
                 if staged_tv_mode:
                     if deterministic_tv_narrow_pair_mode:
                         prepass_seed = trusted_tvmaze_seeds[0]
@@ -1735,7 +2010,7 @@ class OpenAIWebVerifier:
                                 "store": False,
                                 "parallel_tool_calls": False,
                                 "reasoning": {"effort": "none"},
-                                "max_output_tokens": _TV_COVERAGE_DISCOVERY_OUTPUT_TOKENS,
+                                "max_output_tokens": tv_coverage_discovery_output_tokens,
                                 "max_tool_calls": 1,
                                 "tool_choice": "required",
                                 "tools": [precision_tool],
@@ -1759,20 +2034,47 @@ class OpenAIWebVerifier:
                             for owner, precision_tool in precision_tools
                         )
                     else:
-                        discovery_query = _tv_coverage_discovery_query(
-                            trusted_tvmaze_seeds,
-                            intent=intent,
-                            now=collection_now,
-                        )
-                        tv_discovery_bodies = tuple(
-                            {
+                        discovery_bodies: list[dict[str, object]] = []
+                        for (
+                            partition,
+                            discovery_domains,
+                        ), discovery_seeds in zip(
+                            tv_discovery_partitions,
+                            tv_discovery_seed_slates,
+                            strict=True,
+                        ):
+                            discovery_query = (
+                                _tv_semantic_coverage_discovery_query(
+                                    discovery_seeds,
+                                    intent=intent,
+                                    now=collection_now,
+                                )
+                                if m11_broad_recall
+                                else _tv_coverage_discovery_query(
+                                    discovery_seeds,
+                                    intent=intent,
+                                    now=collection_now,
+                                )
+                            )
+                            discovery_tool = {
+                                "type": "web_search",
+                                "search_context_size": self._search_context_size,
+                                "filters": {
+                                    "allowed_domains": list(discovery_domains),
+                                    "blocked_domains": sorted(
+                                        _DISALLOWED_DIRECT_SOCIAL_HOSTS
+                                    ),
+                                },
+                            }
+                            discovery_bodies.append({
                                 "model": self._model,
                                 "store": False,
                                 "parallel_tool_calls": False,
-                                "max_output_tokens": _TV_COVERAGE_DISCOVERY_OUTPUT_TOKENS,
+                                "reasoning": {"effort": "none"},
+                                "max_output_tokens": tv_coverage_discovery_output_tokens,
                                 "max_tool_calls": 1,
                                 "tool_choice": "required",
-                                "tools": [partition_tool],
+                                "tools": [discovery_tool],
                                 "include": ["web_search_call.action.sources"],
                                 "instructions": (
                                     "Perform exactly one web search using host_search_query exactly. "
@@ -1793,16 +2095,27 @@ class OpenAIWebVerifier:
                                         "intent": intent.model_dump(mode="json"),
                                         "trusted_tvmaze_show_titles": [
                                             seed.show_or_title
-                                            for seed in trusted_tvmaze_seeds
+                                            for seed in discovery_seeds
                                         ],
                                         "host_search_query": discovery_query,
-                                        "search_pass": f"coverage_discovery:{partition}",
+                                        "intent_search_question_ids": [
+                                            question.question_id
+                                            for question in (
+                                                intent.interpretation.search_questions
+                                                if intent.interpretation is not None
+                                                else ()
+                                            )
+                                        ],
+                                        "search_pass": (
+                                            f"semantic_coverage_discovery:{partition}"
+                                            if m11_broad_recall
+                                            else f"coverage_discovery:{partition}"
+                                        ),
                                     },
                                     separators=(",", ":"),
                                 ),
-                            }
-                            for partition, _, partition_tool in partition_tools
-                        )
+                            })
+                        tv_discovery_bodies = tuple(discovery_bodies)
                     request_specs.extend((body, None) for body in tv_discovery_bodies)
                 else:
                     for seed in owner_partitioned_tv_seeds:
@@ -1966,17 +2279,63 @@ class OpenAIWebVerifier:
                 )
                 for request_body in tv_discovery_bodies:
                     input_budget.reserve_body(request_body)
-                # The discovery selectors may legally choose any five of the
-                # eight immutable seeds. Conservatively preflight both exact
-                # owner bodies for every possible seed before the first paid
-                # call; only the selected ten are ever issued. The final
-                # narrow-owner slate bodies are fixed and preflighted once.
-                for seed in trusted_tvmaze_seeds:
-                    for request_body, _ in tv_exact_specs_by_seed[seed]:
+                # The semantic selectors may choose any eight of as many as
+                # thirty immutable seeds. For each exact-search owner lane,
+                # reserve the eight largest legal bodies before the first paid
+                # call. Their sum is a conservative upper bound for any later
+                # eight-title selection without charging all sixty possible
+                # request bodies against the capability.
+                for partition_index in range(len(tv_coverage_partitions)):
+                    possible_bodies = [
+                        tv_exact_specs_by_seed[seed][partition_index][0]
+                        for seed in trusted_tvmaze_seeds
+                    ]
+                    largest_possible_bodies = sorted(
+                        possible_bodies,
+                        key=lambda candidate: len(
+                            json.dumps(
+                                candidate,
+                                ensure_ascii=False,
+                                allow_nan=False,
+                                separators=(",", ":"),
+                                sort_keys=True,
+                            ).encode("utf-8")
+                        ),
+                        reverse=True,
+                    )[:owner_partition_seed_count]
+                    for request_body in largest_possible_bodies:
                         input_budget.reserve_body(request_body)
                 if staged_tv_precision_retry_mode:
-                    for request_body, _ in tv_precision_retry_specs:
-                        input_budget.reserve_body(request_body)
+                    if m11_broad_recall:
+                        # The missing-owner target is chosen only after the
+                        # exact search responses arrive. Before the first paid
+                        # call, reserve the largest legal request body for each
+                        # reviewed retry partition; every later selected body
+                        # is one of these already bounded candidates.
+                        for owner, _ in tv_precision_retry_partitions:
+                            partition_bodies = [
+                                spec[0]
+                                for (seed, candidate_owner), spec in (
+                                    tv_precision_retry_specs_by_seed_owner.items()
+                                )
+                                if candidate_owner == owner
+                            ]
+                            largest_body = max(
+                                partition_bodies,
+                                key=lambda candidate: len(
+                                    json.dumps(
+                                        candidate,
+                                        ensure_ascii=False,
+                                        allow_nan=False,
+                                        separators=(",", ":"),
+                                        sort_keys=True,
+                                    ).encode("utf-8")
+                                ),
+                            )
+                            input_budget.reserve_body(largest_body)
+                    else:
+                        for request_body, _ in tv_precision_retry_specs:
+                            input_budget.reserve_body(request_body)
             else:
                 input_budget = AggregateInputBudget(
                     min(
@@ -2181,7 +2540,7 @@ class OpenAIWebVerifier:
                 discovery_domains = (
                     tv_precision_retry_partitions[discovery_partition_index][1]
                     if deterministic_tv_narrow_pair_mode
-                    else tv_coverage_partitions[discovery_partition_index][1]
+                    else tv_discovery_partitions[discovery_partition_index][1]
                 )
                 for canonical in _extract_tool_source_urls(
                     response_payload, "web_search_call"
@@ -2191,7 +2550,10 @@ class OpenAIWebVerifier:
                     # this reviewed owner partition.  These remain fetch hints,
                     # never evidence, until the page checks below bind one
                     # immutable TVmaze title and a current source-owned date.
-                    if _host_is_official(canonical, discovery_domains):
+                    if _host_is_official(canonical, discovery_domains) and (
+                        deterministic_tv_narrow_pair_mode
+                        or not m11_broad_recall
+                    ):
                         tv_discovery_fetch_urls.setdefault(canonical, None)
                         if deterministic_tv_narrow_pair_mode:
                             prepass_seed = trusted_tvmaze_seeds[0]
@@ -2211,7 +2573,7 @@ class OpenAIWebVerifier:
                         ) = _coverage_ranked_tv_seeds(
                             payloads=tuple(tv_discovery_payloads),
                             partition_domains=tuple(
-                                domains for _, domains in tv_coverage_partitions
+                                domains for _, domains in tv_discovery_partitions
                             ),
                             seeds=trusted_tvmaze_seeds,
                             limit=owner_partition_seed_count,
@@ -2248,8 +2610,12 @@ class OpenAIWebVerifier:
                         )[:500]
                     else:
                         tv_selection_warning = (
-                            "OpenAI used two publisher-owner-partitioned TV coverage "
-                            f"discovery searches, retained {accepted_selectors} "
+                            (
+                                "OpenAI executed two semantic intent title-slate "
+                                if m11_broad_recall
+                                else "OpenAI used two publisher-owner-partitioned TV coverage "
+                            )
+                            + f"discovery searches, retained {accepted_selectors} "
                             "citation-bound selector(s), carried "
                             f"{len(tv_discovery_fetch_urls)} reviewed tool-source "
                             "page hint(s) to independent validation, and then exact-searched: "
@@ -2271,13 +2637,38 @@ class OpenAIWebVerifier:
                         and exact_response_count == owner_partitioned_tv_searches
                     ):
                         tv_precision_retry_started = True
+                        m11_retry_assignments: tuple[
+                            tuple[str, _TrustedTVmazeEpisodeSeed], ...
+                        ] = ()
+                        if m11_broad_recall:
+                            m11_retry_assignments = (
+                                _m11_owner_completion_retry_assignments(
+                                    payloads_by_seed=tv_exact_payloads_by_seed,
+                                    seeds=owner_partitioned_tv_seeds,
+                                    retry_partitions=tv_precision_retry_partitions,
+                                    cutoff=collection_now
+                                    - timedelta(days=intent.freshness_days),
+                                    now=collection_now,
+                                )
+                            )
+                            tv_precision_retry_specs = tuple(
+                                tv_precision_retry_specs_by_seed_owner[
+                                    (seed, owner)
+                                ]
+                                for owner, seed in m11_retry_assignments
+                            )
                         request_specs.extend(tv_precision_retry_specs)
                         tv_precision_retry_requests_remaining = len(
                             tv_precision_retry_specs
                         )
                         tv_precision_retry_request_index = 0
                         retry_labels = (
-                            trusted_tvmaze_seeds[1].show_or_title
+                            ", ".join(
+                                f"{owner} -> {seed.show_or_title}"
+                                for owner, seed in m11_retry_assignments
+                            )
+                            if m11_retry_assignments
+                            else trusted_tvmaze_seeds[1].show_or_title
                             if deterministic_tv_narrow_pair_mode
                             else ", ".join(
                                 seed.show_or_title
@@ -2286,7 +2677,10 @@ class OpenAIWebVerifier:
                         )
                         tv_precision_retry_warning = (
                             (
-                                "OpenAI used two narrow, independently owned publisher "
+                                "OpenAI assigned the remaining narrow owner lanes to distinct "
+                                "one-owner candidates missing that owner: "
+                                if m11_retry_assignments
+                                else "OpenAI used two narrow, independently owned publisher "
                                 "partitions for an exact-title current-coverage retry of the "
                                 "second deterministic TVmaze candidate: "
                                 if deterministic_tv_narrow_pair_mode
@@ -2538,6 +2932,21 @@ class OpenAIWebVerifier:
                     meter=meter,
                     cancellation=cancellation,
                 )
+                usable_line_social_titles = {
+                    seed.show_or_title
+                    for item in line_evidence
+                    if item.claim_kind is EvidenceClaimKind.VIEWER_DISCUSSION
+                    and item.verification
+                    is VerificationState.SECONDARY_CORROBORATED
+                    and item.supports_why_now
+                    for seed in trusted_tvmaze_seeds
+                    if source_record_binds_tvmaze_show(
+                        provider=item.provider,
+                        provider_record_id=item.provider_record_id,
+                        canonical_url=item.canonical_url,
+                        show_or_title=seed.show_or_title,
+                    )
+                }
                 return ProviderBatch(
                     provider=self.name,
                     evidence=line_evidence,
@@ -2591,6 +3000,27 @@ class OpenAIWebVerifier:
                                 ),
                             )
                         )
+                    ),
+                    candidate_funnel=ProviderCandidateFunnel(
+                        generated_search_variants=(
+                            len(intent.interpretation.search_questions)
+                            if intent.interpretation is not None
+                            else provider_usage.tool_calls
+                        ),
+                        candidates_selected_for_social_research=(
+                            len(owner_partitioned_tv_seeds)
+                            if owner_partitioned_tv_mode
+                            else len(trusted_tvmaze_seeds)
+                        ),
+                        candidates_with_usable_social_evidence=len(
+                            usable_line_social_titles
+                        ),
+                        candidate_traces=_provider_candidate_traces(
+                            owner_partitioned_tv_seeds,
+                            semantic_title_slate_used=(
+                                m11_broad_recall and staged_tv_mode
+                            ),
+                        ),
                     ),
                 )
             parsed, contract_warnings = _parse_evidence_batch_output(raw_output_text)
@@ -2946,6 +3376,25 @@ class OpenAIWebVerifier:
             evidence_items.extend(staged_discussions)
             page_warnings.extend(staged_warnings)
             page_fetches += staged_page_fetches
+        usable_social_titles = {
+            seed.show_or_title
+            for item in evidence_items
+            if item.claim_kind is EvidenceClaimKind.VIEWER_DISCUSSION
+            and item.verification is VerificationState.SECONDARY_CORROBORATED
+            and item.supports_why_now
+            for seed in trusted_tvmaze_seeds
+            if source_record_binds_tvmaze_show(
+                provider=item.provider,
+                provider_record_id=item.provider_record_id,
+                canonical_url=item.canonical_url,
+                show_or_title=seed.show_or_title,
+            )
+        }
+        selected_social_count = (
+            len(owner_partitioned_tv_seeds)
+            if owner_partitioned_tv_mode
+            else (1 if staged_film_lead is not None else 0)
+        )
         return ProviderBatch(
             provider=self.name,
             evidence=tuple(evidence_items),
@@ -2956,6 +3405,19 @@ class OpenAIWebVerifier:
                 quota_unit_name="official_page_fetch" if page_fetches else None,
             ),
             warnings=tuple(dict.fromkeys(page_warnings)),
+            candidate_funnel=ProviderCandidateFunnel(
+                generated_search_variants=(
+                    len(intent.interpretation.search_questions)
+                    if intent.interpretation is not None
+                    else provider_usage.tool_calls
+                ),
+                candidates_selected_for_social_research=selected_social_count,
+                candidates_with_usable_social_evidence=len(usable_social_titles),
+                candidate_traces=_provider_candidate_traces(
+                    owner_partitioned_tv_seeds,
+                    semantic_title_slate_used=(m11_broad_recall and staged_tv_mode),
+                ),
+            ),
         )
 
     def _validate_staged_film_primary(
@@ -6107,7 +6569,7 @@ def _trusted_tvmaze_episode_seeds(
     # TVmaze already emits selected episode candidates in trusted
     # region-affinity/recency order.  Preserve that order rather than letting a
     # newer global feed jump ahead of the requested market at this boundary.
-    return tuple(seeds[:MAX_TVMAZE_DISCOVERY_SHOWS])
+    return tuple(seeds[:MAX_M11_TVMAZE_DISCOVERY_SHOWS])
 
 
 def _verification_seed_slate(
@@ -6115,26 +6577,31 @@ def _verification_seed_slate(
     *,
     intent: ResearchIntentV2,
     now: datetime,
+    limit: int = _MAX_VERIFIER_TV_SEEDS,
 ) -> tuple[_TrustedTVmazeEpisodeSeed, ...]:
     """Give one bounded verifier call both preferred-window and fallback leads."""
 
-    if len(seeds) <= _MAX_VERIFIER_TV_SEEDS:
+    if not 1 <= limit <= MAX_M11_TVMAZE_DISCOVERY_SHOWS:
+        raise ValueError("verification seed limit is outside the reviewed discovery bound")
+    if len(seeds) <= limit:
         return seeds
     preferred_days = preferred_freshness_days(intent.query)
     if preferred_days is None:
-        return seeds[:_MAX_VERIFIER_TV_SEEDS]
+        return seeds[:limit]
     cutoff = now - timedelta(days=preferred_days)
     preferred = [seed for seed in seeds if seed.event_or_release_at >= cutoff]
     fallback = [seed for seed in seeds if seed.event_or_release_at < cutoff]
-    selected = [*preferred[:4], *fallback[:4]]
-    if len(selected) < _MAX_VERIFIER_TV_SEEDS:
+    preferred_limit = (limit + 1) // 2
+    fallback_limit = limit - preferred_limit
+    selected = [*preferred[:preferred_limit], *fallback[:fallback_limit]]
+    if len(selected) < limit:
         selected_ids = set(selected)
         selected.extend(
             seed
             for seed in seeds
             if seed not in selected_ids
         )
-    return tuple(selected[:_MAX_VERIFIER_TV_SEEDS])
+    return tuple(selected[:limit])
 
 
 def _is_trusted_tvmaze_candidate(candidate: EvidenceCandidate) -> bool:

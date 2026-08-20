@@ -696,6 +696,46 @@ def _domain_payload(model: BaseModel) -> dict[str, object]:
     return result
 
 
+def _stage_counts_payload(output: ResearchWorkflowOutput) -> dict[str, object]:
+    counts = output.stage_counts
+    return {
+        # Legacy diagnostic names remain while M1.1 clients migrate.
+        "rawProviderResults": counts.parsed_results,
+        "parsedResults": counts.parsed_results,
+        "normalizedEvidence": counts.normalized_evidence,
+        "evidenceSurvivingGates": counts.evidence_surviving_gates,
+        "rankedOpportunities": counts.ranked_opportunities,
+        "opportunitiesReturnedToUi": counts.opportunities_returned_to_ui,
+        # Complete M1.1 candidate funnel. Rust and the UI fill their own
+        # receipt/display boundaries rather than letting Python claim them.
+        "parsedIntent": counts.parsed_intent,
+        "generatedSearchVariants": counts.generated_search_variants,
+        "rawReleaseCandidates": counts.raw_release_candidates,
+        "candidatesAfterFreshnessFiltering": counts.candidates_after_freshness,
+        "candidatesAfterHardExclusions": counts.candidates_after_hard_exclusions,
+        "candidatesAfterAudienceFitScreening": (
+            counts.candidates_after_audience_fit_screening
+        ),
+        "candidatesSelectedForSocialResearch": (
+            counts.candidates_selected_for_social_research
+        ),
+        "candidatesWithUsableSocialEvidence": (
+            counts.candidates_with_usable_social_evidence
+        ),
+        "candidatesSurvivingEvidenceGates": (
+            counts.candidates_surviving_evidence_gates
+        ),
+        "candidatesSurvivingDeduplication": (
+            counts.candidates_surviving_deduplication
+        ),
+        "candidatesSentToFinalRanker": counts.candidates_sent_to_final_ranker,
+        "finalOpportunitiesSerialized": counts.final_opportunities_serialized,
+        "finalOpportunitiesReceivedByRust": None,
+        "finalOpportunitiesDisplayedByUi": None,
+        "rejectionReasonCounts": dict(counts.rejection_reason_counts),
+    }
+
+
 def _provider_debug_seed_candidate(debug: _DevelopmentDebug) -> EvidenceCandidate:
     seed = debug.seed
     locator = EpisodeLocatorFactV2(
@@ -1412,16 +1452,9 @@ class _WorkerRuntime:
             cancellation=token,
             run_id=UUID(str(payload.research_run_id)),
         )
-        counts = {
-            "rawProviderResults": _provider_debug_raw_result_count(events),
-            "parsedResults": len(batch.evidence),
-            "normalizedEvidence": output.stage_counts.normalized_evidence,
-            "evidenceSurvivingGates": (
-                output.stage_counts.evidence_surviving_gates
-            ),
-            "rankedOpportunities": output.stage_counts.ranked_opportunities,
-            "opportunitiesReturnedToUi": len(output.result.opportunities),
-        }
+        counts = _stage_counts_payload(output)
+        counts["rawProviderResults"] = _provider_debug_raw_result_count(events)
+        counts["parsedResults"] = len(batch.evidence)
         trace_event({"event": "pipeline.counts", **counts})
         self.emit(
             request_id,
@@ -1701,6 +1734,7 @@ class _WorkerRuntime:
                         _domain_payload(item) for item in output.evidence_claims
                     ],
                     "providerOutcomes": outcomes,
+                    "stageCounts": _stage_counts_payload(output),
                 },
             )
         except ProviderCancelledError:

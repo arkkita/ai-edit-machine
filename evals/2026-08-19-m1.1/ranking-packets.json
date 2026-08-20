@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0.0",
+  "packet_id": "female-short-form-regression-synthetic-v1",
+  "candidates": [
+    {
+      "candidate_id": "audience_editable_supported",
+      "expected_relevance": 3,
+      "components": {"intent_fit":0.95,"audience_fit":0.92,"freshness":0.62,"fandom_velocity":0.88,"short_form_edit_potential":0.91,"relationship_or_character_salience":0.86,"footage_actionability":0.84,"evidence_quality":0.90,"source_diversity":0.80,"uncertainty_penalty":0.08}
+    },
+    {
+      "candidate_id": "audience_supported_less_fresh",
+      "expected_relevance": 2,
+      "components": {"intent_fit":0.82,"audience_fit":0.78,"freshness":0.35,"fandom_velocity":0.72,"short_form_edit_potential":0.76,"relationship_or_character_salience":0.74,"footage_actionability":0.70,"evidence_quality":0.82,"source_diversity":0.72,"uncertainty_penalty":0.12}
+    },
+    {
+      "candidate_id": "brand_new_weak_audience",
+      "expected_relevance": 1,
+      "components": {"intent_fit":0.50,"audience_fit":0.12,"freshness":1.00,"fandom_velocity":0.65,"short_form_edit_potential":0.50,"relationship_or_character_salience":0.55,"footage_actionability":0.55,"evidence_quality":0.90,"source_diversity":0.70,"uncertainty_penalty":0.15}
+    },
+    {
+      "candidate_id": "new_metadata_only",
+      "expected_relevance": 0,
+      "components": {"intent_fit":0.25,"audience_fit":0.02,"freshness":1.00,"fandom_velocity":0.00,"short_form_edit_potential":0.05,"relationship_or_character_salience":0.08,"footage_actionability":0.15,"evidence_quality":0.30,"source_diversity":0.20,"uncertainty_penalty":0.55}
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 mod commands;
 #[cfg(debug_assertions)]
 pub use commands::research::run_m1_provider_debug_live;
+#[cfg(debug_assertions)]
+pub use commands::research::run_m11_calibration_live;
 pub use commands::research::run_openai_verifier_diagnostic;
 pub mod cost;
 pub mod credentials;
@@ -9,6 +11,12 @@ pub mod domain;
 pub mod provider_catalog;
 pub mod security;
 pub mod worker;
+
+pub mod build_provenance {
+    include!(concat!(env!("OUT_DIR"), "/build_provenance.rs"));
+
+    pub const PIPELINE_VERSION: &str = "m1.1b-evidence-to-concept-v1";
+}
 
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -134,6 +142,7 @@ pub fn run() {
             commands::research::start_research,
             commands::research::get_research_run,
             commands::research::cancel_research,
+            commands::research::record_recommendation_feedback,
             commands::links::open_evidence_link,
             commands::credentials::get_credential_status,
             commands::credentials::store_credential,

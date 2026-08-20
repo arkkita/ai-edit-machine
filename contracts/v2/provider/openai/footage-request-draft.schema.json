@@ -324,6 +324,17 @@
       "maxItems": 30,
       "type": "array"
     },
+    "concept_key": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "intro_leads": {
       "items": {
         "$ref": "#/$defs/IntroMaterialLeadDraftV2"
@@ -386,6 +397,7 @@
   },
   "required": [
     "schema_version",
+    "concept_key",
     "summary",
     "natural_request",
     "required_sources",

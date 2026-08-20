@@ -8,6 +8,20 @@
 *.p12
 *.fkv
 
+# Local databases and sidecars
+*.sqlite
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-shm
+*.sqlite3-wal
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
 # Python
 .venv/
 venv/
@@ -28,6 +42,13 @@ coverage/
 *.tsbuildinfo
 desktop/src-tauri/resources/worker/windows-x86_64/
 desktop/src-tauri/resources/worker/.windows-x86_64-*/
+*.exe
+*.dll
+*.pyd
+*.msi
+*.msix
+*.appx
+*.appxbundle
 
 # Runtime data, user projects, logs, and generated analysis
 projects/
@@ -35,9 +56,33 @@ artifacts/
 .cache/
 cache/
 logs/
+backups/
+provider-debug/
+crash-dumps/
+uploads/
+imports/
+exports/
+tmp/
+temp/
 *.log
+*.har
+*.trace
+*.dmp
 *.tmp
 *.partial
+*.unvalidated
+
+# Local audiovisual inputs and generated media
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+*.mxf
+*.mp3
+*.wav
+*.m4a
+*.flac
 
 # IDE / OS
 .idea/

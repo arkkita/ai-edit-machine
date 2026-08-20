@@ -50,6 +50,7 @@ from ai_edit_machine.providers.openai_web import (  # noqa: E402
     _EvidencePayload,
     _extract_tool_source_seed_hints,
     _independent_followup_seeds,
+    _m11_owner_completion_retry_assignments,
     _parse_page,
     _page_binds_claim,
     _prioritize_source_recovery,
@@ -499,6 +500,57 @@ class ProviderTests(unittest.TestCase):
             [seed.show_or_title for seed in selected],
             ["Candidate 4", "Candidate 5", "Candidate 6", "Candidate 7"],
         )
+
+    def test_m11_owner_completion_does_not_overcredit_undated_second_owner(self) -> None:
+        mixed_owners = _TrustedTVmazeEpisodeSeed(
+            show_or_title="Mixed Owners",
+            season_number=1,
+            episode_number=1,
+            episode_title="Current",
+            event_or_release_at=NOW,
+            characters=(),
+        )
+        one_owner = _TrustedTVmazeEpisodeSeed(
+            show_or_title="One Owner",
+            season_number=1,
+            episode_number=1,
+            episode_title="Current",
+            event_or_release_at=NOW,
+            characters=(),
+        )
+        current = NOW.isoformat()
+        mixed_payload = _openai_payload(
+            evidence=[],
+            sources=[
+                {
+                    "url": "https://www.tomsguide.com/television/mixed-owners",
+                    "published_at": current,
+                },
+                {"url": "https://www.thedailybeast.com/mixed-owners-undated"},
+            ],
+        )
+        one_owner_payload = _openai_payload(
+            evidence=[],
+            sources=[
+                {
+                    "url": "https://www.tomsguide.com/television/one-owner",
+                    "published_at": current,
+                }
+            ],
+        )
+
+        assignments = _m11_owner_completion_retry_assignments(
+            payloads_by_seed={
+                mixed_owners: [mixed_payload],
+                one_owner: [one_owner_payload],
+            },
+            seeds=(mixed_owners, one_owner),
+            retry_partitions=(("owner:prisa-media", ("elpais.com",)),),
+            cutoff=NOW - timedelta(days=14),
+            now=NOW,
+        )
+
+        self.assertEqual(assignments, (("owner:prisa-media", one_owner),))
 
     def test_openai_page_recovery_budget_cannot_be_monopolized_by_one_show(self) -> None:
         seeds = tuple(
@@ -1881,6 +1933,305 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(batch.usage.tool_calls, 4)
         self.assertTrue(
             any("two publisher-owner-partitioned" in warning for warning in batch.warnings)
+        )
+
+    def test_m11_broad_recall_cap_researches_eight_titles_without_changing_r73_plan(self) -> None:
+        context = _thirty_seed_tvmaze_context()
+        responses: list[JsonResponse] = []
+        for index in range(2):
+            payload = _openai_tv_selector_payload([])
+            payload["id"] = f"resp_m11_discovery_{index}"
+            payload["output"][0]["id"] = f"search_m11_discovery_{index}"
+            responses.append(JsonResponse(200, {}, payload))
+        for index in range(18):
+            payload = _openai_cited_line_payload([])
+            payload["id"] = f"resp_m11_exact_or_retry_{index}"
+            payload["output"][0]["id"] = f"search_m11_exact_or_retry_{index}"
+            responses.append(JsonResponse(200, {}, payload))
+
+        transport = FakeJsonTransport(responses)
+        provider = OpenAIWebVerifier(
+            credential=SecretCredential("secret"),
+            model="gpt-5.6-luna",
+            official_domains=("example.com",),
+            request_body_max_input_tokens=120_000,
+            request_max_tool_calls=20,
+            transport=transport,
+            page_transport=FakeTextTransport([]),
+        )
+
+        batch = provider.collect(
+            intent_from_query("find shows for girls that'll likely be popular on tiktok"),
+            authorization=_authorization(
+                "openai",
+                "research.web_verify",
+                model="gpt-5.6-luna",
+                max_requests=42,
+                max_tool_calls=20,
+                max_input_tokens=230_000,
+                max_output_tokens=7_500,
+            ),
+            cancellation=CancellationToken(),
+            context=context,
+        )
+
+        self.assertEqual(len(transport.requests), 20)
+        self.assertEqual(
+            [
+                request["body"]["max_output_tokens"]
+                for request in transport.requests[:2]
+            ],
+            [768, 768],
+        )
+        self.assertTrue(
+            all(
+                request["body"].get("reasoning") == {"effort": "none"}
+                for request in transport.requests[:2]
+            )
+        )
+        discovery_inputs = [
+            json.loads(request["body"]["input"])
+            for request in transport.requests[:2]
+        ]
+        self.assertEqual(
+            [len(item["trusted_tvmaze_show_titles"]) for item in discovery_inputs],
+            [15, 15],
+        )
+        self.assertEqual(
+            len(
+                {
+                    title
+                    for item in discovery_inputs
+                    for title in item["trusted_tvmaze_show_titles"]
+                }
+            ),
+            30,
+        )
+        self.assertTrue(
+            all(
+                item["search_pass"].startswith("semantic_coverage_discovery:")
+                and "fandom" in item["host_search_query"]
+                and "female-led" in item["host_search_query"]
+                and "tiktok" not in item["host_search_query"].casefold()
+                and len(item["intent_search_question_ids"]) >= 8
+                for item in discovery_inputs
+            )
+        )
+        self.assertTrue(
+            all(
+                "tomsguide.com"
+                in request["body"]["tools"][0]["filters"]["allowed_domains"]
+                and "elpais.com"
+                in request["body"]["tools"][0]["filters"]["allowed_domains"]
+                for request in transport.requests[:2]
+            )
+        )
+        exact_inputs = [
+            request["body"]["input"]
+            for request in transport.requests[2:18]
+            if isinstance(request["body"].get("input"), str)
+            and request["body"]["input"].startswith('"')
+        ]
+        self.assertEqual(len(exact_inputs), 16)
+        self.assertEqual(
+            len({value.split('"', 2)[1] for value in exact_inputs}),
+            8,
+        )
+        retry_inputs = [
+            request["body"]["input"] for request in transport.requests[18:20]
+        ]
+        self.assertTrue(
+            all(
+                isinstance(value, str) and value.startswith('"')
+                for value in retry_inputs
+            )
+        )
+        self.assertEqual(
+            len({value.split('"', 2)[1] for value in retry_inputs}),
+            2,
+        )
+        self.assertEqual(
+            batch.candidate_funnel.candidates_selected_for_social_research,
+            8,
+        )
+        self.assertEqual(batch.usage.tool_calls, 20)
+        self.assertTrue(
+            any(
+                "distinct one-owner candidates missing that owner" in warning
+                for warning in batch.warnings
+            )
+        )
+
+    def test_m11_precision_retries_target_distinct_missing_owner_candidates(
+        self,
+    ) -> None:
+        context = _fifteen_seed_tvmaze_context()
+        candidate_three_future = (
+            "https://www.tomsguide.com/entertainment/candidate-show-3-current"
+        )
+        candidate_three_prisa = (
+            "https://elpais.com/television/series/2026/08/18/"
+            "candidate-show-3-current.html"
+        )
+        candidate_four_prisa = (
+            "https://elpais.com/television/series/2026/08/18/"
+            "candidate-show-4-current.html"
+        )
+        candidate_four_future = (
+            "https://www.tomsguide.com/entertainment/candidate-show-4-current"
+        )
+        responses: list[JsonResponse] = []
+        for index in range(2):
+            payload = _openai_tv_selector_payload([])
+            payload["id"] = f"resp_m11_owner_discovery_{index}"
+            payload["output"][0]["id"] = f"search_m11_owner_discovery_{index}"
+            responses.append(JsonResponse(200, {}, payload))
+
+        exact_source_by_index = {
+            # Eight seeds receive Future then non-Future searches. Candidate
+            # Show 3 has only Future coverage; Candidate Show 4 has only Prisa.
+            2: (
+                candidate_three_future,
+                "Candidate Show 3 current character discussion",
+            ),
+            5: (
+                candidate_four_prisa,
+                "Candidate Show 4 current relationship discussion",
+            ),
+        }
+        for index in range(16):
+            payload = _openai_cited_line_payload([])
+            payload["id"] = f"resp_m11_owner_exact_{index}"
+            search = payload["output"][0]
+            search["id"] = f"search_m11_owner_exact_{index}"
+            if index in exact_source_by_index:
+                url, title = exact_source_by_index[index]
+                search["action"]["sources"] = [
+                    {
+                        "url": url,
+                        "title": title,
+                        "published_at": (NOW - timedelta(hours=1)).isoformat(),
+                    }
+                ]
+            responses.append(JsonResponse(200, {}, payload))
+
+        for index, (url, title) in enumerate(
+            (
+                (
+                    candidate_four_future,
+                    "Candidate Show 4 current character review",
+                ),
+                (
+                    candidate_three_prisa,
+                    "Candidate Show 3 current relationship review",
+                ),
+            )
+        ):
+            payload = _openai_cited_line_payload([])
+            payload["id"] = f"resp_m11_owner_retry_{index}"
+            search = payload["output"][0]
+            search["id"] = f"search_m11_owner_retry_{index}"
+            search["action"]["sources"] = [
+                {
+                    "url": url,
+                    "title": title,
+                    "published_at": (NOW - timedelta(minutes=30)).isoformat(),
+                }
+            ]
+            responses.append(JsonResponse(200, {}, payload))
+
+        page_by_url = {
+            candidate_three_future: (
+                "<title>Candidate Show 3 current character discussion</title>"
+                f'<meta property="article:published_time" content="{NOW.isoformat()}">'
+                "<body>Candidate Show 3 has a current character turn. "
+                "Candidate Show 3 gives that relationship room to land.</body>"
+            ),
+            candidate_three_prisa: (
+                "<title>Candidate Show 3 current relationship review</title>"
+                f'<meta property="article:published_time" content="{NOW.isoformat()}">'
+                "<body>Candidate Show 3 has a current relationship turn. "
+                "Candidate Show 3 gives that character room to land.</body>"
+            ),
+            candidate_four_prisa: (
+                "<title>Candidate Show 4 current relationship discussion</title>"
+                f'<meta property="article:published_time" content="{NOW.isoformat()}">'
+                "<body>Candidate Show 4 has a current relationship turn. "
+                "Candidate Show 4 gives that character room to land.</body>"
+            ),
+            candidate_four_future: (
+                "<title>Candidate Show 4 current character review</title>"
+                f'<meta property="article:published_time" content="{NOW.isoformat()}">'
+                "<body>Candidate Show 4 has a current character turn. "
+                "Candidate Show 4 gives that relationship room to land.</body>"
+            ),
+        }
+
+        class RoutedPageTransport:
+            def __init__(self) -> None:
+                self.requests: list[dict[str, object]] = []
+
+            def request_text(self, **kwargs: object) -> str:
+                self.requests.append(dict(kwargs))
+                url = kwargs.get("url")
+                assert isinstance(url, str)
+                return page_by_url[url]
+
+        transport = FakeJsonTransport(responses)
+        page_transport = RoutedPageTransport()
+        provider = OpenAIWebVerifier(
+            credential=SecretCredential("secret"),
+            model="gpt-5.6-luna",
+            official_domains=("example.com",),
+            request_body_max_input_tokens=120_000,
+            request_max_tool_calls=20,
+            transport=transport,
+            page_transport=page_transport,
+        )
+
+        batch = provider.collect(
+            intent_from_query(
+                "find shows for girls that'll likely be popular on tiktok"
+            ),
+            authorization=_authorization(
+                "openai",
+                "research.web_verify",
+                model="gpt-5.6-luna",
+                max_requests=42,
+                max_tool_calls=20,
+                max_input_tokens=230_000,
+                max_output_tokens=7_500,
+            ),
+            cancellation=CancellationToken(),
+            context=context,
+        )
+
+        retry_requests = transport.requests[18:20]
+        self.assertEqual(
+            [request["body"]["input"].split('"', 2)[1] for request in retry_requests],
+            ["Candidate Show 4", "Candidate Show 3"],
+        )
+        self.assertIn(
+            "tomsguide.com",
+            retry_requests[0]["body"]["tools"][0]["filters"]["allowed_domains"],
+        )
+        self.assertIn(
+            "elpais.com",
+            retry_requests[1]["body"]["tools"][0]["filters"]["allowed_domains"],
+        )
+        discussions = [
+            item
+            for item in batch.evidence
+            if item.claim_kind is EvidenceClaimKind.VIEWER_DISCUSSION
+        ]
+        self.assertEqual(len(discussions), 4)
+        self.assertTrue(
+            any(
+                "owner:future-plc -> Candidate Show 4" in warning
+                and "owner:prisa-media -> Candidate Show 3" in warning
+                for warning in batch.warnings
+            ),
+            batch.warnings,
         )
 
     def test_query_scoped_current_roundups_require_page_binding_but_may_use_hosted_date(self) -> None:
@@ -5698,7 +6049,7 @@ class ProviderTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             _cast_provider_record_id(show_id=0)
 
-    def test_tvmaze_female_audience_filter_excludes_unaligned_high_weight_show(self) -> None:
+    def test_tvmaze_female_audience_prior_reorders_without_hard_excluding_recall(self) -> None:
         def episode(
             *,
             record_id: int,
@@ -5752,6 +6103,7 @@ class ProviderTests(unittest.TestCase):
                 JsonResponse(200, {}, []),
                 JsonResponse(200, {}, []),
                 JsonResponse(200, {}, []),
+                JsonResponse(200, {}, []),
             ]
         )
         intent = intent_from_query(
@@ -5774,7 +6126,164 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(intent.focus_terms, ["female-centered"])
         self.assertEqual(
             [locator.show_or_title for locator in locators if locator is not None],
-            ["Second Chances"],
+            ["Second Chances", "Lanterns"],
+        )
+        self.assertEqual(
+            batch.candidate_funnel.candidates_after_audience_fit_screening,
+            2,
+        )
+
+    def test_tvmaze_edit_intent_reserves_broad_scripted_recall_slots(self) -> None:
+        def episode(
+            record_id: int,
+            show_name: str,
+            *,
+            show_type: str,
+            summary: str,
+            weight: int,
+        ) -> dict[str, object]:
+            return {
+                "id": record_id,
+                "name": f"Turning Point {record_id}",
+                "season": 1,
+                "number": record_id,
+                "airstamp": (NOW - timedelta(hours=2)).isoformat(),
+                "url": f"https://www.tvmaze.com/episodes/{record_id}/turning-point",
+                "show": {
+                    "id": record_id,
+                    "name": show_name,
+                    "type": show_type,
+                    "language": "English",
+                    "genres": ["Drama"] if show_type == "Scripted" else ["Reality"],
+                    "weight": weight,
+                    "summary": summary,
+                    "webChannel": {"country": {"code": "US"}},
+                },
+            }
+
+        aligned_scripted = [
+            episode(
+                index,
+                f"Her Story {index}",
+                show_type="Scripted",
+                summary="A woman rebuilds her life with her sister.",
+                weight=70 - index,
+            )
+            for index in range(1, 3)
+        ]
+        aligned_reality = [
+            episode(
+                index,
+                f"Women Together {index}",
+                show_type="Reality",
+                summary="Women share a house and face a weekly challenge.",
+                weight=100 - index,
+            )
+            for index in range(3, 9)
+        ]
+        broad_scripted = [
+            episode(
+                index,
+                f"Broad Scripted {index}",
+                show_type="Scripted",
+                summary="Two detectives confront a dangerous mystery.",
+                weight=90 - index,
+            )
+            for index in range(9, 11)
+        ]
+        transport = FakeJsonTransport(
+            [
+                JsonResponse(
+                    200,
+                    {},
+                    [*aligned_scripted, *aligned_reality, *broad_scripted],
+                ),
+                *[JsonResponse(200, {}, []) for _ in range(11)],
+            ]
+        )
+        intent = intent_from_query(
+            "find shows for girls that'll likely be popular on tiktok"
+        ).model_copy(update={"freshness_days": 1})
+
+        batch = TVmazeProvider(transport=transport, clock=lambda: NOW).collect(
+            intent,
+            authorization=_authorization(
+                "tvmaze", "research.metadata", max_requests=12
+            ),
+            cancellation=CancellationToken(),
+        )
+        names = [
+            item.episode_locator.show_or_title
+            for item in batch.evidence
+            if item.claim_kind is EvidenceClaimKind.EPISODE_IDENTITY
+            and item.episode_locator is not None
+        ]
+
+        self.assertEqual(len(names), 10)
+        self.assertTrue(
+            {"Broad Scripted 9", "Broad Scripted 10"}.issubset(set(names[:8]))
+        )
+        self.assertTrue(any(name.startswith("Women Together") for name in names[8:]))
+        self.assertTrue(
+            any("soft priority for six deep-search slots" in warning for warning in batch.warnings)
+        )
+
+    def test_tvmaze_m11_broad_intent_keeps_thirty_metadata_candidates(self) -> None:
+        episodes = [
+            {
+                "id": index,
+                "name": f"Current Turn {index}",
+                "season": 1,
+                "number": index,
+                "airstamp": (NOW - timedelta(hours=2)).isoformat(),
+                "url": f"https://www.tvmaze.com/episodes/{index}/current-turn",
+                "show": {
+                    "id": index,
+                    "name": f"Current Story {index}",
+                    "type": "Scripted",
+                    "language": "English",
+                    "genres": ["Drama"],
+                    "weight": 100 - index,
+                    "summary": "A woman and her friends confront a difficult choice.",
+                    "webChannel": {"country": {"code": "US"}},
+                },
+            }
+            for index in range(1, 36)
+        ]
+        transport = FakeJsonTransport(
+            [
+                JsonResponse(200, {}, episodes),
+                *[JsonResponse(200, {}, []) for _ in range(11)],
+            ]
+        )
+        intent = intent_from_query(
+            "find shows for girls that'll likely be popular on tiktok"
+        ).model_copy(update={"freshness_days": 1})
+
+        batch = TVmazeProvider(transport=transport, clock=lambda: NOW).collect(
+            intent,
+            authorization=_authorization(
+                "tvmaze", "research.metadata", max_requests=12
+            ),
+            cancellation=CancellationToken(),
+        )
+
+        episode_titles = [
+            item.episode_locator.show_or_title
+            for item in batch.evidence
+            if item.claim_kind is EvidenceClaimKind.EPISODE_IDENTITY
+            and item.episode_locator is not None
+        ]
+        self.assertEqual(len(episode_titles), 30)
+        self.assertEqual(
+            batch.candidate_funnel.candidates_selected_for_social_research,
+            30,
+        )
+        self.assertTrue(
+            any(
+                "the 30 strongest metadata candidates" in warning
+                for warning in batch.warnings
+            )
         )
 
     def test_tvmaze_does_not_seed_episodes_that_have_not_aired(self) -> None:
@@ -7109,6 +7618,76 @@ def _eight_seed_tvmaze_context() -> ProviderResearchContext:
     base = _trusted_tvmaze_context()
     evidence = list(base.prior_evidence)
     for index in range(3, 10):
+        locator = EpisodeLocatorFactV2(
+            show_or_title=f"Candidate Show {index}",
+            season_number=1,
+            episode_number=index,
+            episode_title=f"Episode {index}",
+        )
+        evidence.append(
+            EvidenceCandidate(
+                provider="tvmaze",
+                provider_record_id=f"episode:{index}",
+                source_type=EvidenceSourceType.METADATA,
+                canonical_url=f"https://www.tvmaze.com/episodes/{index}",
+                title=f"Candidate Show {index} - S01E{index:02d}: Episode {index}",
+                author_or_channel="TVmaze",
+                excerpt_type=ExcerptType.PARAPHRASE,
+                excerpt=f"TVmaze lists Episode {index} as current.",
+                verification=VerificationState.SECONDARY_CORROBORATED,
+                claim_kind=EvidenceClaimKind.EPISODE_IDENTITY,
+                supports_why_now=False,
+                policy_class="tvmaze-metadata-v1",
+                event_or_release_at=NOW - timedelta(hours=index),
+                citation_verified=True,
+                episode_locator=locator,
+            )
+        )
+    return ProviderResearchContext(
+        prior_evidence=tuple(evidence),
+        trusted_official_hosts=base.trusted_official_hosts,
+    )
+
+
+def _fifteen_seed_tvmaze_context() -> ProviderResearchContext:
+    base = _eight_seed_tvmaze_context()
+    evidence = list(base.prior_evidence)
+    for index in range(10, 17):
+        locator = EpisodeLocatorFactV2(
+            show_or_title=f"Candidate Show {index}",
+            season_number=1,
+            episode_number=index,
+            episode_title=f"Episode {index}",
+        )
+        evidence.append(
+            EvidenceCandidate(
+                provider="tvmaze",
+                provider_record_id=f"episode:{index}",
+                source_type=EvidenceSourceType.METADATA,
+                canonical_url=f"https://www.tvmaze.com/episodes/{index}",
+                title=f"Candidate Show {index} - S01E{index:02d}: Episode {index}",
+                author_or_channel="TVmaze",
+                excerpt_type=ExcerptType.PARAPHRASE,
+                excerpt=f"TVmaze lists Episode {index} as current.",
+                verification=VerificationState.SECONDARY_CORROBORATED,
+                claim_kind=EvidenceClaimKind.EPISODE_IDENTITY,
+                supports_why_now=False,
+                policy_class="tvmaze-metadata-v1",
+                event_or_release_at=NOW - timedelta(hours=index),
+                citation_verified=True,
+                episode_locator=locator,
+            )
+        )
+    return ProviderResearchContext(
+        prior_evidence=tuple(evidence),
+        trusted_official_hosts=base.trusted_official_hosts,
+    )
+
+
+def _thirty_seed_tvmaze_context() -> ProviderResearchContext:
+    base = _fifteen_seed_tvmaze_context()
+    evidence = list(base.prior_evidence)
+    for index in range(17, 32):
         locator = EpisodeLocatorFactV2(
             show_or_title=f"Candidate Show {index}",
             season_number=1,

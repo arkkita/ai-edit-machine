@@ -401,6 +401,19 @@
       "title": "Alternative Sources",
       "type": "array"
     },
+    "concept_id": {
+      "anyOf": [
+        {
+          "format": "uuid4",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Concept Id"
+    },
     "footage_request_id": {
       "format": "uuid4",
       "title": "Footage Request Id",

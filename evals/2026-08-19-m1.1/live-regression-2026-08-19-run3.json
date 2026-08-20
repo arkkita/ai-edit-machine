@@ -1,0 +1,242 @@
+{
+  "cost": {
+    "committedBeforeThisRunMicroUsd": 453500,
+    "cumulativeChargedOrHeldMicroUsd": 484557,
+    "hardCapMicroUsd": 2000000,
+    "remainingAuthorizationMicroUsd": 1515443,
+    "reservedThisRunMicroUsd": 286200
+  },
+  "developmentOnly": true,
+  "evidenceClaims": [],
+  "evidenceSources": [],
+  "fixtureKind": "M1_1_SANITIZED_CANONICAL_LIVE_REPLAY",
+  "generatedAt": "2026-08-19T15:02:58.811Z",
+  "inputSha256": "1428666211f9a9f0bef296a0f8c59c45c82de20bff2d8942b9d2ec19871fa5d3",
+  "jobId": "c29551be-faf2-4f5c-943b-fe2747e78ab1",
+  "latencyMs": 57314,
+  "normalizedIntent": {
+    "exclusions": [],
+    "focusTerms": [
+      "female-centered"
+    ],
+    "freshnessDays": 14,
+    "interpretation": {
+      "broadQuery": true,
+      "clarificationNeeded": false,
+      "clarificationReason": null,
+      "directTiktokDataUsed": false,
+      "facets": [
+        {
+          "category": "HARD_CONSTRAINT",
+          "facetId": "tv_only",
+          "label": "TV only",
+          "rationale": "The request asks for shows or television rather than films.",
+          "removable": false,
+          "source": "EXPLICIT"
+        },
+        {
+          "category": "AUDIENCE",
+          "facetId": "female_skewing_fandom",
+          "label": "female-skewing fandom",
+          "rationale": "Use broad audience-fit evidence without assuming that all women prefer one genre.",
+          "removable": true,
+          "source": "EXPLICIT"
+        },
+        {
+          "category": "PLATFORM_FIT",
+          "facetId": "short_form_edit_potential",
+          "label": "TikTok-edit potential",
+          "rationale": "Infer short-form editability from lawful cross-platform fandom and story signals.",
+          "removable": true,
+          "source": "EXPLICIT"
+        },
+        {
+          "category": "SOFT_PREFERENCE",
+          "facetId": "active_fan_edit_culture",
+          "label": "active fan-edit culture",
+          "rationale": "Search for observable edit, clip, scene, and fandom discussion signals.",
+          "removable": true,
+          "source": "INFERRED_PRIOR"
+        },
+        {
+          "category": "SOFT_PREFERENCE",
+          "facetId": "recognizable_characters_relationships",
+          "label": "recognizable characters or relationships",
+          "rationale": "Short edits need a subject viewers can recognize quickly.",
+          "removable": true,
+          "source": "INFERRED_PRIOR"
+        },
+        {
+          "category": "SOFT_PREFERENCE",
+          "facetId": "emotionally_legible_scenes",
+          "label": "emotionally legible scenes",
+          "rationale": "Prioritize moments whose emotional question and payoff work in a short runtime.",
+          "removable": true,
+          "source": "INFERRED_PRIOR"
+        },
+        {
+          "category": "SOFT_PREFERENCE",
+          "facetId": "visual_quote_moments",
+          "label": "strong visual or quote moments",
+          "rationale": "Look for lawful evidence of memorable visuals, dialogue, reactions, or callbacks.",
+          "removable": true,
+          "source": "INFERRED_PRIOR"
+        },
+        {
+          "category": "SOFT_PREFERENCE",
+          "facetId": "current_or_upcoming_relevance",
+          "label": "current or upcoming TV",
+          "rationale": "Fresh episodes and trailers are useful only when paired with audience and edit signals.",
+          "removable": true,
+          "source": "INFERRED_PRIOR"
+        },
+        {
+          "category": "SOFT_PREFERENCE",
+          "facetId": "relationship_or_character_salience",
+          "label": "active character/relationship discussion",
+          "rationale": "This is one useful discovery prior, not an assumption that romance is required.",
+          "removable": true,
+          "source": "INFERRED_PRIOR"
+        }
+      ],
+      "schemaVersion": "1.0.0",
+      "searchQuestions": [
+        {
+          "evidenceGoal": "Find current titles with actual audience-fit signals.",
+          "query": "newly airing TV shows with active female-skewing fandom discussion",
+          "questionId": "female_fandom_current"
+        },
+        {
+          "evidenceGoal": "Expand genres as non-exclusive priors and test them against evidence.",
+          "query": "recent romance, young-adult, female-led, or fantasy TV with strong character discussion",
+          "questionId": "ya_character_discussion"
+        },
+        {
+          "evidenceGoal": "Find recognizable relationship subjects without assuming romance is mandatory.",
+          "query": "new shows with active relationship or shipping discussion",
+          "questionId": "active_shipping"
+        },
+        {
+          "evidenceGoal": "Find observable short-form edit culture proxies.",
+          "query": "recent shows generating fan edits, scene discussion, or character clip activity",
+          "questionId": "fan_edit_scenes"
+        },
+        {
+          "evidenceGoal": "Find a specific emotional hook and possible payoff.",
+          "query": "new episodes with confessions, arguments, reunions, reactions, or memorable dialogue",
+          "questionId": "emotional_moments"
+        },
+        {
+          "evidenceGoal": "Include evidence-backed upcoming trailers when current episodes are sparse.",
+          "query": "upcoming streaming TV with strong pre-release character or relationship fandom",
+          "questionId": "prerelease_fandom"
+        },
+        {
+          "evidenceGoal": "Find montage-friendly visual identity and fan recognition.",
+          "query": "current series with visually recognizable casts, settings, or emotionally compelling character dynamics",
+          "questionId": "visual_cast_interest"
+        },
+        {
+          "evidenceGoal": "Find trailer-led concepts with an identifiable narrative question.",
+          "query": "new TV trailers generating character relationship discourse",
+          "questionId": "trailer_relationship_discourse"
+        },
+        {
+          "evidenceGoal": "Seek audience evidence without turning gender into a genre rule.",
+          "query": "currently airing shows discussed by young women and female-skewing fandom communities",
+          "questionId": "young_women_current_tv"
+        },
+        {
+          "evidenceGoal": "Test currentness, fandom, editability, and footage feasibility together.",
+          "query": "TV shows with strong short-form edit potential this week based on fandom and scene signals",
+          "questionId": "short_form_this_week"
+        }
+      ],
+      "shortFormInferenceDisclaimer": "TikTok potential is inferred from cross-platform fandom and editability signals. Direct TikTok trend data was not used."
+    },
+    "maxResults": 5,
+    "mediaKinds": [
+      "TV_EPISODE"
+    ],
+    "query": "find shows for girls that'll likely be popular on tiktok",
+    "region": "US",
+    "schemaVersion": "2.0.0",
+    "spoilerPolicy": "CURRENT_EPISODE"
+  },
+  "prompt": "find shows for girls that'll likely be popular on tiktok",
+  "providers": [
+    {
+      "cachedInputTokens": 0,
+      "chargedOrHeldMicroUsd": 0,
+      "configuredModel": null,
+      "costState": "ACTUAL",
+      "inputTokens": 0,
+      "operation": "research.metadata",
+      "outcome": "SUCCESS",
+      "outputTokens": 0,
+      "provider": "tvmaze",
+      "providerRequestId": null,
+      "reasoningTokens": 0,
+      "requests": 38,
+      "reservationMicroUsd": 0,
+      "resolvedModel": null,
+      "toolInvocations": 0
+    },
+    {
+      "cachedInputTokens": 11435,
+      "chargedOrHeldMicroUsd": 31057,
+      "configuredModel": "gpt-5.6-luna",
+      "costState": "ACTUAL",
+      "inputTokens": 12036,
+      "operation": "research.web_verify",
+      "outcome": "INCOMPLETE",
+      "outputTokens": 589,
+      "provider": "openai",
+      "providerRequestId": "responses-batch:2ccebce7916919d3c425db535d4a3ba2ccb7f29cfb9023b2593bcf0ab621a13a",
+      "reasoningTokens": 572,
+      "requests": 2,
+      "reservationMicroUsd": 255000,
+      "resolvedModel": "gpt-5.6-luna",
+      "toolInvocations": 3
+    },
+    {
+      "cachedInputTokens": 0,
+      "chargedOrHeldMicroUsd": 0,
+      "configuredModel": null,
+      "costState": "ACTUAL",
+      "inputTokens": 0,
+      "operation": "research.youtube",
+      "outcome": "SUCCESS",
+      "outputTokens": 0,
+      "provider": "youtube",
+      "providerRequestId": null,
+      "reasoningTokens": 0,
+      "requests": 5,
+      "reservationMicroUsd": 0,
+      "resolvedModel": null,
+      "toolInvocations": 0
+    },
+    {
+      "cachedInputTokens": null,
+      "chargedOrHeldMicroUsd": 0,
+      "configuredModel": "gpt-5.6-luna",
+      "costState": "RELEASED_OR_FREE",
+      "inputTokens": null,
+      "operation": "research.synthesize",
+      "outcome": "NOT_STARTED",
+      "outputTokens": null,
+      "provider": "openai",
+      "providerRequestId": null,
+      "reasoningTokens": null,
+      "requests": null,
+      "reservationMicroUsd": 31200,
+      "resolvedModel": "gpt-5.6-luna",
+      "toolInvocations": null
+    }
+  ],
+  "result": null,
+  "runScope": "m1-1-live-calibration-2026-08-19-v1",
+  "sanitizedExecutionError": "provider is unavailable: openai research did not complete: {\"reason\":\"max_output_tokens\"}",
+  "schemaVersion": "1.0.0",
+  "stageCounts": null
+}

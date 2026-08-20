@@ -7,7 +7,7 @@ from typing import Any, BinaryIO
 
 
 PROTOCOL_VERSION = "1.0.0"
-WORKER_VERSION = "0.1.0-m1-dev"
+WORKER_VERSION = "0.1.0-m1.1b-dev"
 WORKER_TARGET = "windows-x86_64"
 MAX_FRAME_BYTES = 4 * 1024 * 1024
 

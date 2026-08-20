@@ -491,6 +491,62 @@ impl Database {
         Ok(())
     }
 
+    /// Install the immutable aggregate budget for the debug-only M1.1 live
+    /// calibration loop. Every rerun uses the same scope, so reservations and
+    /// unverified charges accumulate durably and can never exceed $2.00.
+    #[cfg(debug_assertions)]
+    pub fn ensure_m11_calibration_budget(&mut self, now_ms: i64) -> AppResult<()> {
+        let run_scope_key = crate::provider_catalog::M11_CALIBRATION_RUN_SCOPE;
+        let hard_cap_micro_usd =
+            crate::provider_catalog::M11_CALIBRATION_HARD_CAP_MICRO_USD;
+        let transaction = self
+            .connection_mut()
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        transaction.execute(
+            "INSERT INTO budget(id,scope_type,scope_id,warning_micro_usd,hard_micro_usd,enabled,created_at_ms)
+             VALUES (?1,'RUN',?2,?3,?3,1,?4)
+             ON CONFLICT(scope_type,scope_id) DO NOTHING",
+            params![
+                Uuid::new_v4().to_string(),
+                run_scope_key,
+                hard_cap_micro_usd,
+                now_ms
+            ],
+        )?;
+        let exact: bool = transaction.query_row(
+            "SELECT COUNT(*)=1 FROM budget
+             WHERE scope_type='RUN' AND scope_id=?1 AND warning_micro_usd=?2
+               AND hard_micro_usd=?2 AND enabled=1",
+            params![run_scope_key, hard_cap_micro_usd],
+            |row| row.get(0),
+        )?;
+        if !exact {
+            return Err(AppError::Budget(
+                "M1.1 calibration budget conflicts with existing state".to_owned(),
+            ));
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn m11_calibration_committed_micro_usd(&self) -> AppResult<i64> {
+        Ok(self.connection().query_row(
+            "SELECT COALESCE(SUM(committed), 0) FROM (
+               SELECT cost_entry.planned_call_id,
+                 MAX(
+                   MAX(CASE WHEN cost_entry.state IN ('RESERVED','UNVERIFIED') THEN cost_entry.micro_usd ELSE 0 END),
+                   SUM(CASE WHEN cost_entry.state = 'ACTUAL' THEN cost_entry.micro_usd ELSE 0 END)
+                 ) AS committed
+               FROM cost_entry JOIN job ON job.id=cost_entry.job_id
+               WHERE job.run_scope_key=?1
+               GROUP BY cost_entry.planned_call_id
+             )",
+            [crate::provider_catalog::M11_CALIBRATION_RUN_SCOPE],
+            |row| row.get(0),
+        )?)
+    }
+
     pub fn provider_disclosures(&self, provider: &str, now_ms: i64) -> AppResult<ProviderDisclosureRecord> {
         self.connection().query_row(
             "SELECT retention_summary,data_use_summary,no_storage_mode,privacy_mode,expires_at_ms
@@ -555,6 +611,7 @@ impl Database {
                      AND policy.policy_class=source.policy_class
                     WHERE run.status='SUCCEEDED'
                       AND job.run_scope_key<>'m1-provider-debug-live-2026-08-19-v1'
+                      AND job.run_scope_key<>'m1-1-live-calibration-2026-08-19-v1'
                       AND run.evidence_sources_json IS NOT NULL
                       AND source.provider='openai'
                       AND source.source_type='ARTICLE'
@@ -622,6 +679,7 @@ impl Database {
                      AND policy.policy_class=source.policy_class
                     WHERE run.status='SUCCEEDED'
                       AND job.run_scope_key<>'m1-provider-debug-live-2026-08-19-v1'
+                      AND job.run_scope_key<>'m1-1-live-calibration-2026-08-19-v1'
                       AND run.evidence_claims_json IS NOT NULL
                       AND source.provider='openai'
                       AND source.source_type='ARTICLE'
@@ -769,16 +827,26 @@ impl Database {
         ensure_project(&transaction, input.project_id)?;
         validate_calls(&transaction, input.calls, input.now_ms)?;
         let budgets = budget_snapshot(&transaction, input.project_id, input.run_scope_key)?;
-        let project_committed = committed_for_project(&transaction, input.project_id)?;
+        let calibration_scope = is_m11_calibration_scope(input.run_scope_key);
+        let project_committed = if calibration_scope {
+            0
+        } else {
+            committed_for_project(&transaction, input.project_id)?
+        };
         let run_committed = committed_for_run(&transaction, input.project_id, input.run_scope_key)?;
         enforce_budget(maximum, project_committed, run_committed, budgets)?;
+        let displayed_committed = if calibration_scope {
+            run_committed
+        } else {
+            project_committed
+        };
 
         let consent_token = Uuid::new_v4();
         transaction.execute(
             "INSERT INTO cost_preview(consent_token, project_id, run_scope_key, input_sha256, normalized_intent_json, plan_sha256, plan_contract_json, maximum_micro_usd, already_committed_micro_usd, run_hard_limit_micro_usd, project_hard_limit_micro_usd, effective_hard_limit_micro_usd, expires_at_ms, created_at_ms)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![consent_token.to_string(), input.project_id.to_string(), input.run_scope_key,
-                input.input_sha256, input.normalized_intent_json, plan_sha256, plan_contract_json, maximum, project_committed,
+                input.input_sha256, input.normalized_intent_json, plan_sha256, plan_contract_json, maximum, displayed_committed,
                 budgets.run_hard, budgets.project_hard, budgets.effective_hard,
                 input.expires_at_ms, input.now_ms],
         )?;
@@ -821,7 +889,7 @@ impl Database {
             consent_token,
             planned_calls: records,
             maximum_cost_micro_usd: maximum,
-            already_spent_or_reserved_micro_usd: project_committed,
+            already_spent_or_reserved_micro_usd: displayed_committed,
             effective_warning_micro_usd: budgets.warning,
             run_hard_limit_micro_usd: budgets.run_hard,
             project_hard_limit_micro_usd: budgets.project_hard,
@@ -878,7 +946,11 @@ impl Database {
         }
 
         let budgets = budget_snapshot(&transaction, preview.project_id, &preview.run_scope_key)?;
-        let project_committed = committed_for_project(&transaction, preview.project_id)?;
+        let project_committed = if is_m11_calibration_scope(&preview.run_scope_key) {
+            0
+        } else {
+            committed_for_project(&transaction, preview.project_id)?
+        };
         let run_committed = committed_for_run(&transaction, preview.project_id, &preview.run_scope_key)?;
         enforce_budget(maximum, project_committed, run_committed, budgets)?;
 
@@ -1851,6 +1923,63 @@ impl Database {
         transaction.commit()?;
         Ok(record)
     }
+
+    pub fn record_recommendation_feedback(
+        &mut self,
+        job_id: Uuid,
+        opportunity_id: Uuid,
+        concept_id: Option<Uuid>,
+        rating: &str,
+        now_ms: i64,
+    ) -> AppResult<Uuid> {
+        let transaction = self.connection_mut().transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let research_run_id: Option<String> = transaction.query_row(
+            "SELECT run.id
+             FROM research_run run
+             JOIN opportunity item ON item.research_run_id=run.id
+             WHERE run.job_id=?1 AND run.status='SUCCEEDED' AND item.id=?2",
+            params![job_id.to_string(), opportunity_id.to_string()],
+            |row| row.get(0),
+        ).optional()?;
+        let Some(research_run_id) = research_run_id else {
+            return Err(AppError::Validation(
+                "feedback target does not belong to a completed research result".to_owned(),
+            ));
+        };
+        if let Some(concept_id) = concept_id {
+            let concept_exists: bool = transaction.query_row(
+                "SELECT EXISTS(
+                    SELECT 1
+                    FROM research_run run, json_each(run.canonical_result_json, '$.editorialConcepts') concept
+                    WHERE run.id=?1
+                      AND json_extract(concept.value, '$.opportunityId')=?2
+                      AND json_extract(concept.value, '$.conceptId')=?3
+                )",
+                params![research_run_id, opportunity_id.to_string(), concept_id.to_string()],
+                |row| row.get(0),
+            )?;
+            if !concept_exists {
+                return Err(AppError::Validation(
+                    "feedback concept does not belong to the selected opportunity".to_owned(),
+                ));
+            }
+        }
+        let feedback_id = Uuid::new_v4();
+        transaction.execute(
+            "INSERT INTO recommendation_feedback(id,research_run_id,opportunity_id,concept_id,rating,created_at_ms)
+             VALUES (?1,?2,?3,?4,?5,?6)",
+            params![
+                feedback_id.to_string(),
+                research_run_id,
+                opportunity_id.to_string(),
+                concept_id.map(|value| value.to_string()),
+                rating,
+                now_ms,
+            ],
+        )?;
+        transaction.commit()?;
+        Ok(feedback_id)
+    }
 }
 
 fn database_json_contracts_equal(left: &str, right: &str) -> AppResult<bool> {
@@ -2261,6 +2390,24 @@ fn ensure_project(transaction: &Transaction<'_>, project_id: Uuid) -> AppResult<
 fn budget_snapshot(transaction: &Transaction<'_>, project_id: Uuid, run_scope_key: &str) -> AppResult<BudgetSnapshot> {
     let default = budget_for(transaction, "DEFAULT", None)?
         .ok_or_else(|| AppError::DatabaseInvariant("default budget is missing".to_owned()))?;
+    #[cfg(debug_assertions)]
+    if is_m11_calibration_scope(run_scope_key) {
+        let run = budget_for(transaction, "RUN", Some(run_scope_key))?
+            .ok_or_else(|| AppError::Budget("M1.1 calibration budget is missing".to_owned()))?;
+        if run.0 != crate::provider_catalog::M11_CALIBRATION_HARD_CAP_MICRO_USD
+            || run.1 != crate::provider_catalog::M11_CALIBRATION_HARD_CAP_MICRO_USD
+        {
+            return Err(AppError::Budget(
+                "M1.1 calibration budget is not the immutable $2.00 cap".to_owned(),
+            ));
+        }
+        return Ok(BudgetSnapshot {
+            warning: run.0,
+            run_hard: run.1,
+            project_hard: run.1,
+            effective_hard: run.1,
+        });
+    }
     let project = budget_for(transaction, "PROJECT", Some(&project_id.to_string()))?.unwrap_or(default);
     let run = budget_for(transaction, "RUN", Some(run_scope_key))?.unwrap_or(default);
     Ok(BudgetSnapshot {
@@ -2269,6 +2416,18 @@ fn budget_snapshot(transaction: &Transaction<'_>, project_id: Uuid, run_scope_ke
         project_hard: project.1,
         effective_hard: default.1.min(project.1).min(run.1),
     })
+}
+
+fn is_m11_calibration_scope(run_scope_key: &str) -> bool {
+    #[cfg(debug_assertions)]
+    {
+        run_scope_key == crate::provider_catalog::M11_CALIBRATION_RUN_SCOPE
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = run_scope_key;
+        false
+    }
 }
 
 fn budget_for(transaction: &Transaction<'_>, scope_type: &str, scope_id: Option<&str>) -> AppResult<Option<(i64, i64)>> {
@@ -2923,7 +3082,7 @@ mod tests {
     fn start_is_idempotent_and_only_one_executor_can_claim_the_job() {
         let mut database = setup();
         let (preview, hash, request) = create_preview(&mut database, "romance TV", "run-one");
-        assert_eq!(preview.maximum_cost_micro_usd, 211_600);
+        assert_eq!(preview.maximum_cost_micro_usd, 286_200);
         let first = consume(&mut database, &preview, &hash, &request);
         let replay = consume(&mut database, &preview, &hash, &request);
         assert_eq!(first.id, replay.id);
@@ -2936,7 +3095,7 @@ mod tests {
         assert_eq!(ceilings.get("research.metadata"), Some(&(0, 0, 0)));
         assert_eq!(
             ceilings.get("research.web_verify"),
-            Some(&(14, 170_000, 180_400)),
+            Some(&(20, 230_000, 255_000)),
         );
         assert_eq!(
             ceilings.get("research.synthesize"),
@@ -3023,6 +3182,87 @@ mod tests {
             now_ms: NOW_MS + 1,
             expires_at_ms: NOW_MS + 60_000,
         }).expect_err("the immutable run cap must reject a second paid reservation");
+        assert!(matches!(error, AppError::Budget(_)));
+    }
+
+    #[test]
+    fn m11_calibration_budget_is_aggregate_and_cannot_exceed_two_dollars() {
+        let mut database = setup();
+        database.ensure_m11_calibration_budget(NOW_MS).unwrap();
+        let run_scope = crate::provider_catalog::M11_CALIBRATION_RUN_SCOPE;
+        let (intent, normalized) = normalized_intent(
+            "find shows for girls that'll likely be popular on tiktok",
+        );
+        let calls = crate::provider_catalog::build_m11_calibration_plan(
+            &database,
+            &intent,
+            NOW_MS,
+        )
+        .unwrap();
+        assert_eq!(
+            calls.iter().map(|call| call.reservation_micro_usd).sum::<i64>(),
+            crate::provider_catalog::M11_CALIBRATION_RUN_RESERVATION_MICRO_USD
+        );
+
+        for index in 0..6 {
+            let request_json = serde_json::json!({
+                "exclusions":null,
+                "freshnessDays":14,
+                "maxResults":5,
+                "mediaKinds":["TV_EPISODE"],
+                "prompt":format!("find shows for girls that'll likely be popular on tiktok #{index}"),
+                "region":"US",
+                "schemaVersion":"2.0.0",
+                "spoilerPolicy":"CURRENT_EPISODE"
+            })
+            .to_string();
+            let input_sha256 = sha256_hex(request_json.as_bytes());
+            let preview = database
+                .create_cost_preview(&NewCostPreview {
+                    project_id: DEFAULT_PROJECT_ID,
+                    run_scope_key: run_scope,
+                    input_sha256: &input_sha256,
+                    normalized_intent_json: &normalized,
+                    calls: &calls,
+                    now_ms: NOW_MS + index,
+                    expires_at_ms: NOW_MS + 60_000,
+                })
+                .unwrap();
+            assert_eq!(
+                preview.already_spent_or_reserved_micro_usd,
+                index * crate::provider_catalog::M11_CALIBRATION_RUN_RESERVATION_MICRO_USD
+            );
+            database
+                .consume_preview_and_create_job(&NewResearchJob {
+                    consent_token: preview.consent_token,
+                    input_sha256: &input_sha256,
+                    input_contract_json: &request_json,
+                    raw_query: "find shows for girls that'll likely be popular on tiktok",
+                    schema_version: "2.0.0",
+                    now_ms: NOW_MS + index,
+                })
+                .unwrap();
+        }
+
+        let request_json = serde_json::json!({
+            "exclusions":null,"freshnessDays":14,"maxResults":5,
+            "mediaKinds":["TV_EPISODE"],
+            "prompt":"find shows for girls that'll likely be popular on tiktok final",
+            "region":"US","schemaVersion":"2.0.0","spoilerPolicy":"CURRENT_EPISODE"
+        })
+        .to_string();
+        let input_sha256 = sha256_hex(request_json.as_bytes());
+        let error = database
+            .create_cost_preview(&NewCostPreview {
+                project_id: DEFAULT_PROJECT_ID,
+                run_scope_key: run_scope,
+                input_sha256: &input_sha256,
+                normalized_intent_json: &normalized,
+                calls: &calls,
+                now_ms: NOW_MS + 7,
+                expires_at_ms: NOW_MS + 60_000,
+            })
+            .expect_err("the seventh full calibration run must exceed the $2.00 aggregate cap");
         assert!(matches!(error, AppError::Budget(_)));
     }
 
@@ -3597,9 +3837,9 @@ mod tests {
         })
         .unwrap();
 
-        assert_eq!(capability.max_input_tokens, 170_000);
-        assert_eq!(capability.max_output_tokens, 5_333);
-        assert_eq!(capability.maximum_micro_usd, 180_400);
+        assert_eq!(capability.max_input_tokens, 230_000);
+        assert_eq!(capability.max_output_tokens, 7_500);
+        assert_eq!(capability.maximum_micro_usd, 255_000);
         assert!(result.usage_verified);
         assert!(!result.exceeded_reservation);
         assert_eq!(result.charged_or_held_micro_usd, 163_354);
@@ -3631,7 +3871,7 @@ mod tests {
             provider_request_id: Some("provider-request-context-overrun"),
             outcome: "FAILED",
             requests: Some(1),
-            input_tokens: Some(170_001),
+            input_tokens: Some(230_001),
             cached_input_tokens: Some(0),
             output_tokens: Some(10),
             reasoning_tokens: Some(0),
@@ -3666,7 +3906,7 @@ mod tests {
         );
         let idempotency = format!("reconcile:{}:{}", job.id, capability.planned_call_id);
         let tool_usage = serde_json::to_string(
-            &(0..15)
+            &(0..21)
                 .map(|index| format!("web_search_call:{index}"))
                 .collect::<Vec<_>>(),
         )
@@ -3684,7 +3924,7 @@ mod tests {
                 cached_input_tokens: Some(0),
                 output_tokens: Some(10),
                 reasoning_tokens: Some(0),
-                tool_invocations: Some(15),
+                tool_invocations: Some(21),
                 repair_used: None,
                 tool_usage_json: Some(&tool_usage),
                 output_sha256: None,
@@ -3703,7 +3943,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .unwrap();
-        assert_eq!(persisted, (15, tool_usage));
+        assert_eq!(persisted, (21, tool_usage));
         database.annotate_provider_accounting_failure(
             job.id,
             "openai research did not complete: provider exceeded the bounded input context",

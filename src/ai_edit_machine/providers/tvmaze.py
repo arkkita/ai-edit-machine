@@ -24,8 +24,11 @@ from .base import (
     CallMeter,
     CancellationToken,
     EvidenceCandidate,
+    MAX_M11_TVMAZE_DISCOVERY_SHOWS,
     MAX_TVMAZE_CAST_SHOWS,
     MAX_TVMAZE_DISCOVERY_SHOWS,
+    ProviderCandidateFunnel,
+    ProviderCandidateTrace,
     ProviderBatch,
     ProviderLimitError,
     ProviderResearchContext,
@@ -146,8 +149,13 @@ class TVmazeProvider:
         show_official_hosts: dict[int, str] = {}
         show_region_affinity: dict[int, int] = {}
         show_focus_affinity: dict[int, int] = {}
+        show_creative_affinity: dict[int, int] = {}
         show_episode_title_affinity: dict[int, int] = {}
         show_provider_weight: dict[int, int] = {}
+        raw_release_keys: set[str] = set()
+        fresh_release_keys: set[str] = set()
+        exclusion_survivor_keys: set[str] = set()
+        audience_survivor_keys: set[str] = set()
         for endpoint, params in schedule_requests:
             cancellation.raise_if_cancelled()
             meter.begin_request(provider=self.name, operation=self.operation)
@@ -176,8 +184,6 @@ class TVmazeProvider:
                 if (
                     not show_name
                     or not episode_name
-                    or _show_is_excluded(show, show_name, intent)
-                    or not _show_matches_focus(show, show_name, intent)
                 ):
                     continue
                 show_id = show.get("id")
@@ -196,9 +202,7 @@ class TVmazeProvider:
                     continue
                 record_id = row.get("id")
                 record_key = str(record_id) if record_id is not None else canonical_url
-                if record_key in seen_episode_ids:
-                    continue
-                seen_episode_ids.add(record_key)
+                raw_release_keys.add(record_key)
                 event_at = _aware_datetime(row.get("airstamp"))
                 # A calendar-day schedule endpoint includes episodes that have
                 # not aired yet.  M1 freshness means already-released material;
@@ -210,6 +214,16 @@ class TVmazeProvider:
                     or event_at > now + timedelta(minutes=5)
                 ):
                     continue
+                fresh_release_keys.add(record_key)
+                if _show_is_excluded(show, show_name, intent):
+                    continue
+                exclusion_survivor_keys.add(record_key)
+                if not _show_matches_focus(show, show_name, intent):
+                    continue
+                audience_survivor_keys.add(record_key)
+                if record_key in seen_episode_ids:
+                    continue
+                seen_episode_ids.add(record_key)
                 try:
                     locator = EpisodeLocatorFactV2(
                         show_or_title=show_name,
@@ -255,6 +269,10 @@ class TVmazeProvider:
                     show_focus_affinity.get(show_id, 0),
                     _focus_affinity(show, show_name, intent),
                 )
+                show_creative_affinity[show_id] = max(
+                    show_creative_affinity.get(show_id, 0),
+                    _creative_edit_metadata_affinity(show, intent),
+                )
                 show_episode_title_affinity[show_id] = max(
                     show_episode_title_affinity.get(show_id, 0),
                     _episode_title_affinity(episode_name),
@@ -271,7 +289,7 @@ class TVmazeProvider:
                         pass
                 episode_candidates_by_show.setdefault(show_id, []).append(candidate)
 
-        selected_show_ids = sorted(
+        ranked_show_ids = sorted(
             episode_candidates_by_show,
             key=lambda show_id: (
                 # An explicit title request remains stronger than a default
@@ -279,6 +297,7 @@ class TVmazeProvider:
                 # an obscure global dual-genre row crowd every requested-market
                 # candidate out of the verifier slate.
                 int(show_focus_affinity[show_id] >= 4),
+                show_creative_affinity[show_id],
                 show_episode_title_affinity[show_id],
                 show_focus_affinity[show_id],
                 # TVmaze's bounded weight is a discovery/evidenceability hint,
@@ -296,7 +315,52 @@ class TVmazeProvider:
                 show_id,
             ),
             reverse=True,
-        )[:MAX_TVMAZE_DISCOVERY_SHOWS]
+        )
+        female_audience_prior = _FEMALE_CENTERED_FOCUS in {
+            _normalized_label(value) for value in intent.focus_terms
+        }
+        discovery_show_limit = (
+            MAX_M11_TVMAZE_DISCOVERY_SHOWS
+            if _has_editability_intent(intent)
+            and intent.interpretation is not None
+            and intent.interpretation.broad_query
+            else MAX_TVMAZE_DISCOVERY_SHOWS
+        )
+        if female_audience_prior and _has_editability_intent(intent):
+            # Six audience-prioritized slots plus two broad scripted/editable
+            # slots feed the eight-title deep verifier. This keeps the exact
+            # audience request influential without making gender a genre
+            # exclusion or hiding a male-led title with a strong fandom.
+            selected_show_ids = list(ranked_show_ids[:6])
+            broad_ranked = sorted(
+                episode_candidates_by_show,
+                key=lambda show_id: (
+                    show_creative_affinity[show_id],
+                    show_provider_weight[show_id] // 10,
+                    show_region_affinity[show_id],
+                    int(show_id in show_official_hosts),
+                    show_provider_weight[show_id],
+                    max(
+                        _candidate_recency_key(item)
+                        for item in episode_candidates_by_show[show_id]
+                    ),
+                    show_names[show_id].casefold(),
+                    show_id,
+                ),
+                reverse=True,
+            )
+            for show_id in broad_ranked:
+                if show_id not in selected_show_ids:
+                    selected_show_ids.append(show_id)
+                if len(selected_show_ids) >= 8:
+                    break
+            for show_id in ranked_show_ids:
+                if show_id not in selected_show_ids:
+                    selected_show_ids.append(show_id)
+                if len(selected_show_ids) >= discovery_show_limit:
+                    break
+        else:
+            selected_show_ids = ranked_show_ids[:discovery_show_limit]
         # Every selected episode is useful as an immutable verifier target.
         # Cast enrichment is helpful but more expensive, so only the strongest
         # bounded subset receives the additional per-show request below.
@@ -398,11 +462,17 @@ class TVmazeProvider:
                 "TVmaze schedule coverage is bounded to the newest fourteen days; older parts of "
                 "the requested window require other evidence providers."
             )
-        if len(episode_candidates_by_show) > MAX_TVMAZE_DISCOVERY_SHOWS:
+        if len(episode_candidates_by_show) > discovery_show_limit:
             warnings.append(
                 f"TVmaze found {len(episode_candidates_by_show)} matching current shows; "
-                f"the {MAX_TVMAZE_DISCOVERY_SHOWS} strongest metadata candidates were sent "
+                f"the {discovery_show_limit} strongest metadata candidates were sent "
                 "to evidence verification."
+            )
+        if female_audience_prior and _has_editability_intent(intent):
+            warnings.append(
+                "TVmaze used female-audience intent as a soft priority for six deep-search "
+                "slots and preserved two broad scripted/editable slots; no genre was "
+                "hard-excluded by audience intent."
             )
         return ProviderBatch(
             provider=self.name,
@@ -419,6 +489,46 @@ class TVmazeProvider:
             warnings=tuple(warnings),
             attributions=("TV metadata: TVmaze (CC BY-SA) — https://www.tvmaze.com/api",),
             trusted_official_hosts=tuple(sorted(trusted_official_hosts)),
+            candidate_funnel=ProviderCandidateFunnel(
+                raw_release_candidates=len(raw_release_keys),
+                candidates_after_freshness=len(fresh_release_keys),
+                candidates_after_hard_exclusions=len(exclusion_survivor_keys),
+                candidates_after_audience_fit_screening=len(audience_survivor_keys),
+                candidates_selected_for_social_research=len(selected_show_ids),
+                candidate_traces=tuple(
+                    ProviderCandidateTrace(
+                        candidate_name=(
+                            f"{show_names[show_id]} — "
+                            f"S{candidate.episode_locator.season_number:02d}"
+                            f"E{candidate.episode_locator.episode_number:02d} "
+                            f"{candidate.episode_locator.episode_title or ''}"
+                        ).strip(),
+                        title=show_names[show_id],
+                        shortlist_rank=index,
+                        shortlist_reason=(
+                            "Selected by the female-audience soft-prior plus editability metadata ordering."
+                            if female_audience_prior and _has_editability_intent(intent) and index <= 6
+                            else "Selected by the broad scripted/editability metadata ordering; audience intent was not a hard genre filter."
+                            if female_audience_prior and _has_editability_intent(intent)
+                            else "Selected by deterministic metadata relevance, market, recency, and evidenceability ordering."
+                        ),
+                        season_number=candidate.episode_locator.season_number,
+                        episode_number=candidate.episode_locator.episode_number,
+                        episode_title=candidate.episode_locator.episode_title,
+                    )
+                    for index, show_id in enumerate(selected_show_ids, start=1)
+                    for candidate in [
+                        max(
+                            episode_candidates_by_show[show_id],
+                            key=lambda item: (
+                                _candidate_recency_key(item),
+                                item.canonical_url,
+                            ),
+                        )
+                    ]
+                    if candidate.episode_locator is not None
+                ),
+            ),
         )
 
 
@@ -484,11 +594,11 @@ def _focus_affinity(
     genres = _trusted_metadata_topics(show, show_name)
     female_centered_requested = _FEMALE_CENTERED_FOCUS in normalized_focus
     female_centered_score = _female_centered_metadata_affinity(show, show_name)
-    if female_centered_requested and female_centered_score == 0:
-        # A broad popularity/currentness match must not erase the user's
-        # explicit audience-fit constraint.  Unknown metadata abstains rather
-        # than silently admitting an unrelated show.
-        return 0
+    # Audience intent is a soft discovery prior, never a genre stereotype or
+    # hard metadata exclusion. A male-led comedy or science-fiction title can
+    # still qualify later when current fandom, shipping, character, or edit
+    # evidence supports it. Unknown TVmaze summaries therefore remain in the
+    # recall pool but receive no audience-prior boost.
     recognized: set[frozenset[str]] = set()
     for value in normalized_focus:
         if value in _FOCUS_GENRES:
@@ -531,6 +641,64 @@ def _female_centered_metadata_affinity(
     if len(_FEMALE_CENTERED_PRONOUN.findall(visible)) >= 2:
         return 2
     return 0
+
+
+def _has_editability_intent(intent: ResearchIntentV2) -> bool:
+    interpretation = intent.interpretation
+    if interpretation is None:
+        return False
+    return any(
+        facet.facet_id
+        in {
+            "short_form_edit_potential",
+            "active_fan_edit_culture",
+            "character_edit",
+            "relationship_edit",
+            "heartbreaking_edit",
+            "aggressive_edit",
+        }
+        for facet in interpretation.facets
+    )
+
+
+def _creative_edit_metadata_affinity(
+    show: dict[str, object], intent: ResearchIntentV2
+) -> int:
+    """Prefer story-bearing candidates only when the request asks for an edit.
+
+    This is a recall-order hint from TVmaze-owned type/genre metadata. It does
+    not establish audience fit, fandom activity, a relationship, or a usable
+    concept, and it never removes documentary/reality/news candidates.
+    """
+
+    if not _has_editability_intent(intent):
+        return 0
+    show_type = _normalized_label(str(show.get("type") or ""))
+    topics = _trusted_metadata_topics(show, str(show.get("name") or ""))
+    type_score = {
+        "scripted": 4,
+        "animation": 3,
+        "reality": 1,
+        "documentary": 0,
+        "news": 0,
+        "sports": 0,
+        "talk show": 0,
+        "game show": 0,
+    }.get(show_type, 1)
+    narrative_topics = {
+        "action",
+        "adventure",
+        "comedy",
+        "crime",
+        "drama",
+        "fantasy",
+        "horror",
+        "mystery",
+        "romance",
+        "science fiction",
+        "thriller",
+    }
+    return type_score + min(2, len(topics & narrative_topics))
 
 
 def _trusted_metadata_topics(show: dict[str, object], show_name: str) -> set[str]:

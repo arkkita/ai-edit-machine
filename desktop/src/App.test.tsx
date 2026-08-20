@@ -12,6 +12,7 @@ const running: ResearchRunView = {
   progressPercent: 45,
   phase: "verifying evidence",
   result: null,
+  provenance: noOpportunityRun.provenance,
   sanitizedError: null,
 };
 
@@ -26,6 +27,7 @@ function backend(): BackendApi {
       .mockResolvedValueOnce(noOpportunityRun),
     cancelResearch: vi.fn(async (): Promise<ResearchRunView> => ({ ...running, status: "CANCELLING" })),
     openEvidenceLink: vi.fn(async () => undefined),
+    recordRecommendationFeedback: vi.fn(async () => undefined),
     getCredentialStatus: vi.fn(async (provider) => ({ provider, configured: false, locallyValid: false, lastValidatedAt: null })),
     storeCredential: vi.fn(async (provider) => ({ provider, configured: true, locallyValid: true, lastValidatedAt: null })),
     validateCredential: vi.fn(async (provider) => ({ provider, configured: true, locallyValid: true, lastValidatedAt: "2026-08-15T20:00:00Z" })),

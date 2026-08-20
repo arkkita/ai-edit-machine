@@ -63,7 +63,7 @@ class SchemaExportTests(unittest.TestCase):
             for path, rendered in outputs.items()
             if "provider" in path.parts and "openai" in path.parts
         }
-        self.assertEqual(len(openai_outputs), 7)
+        self.assertEqual(len(openai_outputs), 9)
         for rendered in openai_outputs.values():
             self.assertNotIn('"minLength"', rendered)
             self.assertNotIn('"maxLength"', rendered)

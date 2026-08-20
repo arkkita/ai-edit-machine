@@ -1,0 +1,539 @@
+{
+  "$defs": {
+    "DossierCharacterV1": {
+      "additionalProperties": false,
+      "properties": {
+        "character_name": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Character Name",
+          "type": "string"
+        },
+        "performer_name": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Performer Name"
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Show Or Title",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "character_name",
+        "show_or_title",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "title": "DossierCharacterV1",
+      "type": "object"
+    },
+    "DossierCurrentSourceKind": {
+      "enum": [
+        "EPISODE",
+        "SEASON",
+        "TRAILER",
+        "OFFICIAL_CLIP",
+        "ANNOUNCEMENT",
+        "INTERVIEW",
+        "ARTICLE",
+        "OTHER"
+      ],
+      "title": "DossierCurrentSourceKind",
+      "type": "string"
+    },
+    "DossierCurrentSourceV1": {
+      "additionalProperties": false,
+      "properties": {
+        "episode_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Number"
+        },
+        "episode_title": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Title"
+        },
+        "season_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Season Number"
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Show Or Title",
+          "type": "string"
+        },
+        "source_kind": {
+          "$ref": "#/$defs/DossierCurrentSourceKind"
+        },
+        "source_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Source Title",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "source_kind",
+        "show_or_title",
+        "source_title",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "title": "DossierCurrentSourceV1",
+      "type": "object"
+    },
+    "DossierEvidenceFactV1": {
+      "additionalProperties": false,
+      "properties": {
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "text",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "title": "DossierEvidenceFactV1",
+      "type": "object"
+    },
+    "DossierFranchiseConnectionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "characters": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Characters",
+          "type": "array"
+        },
+        "connected_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Connected Title",
+          "type": "string"
+        },
+        "connection_type": {
+          "$ref": "#/$defs/LegacyConnectionType"
+        },
+        "current_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Current Title",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "connection_type",
+        "current_title",
+        "connected_title",
+        "description",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "title": "DossierFranchiseConnectionV1",
+      "type": "object"
+    },
+    "DossierQuoteLeadV1": {
+      "additionalProperties": false,
+      "properties": {
+        "quote": {
+          "$ref": "#/$defs/FootageQuoteV2"
+        },
+        "source_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Source Title",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "quote",
+        "source_title",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "title": "DossierQuoteLeadV1",
+      "type": "object"
+    },
+    "EvidenceRole": {
+      "enum": [
+        "PRIMARY_WHY_NOW",
+        "QUALITATIVE_SIGNAL",
+        "QUOTE_PROOF",
+        "CONTEXT"
+      ],
+      "title": "EvidenceRole",
+      "type": "string"
+    },
+    "FootageQuoteStatus": {
+      "enum": [
+        "VERIFIED",
+        "PARAPHRASE",
+        "UNVERIFIED_LEAD"
+      ],
+      "title": "FootageQuoteStatus",
+      "type": "string"
+    },
+    "FootageQuoteV2": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "format": "uuid4",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "likely_context": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Likely Context"
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speaker"
+        },
+        "status": {
+          "$ref": "#/$defs/FootageQuoteStatus"
+        },
+        "text": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "text",
+        "claim_id"
+      ],
+      "title": "FootageQuoteV2",
+      "type": "object"
+    },
+    "FootageVerificationLevel": {
+      "enum": [
+        "VERIFIED",
+        "STRONGLY_SUPPORTED",
+        "LIKELY_INFERRED",
+        "UNKNOWN"
+      ],
+      "title": "FootageVerificationLevel",
+      "type": "string"
+    },
+    "LegacyConnectionType": {
+      "enum": [
+        "NONE",
+        "SAME_CHARACTER",
+        "SAME_CANONICAL_UNIVERSE",
+        "EXPLICIT_CALLBACK",
+        "THEMATIC_PARALLEL",
+        "ACTOR_CONNECTION_ONLY",
+        "FAN_INTERPRETATION",
+        "UNSUPPORTED_SPECULATION"
+      ],
+      "title": "LegacyConnectionType",
+      "type": "string"
+    },
+    "TrustedOpportunityEvidenceReferenceV2": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "format": "uuid4",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "independence_group": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Independence Group",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/EvidenceRole"
+        },
+        "supports_why_now": {
+          "title": "Supports Why Now",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "claim_id",
+        "role",
+        "supports_why_now",
+        "independence_group"
+      ],
+      "title": "TrustedOpportunityEvidenceReferenceV2",
+      "type": "object"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v2/canonical/fandom-story-dossier.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "audience_and_fandom_evidence": {
+      "items": {
+        "$ref": "#/$defs/DossierEvidenceFactV1"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Audience And Fandom Evidence",
+      "type": "array"
+    },
+    "central_relationship": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DossierEvidenceFactV1"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "current_event_or_hook": {
+      "$ref": "#/$defs/DossierEvidenceFactV1"
+    },
+    "current_source": {
+      "$ref": "#/$defs/DossierCurrentSourceV1"
+    },
+    "dossier_id": {
+      "format": "uuid4",
+      "title": "Dossier Id",
+      "type": "string"
+    },
+    "dossier_key": {
+      "pattern": "^[a-z][a-z0-9_]{1,63}$",
+      "title": "Dossier Key",
+      "type": "string"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/TrustedOpportunityEvidenceReferenceV2"
+      },
+      "maxItems": 60,
+      "minItems": 1,
+      "title": "Evidence",
+      "type": "array"
+    },
+    "exact_or_likely_quote": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DossierQuoteLeadV1"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "franchise_connections": {
+      "items": {
+        "$ref": "#/$defs/DossierFranchiseConnectionV1"
+      },
+      "maxItems": 20,
+      "title": "Franchise Connections",
+      "type": "array"
+    },
+    "named_characters": {
+      "items": {
+        "$ref": "#/$defs/DossierCharacterV1"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "title": "Named Characters",
+      "type": "array"
+    },
+    "opportunity_id": {
+      "format": "uuid4",
+      "title": "Opportunity Id",
+      "type": "string"
+    },
+    "relationship_or_character_history": {
+      "items": {
+        "$ref": "#/$defs/DossierEvidenceFactV1"
+      },
+      "maxItems": 20,
+      "title": "Relationship Or Character History",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "show_or_title": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Show Or Title",
+      "type": "string"
+    },
+    "uncertainties": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 30,
+      "title": "Uncertainties",
+      "type": "array"
+    },
+    "why_fans_currently_care": {
+      "items": {
+        "$ref": "#/$defs/DossierEvidenceFactV1"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Why Fans Currently Care",
+      "type": "array"
+    }
+  },
+  "required": [
+    "dossier_id",
+    "opportunity_id",
+    "dossier_key",
+    "show_or_title",
+    "current_event_or_hook",
+    "named_characters",
+    "current_source",
+    "why_fans_currently_care",
+    "audience_and_fandom_evidence",
+    "evidence"
+  ],
+  "title": "FandomStoryDossierV1",
+  "type": "object"
+}

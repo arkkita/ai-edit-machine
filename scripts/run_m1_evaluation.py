@@ -35,13 +35,21 @@ from ai_edit_machine.contracts import (  # noqa: E402
     VerificationState,
 )
 from ai_edit_machine.m1_contracts import (  # noqa: E402
+    DossierCharacterV1,
+    DossierCurrentSourceKind,
+    DossierCurrentSourceV1,
+    DossierEvidenceFactV1,
+    DossierQuoteLeadV1,
+    EditorialConceptDraftV1,
     EpisodeLocatorFactV2,
     EvidenceClaimKind,
+    FandomStoryDossierDraftV1,
     FootageRequestDraftV2,
     FootageQuoteStatus,
     FootageQuoteV2,
     FootageVerificationLevel,
     IntroMaterialLeadDraftV2,
+    LegacyConnectionType,
     MediaIdentityV2,
     NaturalFootageRequestV2,
     OpportunityEvidenceSelectionV2,
@@ -137,7 +145,7 @@ class _SyntheticSynthesizer:
         authorization,
         cancellation,
     ) -> SynthesisProviderResult:
-        del intent, evidence_sources, authorization
+        del intent, authorization
         cancellation.raise_if_cancelled()
         primary = next(
             claim
@@ -154,7 +162,7 @@ class _SyntheticSynthesizer:
         ]
         if len(signals) < 2:
             raise AssertionError("opportunity fixture requires two normalized discussion signals")
-        selections = [
+        opportunity_selections = [
             OpportunityEvidenceSelectionV2(
                 claim_id=primary.claim_id,
                 role=EvidenceRole.PRIMARY_WHY_NOW,
@@ -169,11 +177,54 @@ class _SyntheticSynthesizer:
                 for claim in signals[:2]
             ],
         ]
+        selected_claims = [primary, *signals[:2]]
+        selected_ids = {claim.claim_id for claim in selected_claims}
+        for claim in evidence_claims:
+            if claim.claim_id in selected_ids:
+                continue
+            if claim.claim_kind in {
+                EvidenceClaimKind.CAST_IDENTITY,
+                EvidenceClaimKind.EPISODE_IDENTITY,
+                EvidenceClaimKind.QUOTE,
+                EvidenceClaimKind.SCENE_CONTEXT,
+                EvidenceClaimKind.VIEWER_DISCUSSION,
+            }:
+                selected_claims.append(claim)
+                selected_ids.add(claim.claim_id)
+        dossier_selections = []
+        for claim in selected_claims:
+            if claim.claim_id == primary.claim_id:
+                role = EvidenceRole.PRIMARY_WHY_NOW
+            elif claim.claim_kind is EvidenceClaimKind.VIEWER_DISCUSSION:
+                role = EvidenceRole.QUALITATIVE_SIGNAL
+            elif claim.claim_kind is EvidenceClaimKind.QUOTE:
+                role = EvidenceRole.QUOTE_PROOF
+            else:
+                role = EvidenceRole.CONTEXT
+            dossier_selections.append(
+                OpportunityEvidenceSelectionV2(
+                    claim_id=claim.claim_id,
+                    role=role,
+                    supports_why_now=claim.supports_why_now,
+                )
+            )
         if self._profile == "trailer":
-            recommendation = self._trailer_recommendation(primary, selections)
+            recommendation = self._trailer_recommendation(
+                primary,
+                signals,
+                selected_claims,
+                evidence_sources,
+                opportunity_selections,
+                dossier_selections,
+            )
         else:
             recommendation = self._episode_recommendation(
-                primary, signals, evidence_claims, selections
+                primary,
+                signals,
+                selected_claims,
+                evidence_sources,
+                opportunity_selections,
+                dossier_selections,
             )
         return SynthesisProviderResult(
             provider=self.name,
@@ -185,6 +236,224 @@ class _SyntheticSynthesizer:
                 output_tokens=0,
                 reasoning_tokens=0,
             ),
+        )
+
+    @staticmethod
+    def _verification_level(claim) -> FootageVerificationLevel:
+        if claim.verification is VerificationState.PRIMARY_VERIFIED:
+            return FootageVerificationLevel.VERIFIED
+        if claim.verification is VerificationState.SECONDARY_CORROBORATED:
+            return FootageVerificationLevel.STRONGLY_SUPPORTED
+        return FootageVerificationLevel.LIKELY_INFERRED
+
+    def _dossier(
+        self,
+        *,
+        primary,
+        signals,
+        claims,
+        evidence_sources,
+        selections,
+    ) -> FandomStoryDossierDraftV1:
+        identity = primary.why_now_event.media_identity
+        source_by_id = {source.source_id: source for source in evidence_sources}
+        primary_source = source_by_id[primary.source_id]
+        scene_claims = [
+            claim
+            for claim in claims
+            if claim.scene_fact is not None
+            and claim.scene_fact.show_or_title.casefold() == self._title.casefold()
+        ]
+        named_characters = []
+        for name in self._characters:
+            identity_claim = next(
+                (
+                    claim
+                    for claim in scene_claims
+                    if any(
+                        value.casefold() == name.casefold()
+                        for value in claim.scene_fact.characters
+                    )
+                ),
+                None,
+            )
+            if identity_claim is None:
+                identity_claim = next(
+                    (
+                        claim
+                        for claim in claims
+                        if claim.cast_fact is not None
+                        and claim.cast_fact.character_name.casefold() == name.casefold()
+                    ),
+                    None,
+                )
+            if identity_claim is None:
+                raise AssertionError(
+                    f"synthetic dossier fixture lacks structured identity for {name}"
+                )
+            named_characters.append(
+                DossierCharacterV1(
+                    character_name=name,
+                    performer_name=(
+                        identity_claim.cast_fact.performer_name
+                        if identity_claim.cast_fact is not None
+                        else None
+                    ),
+                    show_or_title=self._title,
+                    verification_status=self._verification_level(identity_claim),
+                    supporting_claim_ids=[identity_claim.claim_id],
+                )
+            )
+        locator = primary.episode_locator
+        source_kind = (
+            DossierCurrentSourceKind.EPISODE
+            if identity.media_kind is MediaKind.TV_EPISODE
+            else DossierCurrentSourceKind.TRAILER
+        )
+        quote_claim = next(
+            (claim for claim in claims if claim.quote_fact is not None),
+            None,
+        )
+        quote_lead = None
+        if quote_claim is not None:
+            quote_fact = quote_claim.quote_fact
+            quote_source = source_by_id[quote_claim.source_id]
+            quote_lead = DossierQuoteLeadV1(
+                quote=FootageQuoteV2(
+                    status=FootageQuoteStatus.VERIFIED,
+                    text=quote_fact.exact_text,
+                    speaker=quote_fact.speaker,
+                    likely_context=quote_fact.context,
+                    claim_id=quote_claim.claim_id,
+                ),
+                source_title=quote_source.title,
+                verification_status=FootageVerificationLevel.VERIFIED,
+                supporting_claim_ids=[quote_claim.claim_id],
+            )
+        history = [
+            DossierEvidenceFactV1(
+                text=claim.scene_fact.description,
+                verification_status=self._verification_level(claim),
+                supporting_claim_ids=[claim.claim_id],
+            )
+            for claim in scene_claims
+            if claim.scene_fact.episode_locator is not None
+            and (
+                locator is None
+                or claim.scene_fact.episode_locator.season_number
+                != locator.season_number
+                or claim.scene_fact.episode_locator.episode_number
+                != locator.episode_number
+            )
+        ][:4]
+        return FandomStoryDossierDraftV1(
+            dossier_key="synthetic_story_dossier",
+            show_or_title=self._title,
+            current_event_or_hook=DossierEvidenceFactV1(
+                text=primary.text,
+                verification_status=FootageVerificationLevel.VERIFIED,
+                supporting_claim_ids=[primary.claim_id],
+            ),
+            named_characters=named_characters,
+            central_relationship=DossierEvidenceFactV1(
+                text=signals[0].text,
+                verification_status=FootageVerificationLevel.STRONGLY_SUPPORTED,
+                supporting_claim_ids=[signals[0].claim_id],
+            ),
+            current_source=DossierCurrentSourceV1(
+                source_kind=source_kind,
+                show_or_title=self._title,
+                source_title=primary_source.title,
+                season_number=locator.season_number if locator is not None else None,
+                episode_number=locator.episode_number if locator is not None else None,
+                episode_title=locator.episode_title if locator is not None else None,
+                verification_status=FootageVerificationLevel.VERIFIED,
+                supporting_claim_ids=[primary.claim_id],
+            ),
+            exact_or_likely_quote=quote_lead,
+            relationship_or_character_history=history,
+            why_fans_currently_care=[
+                DossierEvidenceFactV1(
+                    text=signals[0].text,
+                    verification_status=FootageVerificationLevel.STRONGLY_SUPPORTED,
+                    supporting_claim_ids=[signals[0].claim_id],
+                )
+            ],
+            audience_and_fandom_evidence=[
+                DossierEvidenceFactV1(
+                    text=signals[1].text,
+                    verification_status=FootageVerificationLevel.STRONGLY_SUPPORTED,
+                    supporting_claim_ids=[signals[1].claim_id],
+                )
+            ],
+            uncertainties=[
+                "Synthetic replay does not inspect local footage or establish frame-accurate timing."
+            ],
+            evidence=selections,
+        )
+
+    def _concept(
+        self,
+        *,
+        primary,
+        signals,
+        claims,
+        footage,
+        selections,
+    ) -> EditorialConceptDraftV1:
+        concept_key = "current_story_arc"
+        footage = footage.model_copy(update={"concept_key": concept_key})
+        scene_claims = [claim for claim in claims if claim.scene_fact is not None]
+        current_scene = next(
+            (
+                claim.scene_fact.description
+                for claim in scene_claims
+                if claim.scene_fact.show_or_title.casefold() == self._title.casefold()
+            ),
+            signals[0].text,
+        )
+        character_label = " and ".join(self._characters)
+        arc = [
+            f"Establish {character_label} through the current {self._topic} hook.",
+            f"Hold on the evidence-bound turn: {current_scene}",
+            f"Contrast it with the fan-recognized beat: {signals[1].text}",
+            f"Return to {character_label} so the current {self._topic} lands as the payoff.",
+        ]
+        return EditorialConceptDraftV1(
+            concept_key=concept_key,
+            dossier_key="synthetic_story_dossier",
+            title=f"{character_label}: current hook to emotional payoff",
+            central_subject=f"{character_label} navigating {self._topic}",
+            central_relationship=self._topic,
+            core_emotion="recognition changed by accumulated context",
+            viewer_hook=(
+                f"The current {self._topic} moment asks what made this turn matter to "
+                f"{character_label}."
+            ),
+            why_fans_may_care=signals[0].text,
+            current_event=primary.text,
+            legacy_or_contextual_connection=(
+                "The dossier supports a current-title story bridge and does not assert an "
+                "unverified franchise or canonical connection."
+            ),
+            legacy_connection_type=LegacyConnectionType.NONE,
+            intro_leads=footage.intro_leads,
+            song_handoff_idea=(
+                f"Cut from {current_scene} into the first contrast beat about {self._topic}."
+            ),
+            montage_arc=arc,
+            ending_or_payoff=(
+                f"Return to {character_label} in the current {self._topic} source after the "
+                "context has changed how the reaction reads."
+            ),
+            evidence=selections,
+            verification_status=FootageVerificationLevel.LIKELY_INFERRED,
+            creative_strength=0.86,
+            footage_feasibility=0.84,
+            known_uncertainties=[
+                "The proposed timing and reaction usability require later local-footage inspection."
+            ],
+            footage_request=footage,
         )
 
     def _opportunity(self, primary, selections) -> TrendOpportunityDraftV2:
@@ -213,8 +482,21 @@ class _SyntheticSynthesizer:
         )
 
     def _trailer_recommendation(
-        self, primary, selections
+        self,
+        primary,
+        signals,
+        claims,
+        evidence_sources,
+        opportunity_selections,
+        dossier_selections,
     ) -> SynthesisRecommendationDraftV2:
+        scene_claim = next(
+            claim
+            for claim in claims
+            if claim.scene_fact is not None
+            and claim.scene_fact.show_or_title.casefold() == self._title.casefold()
+        )
+        scene = scene_claim.scene_fact.description
         requested = RequestedSourceDraftV2(
             source_key="official_trailer",
             priority=1,
@@ -223,11 +505,13 @@ class _SyntheticSynthesizer:
             show_or_title=self._title,
             characters=list(self._characters),
             relationship_or_topic=self._topic,
-            scene_or_moment=primary.text,
+            scene_or_moment=scene,
             purposes=[SourcePurpose.INTRO, SourcePurpose.MONTAGE, SourcePurpose.PAYOFF],
-            verification_level=FootageVerificationLevel.LIKELY_INFERRED,
+            verification_level=FootageVerificationLevel.VERIFIED,
             source_quality_summary="Synthetic draft; trusted code replaces this summary.",
-            supporting_claim_ids=[primary.claim_id],
+            supporting_claim_ids=list(
+                dict.fromkeys([primary.claim_id, scene_claim.claim_id])
+            ),
             why_it_matters_emotionally=(
                 "The official trailer is the lowest-effort source with both setup and payoff imagery."
             ),
@@ -244,15 +528,51 @@ class _SyntheticSynthesizer:
             smallest_useful_set_reason=(
                 "One official trailer supplies the supported creative material."
             ),
+            intro_leads=[
+                IntroMaterialLeadDraftV2(
+                    source_key="official_trailer",
+                    moment_description=scene,
+                    why_it_might_lead_into_montage=(
+                        "The verified trailer moment establishes the exact relationship "
+                        "question explored by the montage."
+                    ),
+                    verification_level=FootageVerificationLevel.VERIFIED,
+                    supporting_claim_ids=list(
+                        dict.fromkeys([primary.claim_id, scene_claim.claim_id])
+                    ),
+                )
+            ],
             search_queries=[f"{self._title} official trailer"],
         )
+        dossier = self._dossier(
+            primary=primary,
+            signals=signals,
+            claims=claims,
+            evidence_sources=evidence_sources,
+            selections=dossier_selections,
+        )
+        concept = self._concept(
+            primary=primary,
+            signals=signals,
+            claims=claims,
+            footage=footage,
+            selections=dossier_selections,
+        )
         return SynthesisRecommendationDraftV2(
-            opportunity=self._opportunity(primary, selections),
-            footage_request=footage,
+            opportunity=self._opportunity(primary, opportunity_selections),
+            fandom_story_dossier=dossier,
+            editorial_concepts=[concept],
+            recommended_concept_key=concept.concept_key,
         )
 
     def _episode_recommendation(
-        self, primary, signals, claims, selections
+        self,
+        primary,
+        signals,
+        claims,
+        evidence_sources,
+        opportunity_selections,
+        dossier_selections,
     ) -> SynthesisRecommendationDraftV2:
         locator = primary.episode_locator
         if locator is None:
@@ -268,6 +588,12 @@ class _SyntheticSynthesizer:
             raise AssertionError("episode fixture quote lacks bound context")
         context_signal = next(
             claim for claim in signals if claim.text == quote_fact.context
+        )
+        current_scene_claim = next(
+            claim
+            for claim in claims
+            if claim.scene_fact is not None
+            and claim.scene_fact.episode_locator == locator
         )
         quote = FootageQuoteV2(
             status=FootageQuoteStatus.VERIFIED,
@@ -291,7 +617,11 @@ class _SyntheticSynthesizer:
             purposes=[SourcePurpose.INTRO, SourcePurpose.MONTAGE, SourcePurpose.PAYOFF],
             verification_level=FootageVerificationLevel.LIKELY_INFERRED,
             source_quality_summary="Synthetic draft; trusted code replaces this summary.",
-            supporting_claim_ids=[primary.claim_id, quote_claim.claim_id],
+            supporting_claim_ids=[
+                primary.claim_id,
+                quote_claim.claim_id,
+                current_scene_claim.claim_id,
+            ],
             quote=quote,
             why_it_matters_emotionally=(
                 "The current episode provides a recognizable contextual line and the new payoff."
@@ -457,14 +787,34 @@ class _SyntheticSynthesizer:
                         "The short contextual line could hand off naturally into the montage."
                     ),
                     verification_level=FootageVerificationLevel.LIKELY_INFERRED,
-                    supporting_claim_ids=[quote_claim.claim_id, context_signal.claim_id],
+                    supporting_claim_ids=[
+                        quote_claim.claim_id,
+                        context_signal.claim_id,
+                        current_scene_claim.claim_id,
+                    ],
                 )
             ],
             search_queries=[f"{self._title} episode scenes"],
         )
+        dossier = self._dossier(
+            primary=primary,
+            signals=signals,
+            claims=claims,
+            evidence_sources=evidence_sources,
+            selections=dossier_selections,
+        )
+        concept = self._concept(
+            primary=primary,
+            signals=signals,
+            claims=claims,
+            footage=footage,
+            selections=dossier_selections,
+        )
         return SynthesisRecommendationDraftV2(
-            opportunity=self._opportunity(primary, selections),
-            footage_request=footage,
+            opportunity=self._opportunity(primary, opportunity_selections),
+            fandom_story_dossier=dossier,
+            editorial_concepts=[concept],
+            recommended_concept_key=concept.concept_key,
         )
 
 
@@ -566,6 +916,37 @@ def _episode_candidates(
             episode_locator=locator,
         ),
     )
+    current_scene = EvidenceCandidate(
+        provider="openai",
+        provider_record_id="official-episode-3",
+        source_type=EvidenceSourceType.PRIMARY_RELEASE,
+        canonical_url=official_url,
+        title=f"{displayed_title} S03E03 The Turning Point",
+        author_or_channel="Synthetic Network",
+        excerpt_type=ExcerptType.PARAPHRASE,
+        excerpt=context,
+        verification=VerificationState.PRIMARY_VERIFIED,
+        claim_kind=EvidenceClaimKind.SCENE_CONTEXT,
+        supports_why_now=False,
+        policy_class="openai-web-evidence-v1",
+        source_created_at=page_published_at,
+        page_published_at=page_published_at,
+        query="synthetic dated evaluation fixture",
+        window_start=FROZEN_AT - timedelta(days=30),
+        window_end=FROZEN_AT,
+        confidence=0.95,
+        citation_verified=True,
+        adapter_source_title=f"{displayed_title} S03E03 The Turning Point",
+        adapter_source_published_at=page_published_at,
+        content_binding_verified=True,
+        scene_fact=SceneMomentFactV2(
+            show_or_title=displayed_title,
+            description=context,
+            characters=list(characters),
+            relationship_or_topic=topic,
+            episode_locator=locator,
+        ),
+    )
     discussions = []
     discussion_texts = (
         context,
@@ -629,7 +1010,7 @@ def _episode_candidates(
         )
     openai_batch = ProviderBatch(
         provider="openai",
-        evidence=(primary, quote, *discussions),
+        evidence=(primary, quote, current_scene, *discussions),
         usage=ProviderUsage(
             request_count=0,
             input_tokens=0,
@@ -798,6 +1179,10 @@ def _trailer_candidates(
     *, title: str, characters: tuple[str, ...], topic: str
 ) -> tuple[ProviderBatch, ...]:
     released_at = FROZEN_AT - timedelta(hours=8)
+    character_label = " and ".join(characters)
+    trailer_scene = (
+        f"{character_label} face one another during the official trailer's {topic} turn."
+    )
     primary = EvidenceCandidate(
         provider="youtube",
         provider_record_id="synthetic-trailer",
@@ -806,7 +1191,10 @@ def _trailer_candidates(
         title=f"{title} | Official Trailer",
         author_or_channel="Synthetic Studio",
         excerpt_type=ExcerptType.PARAPHRASE,
-        excerpt=f"Official channel Synthetic Studio published {title} | Official Trailer.",
+        excerpt=(
+            f"Official channel Synthetic Studio published {title} | Official Trailer and "
+            f"shows {trailer_scene}"
+        ),
         verification=VerificationState.PRIMARY_VERIFIED,
         claim_kind=EvidenceClaimKind.OFFICIAL_CLIP,
         supports_why_now=True,
@@ -827,8 +1215,13 @@ def _trailer_candidates(
                 show_or_title=title,
             ),
         ),
+        scene_fact=SceneMomentFactV2(
+            show_or_title=title,
+            description=trailer_scene,
+            characters=list(characters),
+            relationship_or_topic=topic,
+        ),
     )
-    character_label = " and ".join(characters)
     signals = tuple(
         EvidenceCandidate(
             provider="openai",

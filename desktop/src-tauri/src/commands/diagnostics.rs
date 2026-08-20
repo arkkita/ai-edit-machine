@@ -35,6 +35,13 @@ struct ProviderDiagnosticView {
 #[serde(rename_all = "camelCase")]
 pub struct DiagnosticsView {
     app_version: &'static str,
+    build_commit: &'static str,
+    build_identifier: &'static str,
+    build_is_dirty: bool,
+    build_timestamp_unix_ms: i64,
+    pipeline_version: &'static str,
+    worker_manifest_sha256: &'static str,
+    provider_config_id: &'static str,
     protocol_version: &'static str,
     worker_status: WorkerRuntimeStatus,
     worker_version: Option<String>,
@@ -144,6 +151,13 @@ pub fn get_diagnostics(state: State<'_, AppState>) -> AppResult<DiagnosticsView>
     let worker = state.worker.lock().map_err(|_| AppError::Internal)?;
     Ok(DiagnosticsView {
         app_version: env!("CARGO_PKG_VERSION"),
+        build_commit: crate::build_provenance::BUILD_COMMIT,
+        build_identifier: crate::build_provenance::BUILD_IDENTIFIER,
+        build_is_dirty: crate::build_provenance::BUILD_IS_DIRTY,
+        build_timestamp_unix_ms: crate::build_provenance::BUILD_TIMESTAMP_UNIX_MS,
+        pipeline_version: crate::build_provenance::PIPELINE_VERSION,
+        worker_manifest_sha256: crate::worker::bundle::embedded_manifest_sha256(),
+        provider_config_id: crate::provider_catalog::CATALOG_REGISTRY,
         protocol_version: crate::worker::protocol::PROTOCOL_VERSION,
         worker_status: worker.status(),
         worker_version: worker.worker_version().map(str::to_owned),

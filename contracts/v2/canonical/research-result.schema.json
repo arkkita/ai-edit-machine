@@ -1,5 +1,1000 @@
 {
   "$defs": {
+    "CandidateDiagnosticV1": {
+      "additionalProperties": false,
+      "properties": {
+        "audience_fit_evidence": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "title": "Audience Fit Evidence",
+          "type": "array"
+        },
+        "candidate_name": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Candidate Name",
+          "type": "string"
+        },
+        "current_hook": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Current Hook"
+        },
+        "evidence_references": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 40,
+          "title": "Evidence References",
+          "type": "array"
+        },
+        "exact_rejection_gate": {
+          "pattern": "^[A-Z][A-Z0-9_:.-]{0,159}$",
+          "title": "Exact Rejection Gate",
+          "type": "string"
+        },
+        "failure_class": {
+          "$ref": "#/$defs/CandidateFailureClass"
+        },
+        "fandom_evidence": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "title": "Fandom Evidence",
+          "type": "array"
+        },
+        "inferred_short_form_edit_potential": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Inferred Short Form Edit Potential",
+          "type": "string"
+        },
+        "scores_and_thresholds": {
+          "items": {
+            "$ref": "#/$defs/CandidateScoreTraceV1"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Scores And Thresholds",
+          "type": "array"
+        },
+        "shortlist_rank": {
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Shortlist Rank",
+          "type": "integer"
+        },
+        "shortlist_reason": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Shortlist Reason",
+          "type": "string"
+        },
+        "source_categories": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Source Categories",
+          "type": "array"
+        },
+        "story_or_episode_evidence": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "title": "Story Or Episode Evidence",
+          "type": "array"
+        },
+        "title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_name",
+        "title",
+        "shortlist_rank",
+        "shortlist_reason",
+        "inferred_short_form_edit_potential",
+        "scores_and_thresholds",
+        "exact_rejection_gate",
+        "failure_class"
+      ],
+      "title": "CandidateDiagnosticV1",
+      "type": "object"
+    },
+    "CandidateFailureClass": {
+      "enum": [
+        "RETRIEVAL_RELATED",
+        "EVIDENCE_RELATED",
+        "THRESHOLD_RELATED",
+        "SUPPORTED"
+      ],
+      "title": "CandidateFailureClass",
+      "type": "string"
+    },
+    "CandidateFunnelRejectionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "maximum": 1000000,
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "reason_code": {
+          "pattern": "^[a-z0-9][a-z0-9:._-]{0,119}$",
+          "title": "Reason Code",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason_code",
+        "count"
+      ],
+      "title": "CandidateFunnelRejectionV1",
+      "type": "object"
+    },
+    "CandidateFunnelV1": {
+      "additionalProperties": false,
+      "description": "Persistable M1.1 candidate funnel and sanitized title-level diagnostics.",
+      "properties": {
+        "candidate_diagnostics": {
+          "items": {
+            "$ref": "#/$defs/CandidateDiagnosticV1"
+          },
+          "maxItems": 30,
+          "title": "Candidate Diagnostics",
+          "type": "array"
+        },
+        "candidates_after_audience_fit_screening": {
+          "maximum": 1000000,
+          "minimum": 0,
+          "title": "Candidates After Audience Fit Screening",
+          "type": "integer"
+        },
+        "candidates_after_freshness": {
+          "maximum": 1000000,
+          "minimum": 0,
+          "title": "Candidates After Freshness",
+          "type": "integer"
+        },
+        "candidates_after_hard_exclusions": {
+          "maximum": 1000000,
+          "minimum": 0,
+          "title": "Candidates After Hard Exclusions",
+          "type": "integer"
+        },
+        "candidates_selected_for_social_research": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Candidates Selected For Social Research",
+          "type": "integer"
+        },
+        "candidates_sent_to_final_ranker": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Candidates Sent To Final Ranker",
+          "type": "integer"
+        },
+        "candidates_surviving_deduplication": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Candidates Surviving Deduplication",
+          "type": "integer"
+        },
+        "candidates_surviving_evidence_gates": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Candidates Surviving Evidence Gates",
+          "type": "integer"
+        },
+        "candidates_with_usable_social_evidence": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Candidates With Usable Social Evidence",
+          "type": "integer"
+        },
+        "evidence_coverage_warning": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Coverage Warning"
+        },
+        "false_abstention_recovery_attempted": {
+          "default": false,
+          "title": "False Abstention Recovery Attempted",
+          "type": "boolean"
+        },
+        "final_opportunities_serialized": {
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Final Opportunities Serialized",
+          "type": "integer"
+        },
+        "generated_search_variants": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Generated Search Variants",
+          "type": "integer"
+        },
+        "lacking_actionable_footage_information": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Lacking Actionable Footage Information",
+          "type": "integer"
+        },
+        "lacking_current_fandom_evidence": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Lacking Current Fandom Evidence",
+          "type": "integer"
+        },
+        "parsed_intent": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Parsed Intent",
+          "type": "integer"
+        },
+        "raw_release_candidates": {
+          "maximum": 1000000,
+          "minimum": 0,
+          "title": "Raw Release Candidates",
+          "type": "integer"
+        },
+        "recovered_candidate_count": {
+          "default": 0,
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Recovered Candidate Count",
+          "type": "integer"
+        },
+        "rejection_reasons": {
+          "items": {
+            "$ref": "#/$defs/CandidateFunnelRejectionV1"
+          },
+          "maxItems": 50,
+          "title": "Rejection Reasons",
+          "type": "array"
+        },
+        "removed_by_hard_constraints": {
+          "maximum": 1000000,
+          "minimum": 0,
+          "title": "Removed By Hard Constraints",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "shortage_explanation": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Shortage Explanation"
+        },
+        "suggestions": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Suggestions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "parsed_intent",
+        "generated_search_variants",
+        "raw_release_candidates",
+        "candidates_after_freshness",
+        "candidates_after_hard_exclusions",
+        "candidates_after_audience_fit_screening",
+        "candidates_selected_for_social_research",
+        "candidates_with_usable_social_evidence",
+        "candidates_surviving_evidence_gates",
+        "candidates_surviving_deduplication",
+        "candidates_sent_to_final_ranker",
+        "final_opportunities_serialized",
+        "removed_by_hard_constraints",
+        "lacking_current_fandom_evidence",
+        "lacking_actionable_footage_information"
+      ],
+      "title": "CandidateFunnelV1",
+      "type": "object"
+    },
+    "CandidateScoreStatus": {
+      "enum": [
+        "PASSED",
+        "FAILED",
+        "INFORMATIONAL",
+        "NOT_COMPUTED"
+      ],
+      "title": "CandidateScoreStatus",
+      "type": "string"
+    },
+    "CandidateScoreTraceV1": {
+      "additionalProperties": false,
+      "properties": {
+        "count_threshold": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Count Threshold"
+        },
+        "count_value": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Count Value"
+        },
+        "metric": {
+          "pattern": "^[a-z][a-z0-9_]{0,79}$",
+          "title": "Metric",
+          "type": "string"
+        },
+        "note": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Note",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/CandidateScoreStatus"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threshold"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "metric",
+        "status",
+        "note"
+      ],
+      "title": "CandidateScoreTraceV1",
+      "type": "object"
+    },
+    "DossierCharacterV1": {
+      "additionalProperties": false,
+      "properties": {
+        "character_name": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Character Name",
+          "type": "string"
+        },
+        "performer_name": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Performer Name"
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Show Or Title",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "character_name",
+        "show_or_title",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "title": "DossierCharacterV1",
+      "type": "object"
+    },
+    "DossierCurrentSourceKind": {
+      "enum": [
+        "EPISODE",
+        "SEASON",
+        "TRAILER",
+        "OFFICIAL_CLIP",
+        "ANNOUNCEMENT",
+        "INTERVIEW",
+        "ARTICLE",
+        "OTHER"
+      ],
+      "title": "DossierCurrentSourceKind",
+      "type": "string"
+    },
+    "DossierCurrentSourceV1": {
+      "additionalProperties": false,
+      "properties": {
+        "episode_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Number"
+        },
+        "episode_title": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Title"
+        },
+        "season_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Season Number"
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Show Or Title",
+          "type": "string"
+        },
+        "source_kind": {
+          "$ref": "#/$defs/DossierCurrentSourceKind"
+        },
+        "source_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Source Title",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "source_kind",
+        "show_or_title",
+        "source_title",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "title": "DossierCurrentSourceV1",
+      "type": "object"
+    },
+    "DossierEvidenceFactV1": {
+      "additionalProperties": false,
+      "properties": {
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "text",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "title": "DossierEvidenceFactV1",
+      "type": "object"
+    },
+    "DossierFranchiseConnectionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "characters": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Characters",
+          "type": "array"
+        },
+        "connected_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Connected Title",
+          "type": "string"
+        },
+        "connection_type": {
+          "$ref": "#/$defs/LegacyConnectionType"
+        },
+        "current_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Current Title",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "connection_type",
+        "current_title",
+        "connected_title",
+        "description",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "title": "DossierFranchiseConnectionV1",
+      "type": "object"
+    },
+    "DossierQuoteLeadV1": {
+      "additionalProperties": false,
+      "properties": {
+        "quote": {
+          "$ref": "#/$defs/FootageQuoteV2"
+        },
+        "source_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Source Title",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "quote",
+        "source_title",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "title": "DossierQuoteLeadV1",
+      "type": "object"
+    },
+    "EditorialConceptScoreV1": {
+      "additionalProperties": false,
+      "properties": {
+        "concept_specificity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Concept Specificity",
+          "type": "number"
+        },
+        "current_event_relevance": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Current Event Relevance",
+          "type": "number"
+        },
+        "emotional_arc_strength": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Emotional Arc Strength",
+          "type": "number"
+        },
+        "evidence_quality": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Evidence Quality",
+          "type": "number"
+        },
+        "fan_recognition": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Fan Recognition",
+          "type": "number"
+        },
+        "footage_feasibility": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Footage Feasibility",
+          "type": "number"
+        },
+        "intro_strength": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Intro Strength",
+          "type": "number"
+        },
+        "legacy_context_value": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Legacy Context Value",
+          "type": "number"
+        },
+        "narrative_bridge_strength": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Narrative Bridge Strength",
+          "type": "number"
+        },
+        "originality": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Originality",
+          "type": "number"
+        },
+        "payoff_strength": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Payoff Strength",
+          "type": "number"
+        },
+        "source_actionability": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Source Actionability",
+          "type": "number"
+        },
+        "total": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Total",
+          "type": "number"
+        },
+        "uncertainty_penalty": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Uncertainty Penalty",
+          "type": "number"
+        }
+      },
+      "required": [
+        "concept_specificity",
+        "intro_strength",
+        "emotional_arc_strength",
+        "narrative_bridge_strength",
+        "fan_recognition",
+        "current_event_relevance",
+        "legacy_context_value",
+        "payoff_strength",
+        "footage_feasibility",
+        "source_actionability",
+        "originality",
+        "evidence_quality",
+        "uncertainty_penalty",
+        "total"
+      ],
+      "title": "EditorialConceptScoreV1",
+      "type": "object"
+    },
+    "EditorialConceptV1": {
+      "additionalProperties": false,
+      "properties": {
+        "central_relationship": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Central Relationship"
+        },
+        "central_subject": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Central Subject",
+          "type": "string"
+        },
+        "concept_id": {
+          "format": "uuid4",
+          "title": "Concept Id",
+          "type": "string"
+        },
+        "concept_key": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "title": "Concept Key",
+          "type": "string"
+        },
+        "core_emotion": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Core Emotion",
+          "type": "string"
+        },
+        "current_event": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Current Event",
+          "type": "string"
+        },
+        "dossier_id": {
+          "format": "uuid4",
+          "title": "Dossier Id",
+          "type": "string"
+        },
+        "ending_or_payoff": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Ending Or Payoff",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/TrustedOpportunityEvidenceReferenceV2"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "footage_request": {
+          "$ref": "#/$defs/FootageRequestV2"
+        },
+        "intro_leads": {
+          "items": {
+            "$ref": "#/$defs/IntroMaterialLeadV2"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Intro Leads",
+          "type": "array"
+        },
+        "known_uncertainties": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Known Uncertainties",
+          "type": "array"
+        },
+        "legacy_connection_type": {
+          "$ref": "#/$defs/LegacyConnectionType"
+        },
+        "legacy_or_contextual_connection": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Legacy Or Contextual Connection",
+          "type": "string"
+        },
+        "montage_arc": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 3,
+          "title": "Montage Arc",
+          "type": "array"
+        },
+        "opportunity_id": {
+          "format": "uuid4",
+          "title": "Opportunity Id",
+          "type": "string"
+        },
+        "provisional_notice": {
+          "const": "This concept is based on current story and fandom evidence. Once you provide the footage, the video analyzer will verify whether the proposed intro, quote, reactions, and montage material are actually present and usable.",
+          "default": "This concept is based on current story and fandom evidence. Once you provide the footage, the video analyzer will verify whether the proposed intro, quote, reactions, and montage material are actually present and usable.",
+          "title": "Provisional Notice",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "score": {
+          "$ref": "#/$defs/EditorialConceptScoreV1"
+        },
+        "song_handoff_idea": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Song Handoff Idea",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        },
+        "viewer_hook": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Viewer Hook",
+          "type": "string"
+        },
+        "why_fans_may_care": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Why Fans May Care",
+          "type": "string"
+        }
+      },
+      "required": [
+        "concept_id",
+        "opportunity_id",
+        "dossier_id",
+        "concept_key",
+        "title",
+        "central_subject",
+        "core_emotion",
+        "viewer_hook",
+        "why_fans_may_care",
+        "current_event",
+        "legacy_or_contextual_connection",
+        "legacy_connection_type",
+        "intro_leads",
+        "song_handoff_idea",
+        "montage_arc",
+        "ending_or_payoff",
+        "evidence",
+        "verification_status",
+        "score",
+        "footage_request"
+      ],
+      "title": "EditorialConceptV1",
+      "type": "object"
+    },
     "EvidenceGate": {
       "enum": [
         "PASSED",
@@ -17,6 +1012,142 @@
       ],
       "title": "EvidenceRole",
       "type": "string"
+    },
+    "FandomStoryDossierV1": {
+      "additionalProperties": false,
+      "properties": {
+        "audience_and_fandom_evidence": {
+          "items": {
+            "$ref": "#/$defs/DossierEvidenceFactV1"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Audience And Fandom Evidence",
+          "type": "array"
+        },
+        "central_relationship": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DossierEvidenceFactV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "current_event_or_hook": {
+          "$ref": "#/$defs/DossierEvidenceFactV1"
+        },
+        "current_source": {
+          "$ref": "#/$defs/DossierCurrentSourceV1"
+        },
+        "dossier_id": {
+          "format": "uuid4",
+          "title": "Dossier Id",
+          "type": "string"
+        },
+        "dossier_key": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "title": "Dossier Key",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/TrustedOpportunityEvidenceReferenceV2"
+          },
+          "maxItems": 60,
+          "minItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "exact_or_likely_quote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DossierQuoteLeadV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "franchise_connections": {
+          "items": {
+            "$ref": "#/$defs/DossierFranchiseConnectionV1"
+          },
+          "maxItems": 20,
+          "title": "Franchise Connections",
+          "type": "array"
+        },
+        "named_characters": {
+          "items": {
+            "$ref": "#/$defs/DossierCharacterV1"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Named Characters",
+          "type": "array"
+        },
+        "opportunity_id": {
+          "format": "uuid4",
+          "title": "Opportunity Id",
+          "type": "string"
+        },
+        "relationship_or_character_history": {
+          "items": {
+            "$ref": "#/$defs/DossierEvidenceFactV1"
+          },
+          "maxItems": 20,
+          "title": "Relationship Or Character History",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Show Or Title",
+          "type": "string"
+        },
+        "uncertainties": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Uncertainties",
+          "type": "array"
+        },
+        "why_fans_currently_care": {
+          "items": {
+            "$ref": "#/$defs/DossierEvidenceFactV1"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Why Fans Currently Care",
+          "type": "array"
+        }
+      },
+      "required": [
+        "dossier_id",
+        "opportunity_id",
+        "dossier_key",
+        "show_or_title",
+        "current_event_or_hook",
+        "named_characters",
+        "current_source",
+        "why_fans_currently_care",
+        "audience_and_fandom_evidence",
+        "evidence"
+      ],
+      "title": "FandomStoryDossierV1",
+      "type": "object"
     },
     "FootageQuoteStatus": {
       "enum": [
@@ -89,6 +1220,19 @@
           "maxItems": 30,
           "title": "Alternative Sources",
           "type": "array"
+        },
+        "concept_id": {
+          "anyOf": [
+            {
+              "format": "uuid4",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Concept Id"
         },
         "footage_request_id": {
           "format": "uuid4",
@@ -201,6 +1345,96 @@
       "title": "FootageVerificationLevel",
       "type": "string"
     },
+    "IntentFacetCategory": {
+      "enum": [
+        "HARD_CONSTRAINT",
+        "SOFT_PREFERENCE",
+        "AUDIENCE",
+        "PLATFORM_FIT",
+        "CREATIVE_EDIT"
+      ],
+      "title": "IntentFacetCategory",
+      "type": "string"
+    },
+    "IntentFacetSource": {
+      "enum": [
+        "EXPLICIT",
+        "INFERRED_PRIOR"
+      ],
+      "title": "IntentFacetSource",
+      "type": "string"
+    },
+    "IntentFacetV1": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/IntentFacetCategory"
+        },
+        "facet_id": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "title": "Facet Id",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "rationale": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "removable": {
+          "default": true,
+          "title": "Removable",
+          "type": "boolean"
+        },
+        "source": {
+          "$ref": "#/$defs/IntentFacetSource"
+        }
+      },
+      "required": [
+        "facet_id",
+        "category",
+        "label",
+        "source",
+        "rationale"
+      ],
+      "title": "IntentFacetV1",
+      "type": "object"
+    },
+    "IntentSearchQuestionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_goal": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Evidence Goal",
+          "type": "string"
+        },
+        "query": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Query",
+          "type": "string"
+        },
+        "question_id": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "title": "Question Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question_id",
+        "query",
+        "evidence_goal"
+      ],
+      "title": "IntentSearchQuestionV1",
+      "type": "object"
+    },
     "IntroMaterialLeadV2": {
       "additionalProperties": false,
       "properties": {
@@ -259,6 +1493,20 @@
       ],
       "title": "IntroMaterialLeadV2",
       "type": "object"
+    },
+    "LegacyConnectionType": {
+      "enum": [
+        "NONE",
+        "SAME_CHARACTER",
+        "SAME_CANONICAL_UNIVERSE",
+        "EXPLICIT_CALLBACK",
+        "THEMATIC_PARALLEL",
+        "ACTOR_CONNECTION_ONLY",
+        "FAN_INTERPRETATION",
+        "UNSUPPORTED_SPECULATION"
+      ],
+      "title": "LegacyConnectionType",
+      "type": "string"
     },
     "MediaIdentityV2": {
       "additionalProperties": false,
@@ -407,6 +1655,188 @@
         "relationship_or_topic"
       ],
       "title": "OpportunityFocus",
+      "type": "object"
+    },
+    "OpportunityQualityScoreV1": {
+      "additionalProperties": false,
+      "properties": {
+        "audience_fit": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Audience Fit",
+          "type": "number"
+        },
+        "evidence_quality": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Evidence Quality",
+          "type": "number"
+        },
+        "fandom_velocity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Fandom Velocity",
+          "type": "number"
+        },
+        "footage_actionability": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Footage Actionability",
+          "type": "number"
+        },
+        "freshness": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Freshness",
+          "type": "number"
+        },
+        "intent_fit": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Intent Fit",
+          "type": "number"
+        },
+        "profile_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "relationship_or_character_salience": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Relationship Or Character Salience",
+          "type": "number"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "short_form_edit_potential": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Short Form Edit Potential",
+          "type": "number"
+        },
+        "source_diversity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Source Diversity",
+          "type": "number"
+        },
+        "total": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Total",
+          "type": "number"
+        },
+        "uncertainty_penalty": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Uncertainty Penalty",
+          "type": "number"
+        },
+        "weights": {
+          "$ref": "#/$defs/OpportunityRankingWeightsV1"
+        }
+      },
+      "required": [
+        "profile_id",
+        "intent_fit",
+        "audience_fit",
+        "freshness",
+        "fandom_velocity",
+        "short_form_edit_potential",
+        "relationship_or_character_salience",
+        "footage_actionability",
+        "evidence_quality",
+        "source_diversity",
+        "uncertainty_penalty",
+        "weights",
+        "total"
+      ],
+      "title": "OpportunityQualityScoreV1",
+      "type": "object"
+    },
+    "OpportunityRankingWeightsV1": {
+      "additionalProperties": false,
+      "properties": {
+        "audience_fit": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Audience Fit",
+          "type": "number"
+        },
+        "evidence_quality": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Evidence Quality",
+          "type": "number"
+        },
+        "fandom_velocity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Fandom Velocity",
+          "type": "number"
+        },
+        "footage_actionability": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Footage Actionability",
+          "type": "number"
+        },
+        "freshness": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Freshness",
+          "type": "number"
+        },
+        "intent_fit": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Intent Fit",
+          "type": "number"
+        },
+        "relationship_or_character_salience": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Relationship Or Character Salience",
+          "type": "number"
+        },
+        "short_form_edit_potential": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Short Form Edit Potential",
+          "type": "number"
+        },
+        "source_diversity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Source Diversity",
+          "type": "number"
+        },
+        "uncertainty_penalty": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Uncertainty Penalty",
+          "type": "number"
+        }
+      },
+      "required": [
+        "intent_fit",
+        "audience_fit",
+        "freshness",
+        "fandom_velocity",
+        "short_form_edit_potential",
+        "relationship_or_character_salience",
+        "footage_actionability",
+        "evidence_quality",
+        "source_diversity",
+        "uncertainty_penalty"
+      ],
+      "title": "OpportunityRankingWeightsV1",
       "type": "object"
     },
     "OpportunityScoreV2": {
@@ -676,6 +2106,17 @@
           "title": "Freshness Days",
           "type": "integer"
         },
+        "interpretation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UserIntentInterpretationV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "max_results": {
           "default": 5,
           "maximum": 10,
@@ -729,6 +2170,82 @@
         "NO_STRONG_OPPORTUNITY"
       ],
       "title": "ResearchResultStatus",
+      "type": "string"
+    },
+    "ShortFormEditPotentialV1": {
+      "additionalProperties": false,
+      "properties": {
+        "band": {
+          "$ref": "#/$defs/ShortFormPotentialBand"
+        },
+        "direct_tiktok_data_used": {
+          "const": false,
+          "default": false,
+          "title": "Direct Tiktok Data Used",
+          "type": "boolean"
+        },
+        "disclaimer": {
+          "const": "TikTok potential is inferred from cross-platform fandom and editability signals. Direct TikTok trend data was not used.",
+          "default": "TikTok potential is inferred from cross-platform fandom and editability signals. Direct TikTok trend data was not used.",
+          "title": "Disclaimer",
+          "type": "string"
+        },
+        "explanation": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "metric_name": {
+          "const": "SHORT_FORM_EDIT_POTENTIAL",
+          "default": "SHORT_FORM_EDIT_POTENTIAL",
+          "title": "Metric Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "signals": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "title": "Signals",
+          "type": "array"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "band",
+        "explanation",
+        "signals",
+        "supporting_claim_ids"
+      ],
+      "title": "ShortFormEditPotentialV1",
+      "type": "object"
+    },
+    "ShortFormPotentialBand": {
+      "enum": [
+        "LOW",
+        "MODERATE",
+        "HIGH"
+      ],
+      "title": "ShortFormPotentialBand",
       "type": "string"
     },
     "SourceAcquisitionKind": {
@@ -786,6 +2303,19 @@
           "title": "Creative Hook",
           "type": "string"
         },
+        "dossier_id": {
+          "anyOf": [
+            {
+              "format": "uuid4",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dossier Id"
+        },
         "emotional_edit_direction": {
           "maxLength": 2000,
           "minLength": 1,
@@ -823,6 +2353,30 @@
           "title": "Opportunity Id",
           "type": "string"
         },
+        "quality_score": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpportunityQualityScoreV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "recommended_concept_id": {
+          "anyOf": [
+            {
+              "format": "uuid4",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recommended Concept Id"
+        },
         "schema_version": {
           "const": "2.0.0",
           "default": "2.0.0",
@@ -831,6 +2385,17 @@
         },
         "score": {
           "$ref": "#/$defs/OpportunityScoreV2"
+        },
+        "short_form_edit_potential": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShortFormEditPotentialV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "title": {
           "maxLength": 500,
@@ -900,6 +2465,76 @@
       ],
       "title": "TrustedOpportunityEvidenceReferenceV2",
       "type": "object"
+    },
+    "UserIntentInterpretationV1": {
+      "additionalProperties": false,
+      "properties": {
+        "broad_query": {
+          "default": false,
+          "title": "Broad Query",
+          "type": "boolean"
+        },
+        "clarification_needed": {
+          "default": false,
+          "title": "Clarification Needed",
+          "type": "boolean"
+        },
+        "clarification_reason": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clarification Reason"
+        },
+        "direct_tiktok_data_used": {
+          "default": false,
+          "title": "Direct Tiktok Data Used",
+          "type": "boolean"
+        },
+        "facets": {
+          "items": {
+            "$ref": "#/$defs/IntentFacetV1"
+          },
+          "maxItems": 30,
+          "title": "Facets",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "search_questions": {
+          "items": {
+            "$ref": "#/$defs/IntentSearchQuestionV1"
+          },
+          "maxItems": 20,
+          "title": "Search Questions",
+          "type": "array"
+        },
+        "short_form_inference_disclaimer": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Short Form Inference Disclaimer"
+        }
+      },
+      "title": "UserIntentInterpretationV1",
+      "type": "object"
     }
   },
   "$id": "https://ai-edit-machine.local/contracts/v2/canonical/research-result.schema.json",
@@ -914,6 +2549,33 @@
       },
       "maxItems": 30,
       "title": "Applied Exclusions",
+      "type": "array"
+    },
+    "candidate_funnel": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CandidateFunnelV1"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "editorial_concepts": {
+      "items": {
+        "$ref": "#/$defs/EditorialConceptV1"
+      },
+      "maxItems": 40,
+      "title": "Editorial Concepts",
+      "type": "array"
+    },
+    "fandom_story_dossiers": {
+      "items": {
+        "$ref": "#/$defs/FandomStoryDossierV1"
+      },
+      "maxItems": 10,
+      "title": "Fandom Story Dossiers",
       "type": "array"
     },
     "footage_requests": {

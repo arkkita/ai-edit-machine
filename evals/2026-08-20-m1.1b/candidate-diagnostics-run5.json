@@ -1,0 +1,1771 @@
+{
+  "schema_version": "m1.1b-candidate-diagnostic-v1",
+  "development_only": true,
+  "offline_replay": true,
+  "fixture": "evals/2026-08-19-m1.1/live-regression-2026-08-19-run5.json",
+  "fixture_sha256": "cd62a5f82efc175011bf42e2343b7a27c9a3a26a2dd88e92e929c264ad9403c4",
+  "run_id": "55812119-c5dd-432f-bb4c-c64c1823f39d",
+  "run_timestamp": "2026-08-19T15:15:56.924Z",
+  "prompt": "find shows for girls that'll likely be popular on tiktok",
+  "root_cause": "All eight researched candidates were removed before synthesis at the female-audience evidence floor. Three candidates had no current discussion retrieval at all; five had current coverage but no source-owned evidence of female-skewing fandom appeal. No candidate reached the final ranker, so no final score, concept, footage request, schema serialization, Rust handoff, or UI display limit caused this run's zero results.",
+  "stage_counts": {
+    "candidatesAfterAudienceFitScreening": 3660,
+    "candidatesAfterFreshnessFiltering": 3660,
+    "candidatesAfterHardExclusions": 3660,
+    "candidatesSelectedForSocialResearch": 8,
+    "candidatesSentToFinalRanker": 0,
+    "candidatesSurvivingDeduplication": 0,
+    "candidatesSurvivingEvidenceGates": 0,
+    "candidatesWithUsableSocialEvidence": 5,
+    "evidenceSurvivingGates": 0,
+    "finalOpportunitiesDisplayedByUi": null,
+    "finalOpportunitiesReceivedByRust": null,
+    "finalOpportunitiesSerialized": 0,
+    "generatedSearchVariants": 10,
+    "normalizedEvidence": 88,
+    "opportunitiesReturnedToUi": 0,
+    "parsedIntent": 1,
+    "parsedResults": 88,
+    "rankedOpportunities": 0,
+    "rawProviderResults": 88,
+    "rawReleaseCandidates": 4027,
+    "rejectionReasonCounts": {}
+  },
+  "thresholds": {
+    "pre_synthesis_audience_evidence_floor": {
+      "direct_statement_or_distinct_affinity_cues": 2,
+      "description": "A direct female-audience statement passes; otherwise two distinct female-affinity cues are required."
+    },
+    "pre_synthesis_primary_shape": {
+      "current_official_primary": 1,
+      "current_independent_signal_groups": 1,
+      "total_independence_groups": 2
+    },
+    "pre_synthesis_metadata_shape": {
+      "current_exact_tvmaze_episode_identity": 1,
+      "current_independent_signal_groups": 2,
+      "total_independence_groups": 3
+    },
+    "final_quality": {
+      "audience_fit_minimum": 0.4,
+      "short_form_edit_potential_minimum": 0.35,
+      "footage_actionability_minimum": 0.35
+    },
+    "editorial_concept": {
+      "concept_specificity_minimum": 0.5,
+      "concept_total_minimum": 0.45
+    }
+  },
+  "candidates": [
+    {
+      "shortlist_rank": 1,
+      "title": "Stuart Fails to Save the Universe",
+      "why_it_entered_the_shortlist": "Selected as female-audience-prior discovery slot 1 of 6 by the TVmaze discovery ordering over fresh scripted/editable metadata. This was a discovery prior, not audience or fandom proof. The historical fixture did not persist the numeric focus, creative-affinity, episode-title, provider-weight, region, official-host, or recency rank components.",
+      "shortlist_rank_components": {
+        "focus_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "creative_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "episode_title_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight_band": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "region_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "official_host_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "recency_sort_key": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        }
+      },
+      "current_hook_summary": "Official channel HBO Max published a title-bound video labeled: Stuart Fails to Save the Universe | Episode 4 Preview | HBO Max. Supporting metadata: TVmaze lists Spoiler: Stuart Makes a Wallet as Season 1 Episode 4.",
+      "current_hook_found": [
+        {
+          "claim_id": "3169264c-6c0d-4d01-8d77-9d5c0a4e191b",
+          "claim_kind": "EPISODE_IDENTITY",
+          "verification": "SECONDARY_CORROBORATED",
+          "event_or_release_at": "2026-08-13T12:00:00Z",
+          "claim": "TVmaze lists Spoiler: Stuart Makes a Wallet as Season 1 Episode 4.",
+          "episode_locator": {
+            "episodeNumber": 4,
+            "episodeTitle": "Spoiler: Stuart Makes a Wallet",
+            "seasonNumber": 1,
+            "showOrTitle": "Stuart Fails to Save the Universe"
+          }
+        },
+        {
+          "claim_id": "76fb9bd1-7a9b-42bc-a844-0214849d7f5f",
+          "claim_kind": "OFFICIAL_CLIP",
+          "verification": "PRIMARY_VERIFIED",
+          "event_or_release_at": "2026-08-14T01:30:25Z",
+          "claim": "Official channel HBO Max published a title-bound video labeled: Stuart Fails to Save the Universe | Episode 4 Preview | HBO Max.",
+          "scene_fact": {
+            "characters": [],
+            "description": "Official upload labeled “Episode 4 Preview”",
+            "episodeLocator": null,
+            "relationshipOrTopic": "Episode 4 Preview",
+            "showOrTitle": "Stuart Fails to Save the Universe"
+          }
+        }
+      ],
+      "audience_fit_evidence": {
+        "direct_statements": [],
+        "distinct_affinity_cues": [],
+        "summary": "No source-owned evidence of female-skewing fandom appeal was retained."
+      },
+      "fandom_evidence": {
+        "current_discussion_source_titles": [
+          "I don't think Sheldon and Leonard will return to Stuart Fails to Save the Universe after HBO Max show creators told me one important detail",
+          "10 Best TV Shows Like Stuart Fails To Save The Universe - TVLine"
+        ],
+        "independent_owner_groups": [
+          "owner:future-plc",
+          "owner:penske-media"
+        ],
+        "summary": "2 current title-bound article signal(s) across 2 owner group(s). These are qualitative coverage leads, not a fandom census or direct TikTok data."
+      },
+      "story_or_episode_evidence": {
+        "episode_claims": [
+          {
+            "claim_id": "3169264c-6c0d-4d01-8d77-9d5c0a4e191b",
+            "text": "TVmaze lists Spoiler: Stuart Makes a Wallet as Season 1 Episode 4.",
+            "event_or_release_at": "2026-08-13T12:00:00Z",
+            "episode_locator": {
+              "episodeNumber": 4,
+              "episodeTitle": "Spoiler: Stuart Makes a Wallet",
+              "seasonNumber": 1,
+              "showOrTitle": "Stuart Fails to Save the Universe"
+            }
+          }
+        ],
+        "official_hook_claims": [
+          {
+            "claim_id": "76fb9bd1-7a9b-42bc-a844-0214849d7f5f",
+            "text": "Official channel HBO Max published a title-bound video labeled: Stuart Fails to Save the Universe | Episode 4 Preview | HBO Max.",
+            "scene_fact": {
+              "characters": [],
+              "description": "Official upload labeled “Episode 4 Preview”",
+              "episodeLocator": null,
+              "relationshipOrTopic": "Episode 4 Preview",
+              "showOrTitle": "Stuart Fails to Save the Universe"
+            }
+          }
+        ],
+        "named_cast": [
+          "Bert Kibbler (Brian Posehn)",
+          "Barry Kripke (John Ross Bowie)",
+          "Stuart Bloom (Kevin Sussman)",
+          "Denise Jeffries (Lauren Lapkus)"
+        ],
+        "summary": "TVmaze lists Spoiler: Stuart Makes a Wallet as Season 1 Episode 4. 4 cast identity record(s) were retained. No verified quote, relationship history, or episode-scene description was retained."
+      },
+      "source_categories": [
+        "openai:ARTICLE",
+        "tvmaze:METADATA",
+        "youtube:OFFICIAL_CLIP"
+      ],
+      "evidence_references": [
+        {
+          "source_id": "48b42116-c4b9-4b6b-95ea-b443353a3e72",
+          "provider": "openai",
+          "source_type": "ARTICLE",
+          "independence_group": "owner:penske-media",
+          "title": "10 Best TV Shows Like Stuart Fails To Save The Universe - TVLine",
+          "canonical_url": "https://www.tvline.com/2235075/best-tv-shows-like-stuart-fails-to-save-the-universe/"
+        },
+        {
+          "source_id": "dd02c364-ccdb-4397-b679-a81b6c84f501",
+          "provider": "openai",
+          "source_type": "ARTICLE",
+          "independence_group": "owner:future-plc",
+          "title": "I don't think Sheldon and Leonard will return to Stuart Fails to Save the Universe after HBO Max show creators told me one important detail",
+          "canonical_url": "https://www.techradar.com/streaming/hbo-max/stuart-fails-to-save-the-universe-big-bang-theory-cameos"
+        },
+        {
+          "source_id": "dbe204cb-e952-4971-857b-fac10c4ab9e7",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "Stuart Fails to Save the Universe cast listing",
+          "canonical_url": "https://api.tvmaze.com/shows/83360/cast"
+        },
+        {
+          "source_id": "893119b7-b615-4d79-a222-772d705287ed",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "Stuart Fails to Save the Universe — S01E04: Spoiler: Stuart Makes a Wallet",
+          "canonical_url": "https://www.tvmaze.com/episodes/3617025/stuart-fails-to-save-the-universe-1x04-spoiler-stuart-makes-a-wallet"
+        },
+        {
+          "source_id": "99a3ed9f-665c-46c9-8359-6fd302ff58a1",
+          "provider": "youtube",
+          "source_type": "OFFICIAL_CLIP",
+          "independence_group": "youtube-channel:ucx-kwltklb83hdi6ukectjq",
+          "title": "Stuart Fails to Save the Universe | Episode 4 Preview | HBO Max",
+          "canonical_url": "https://www.youtube.com/watch?v=xSaQ-PA_ZvY"
+        }
+      ],
+      "scores": {
+        "ranking_profile_id": "m1.1-intent-editorial-v1",
+        "intent_fit": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "audience_fit": {
+          "value": 0.05,
+          "threshold": 0.4,
+          "evidence_floor_pass": false
+        },
+        "freshness": {
+          "value": 0.6019,
+          "window_days": 14,
+          "diagnostic_only": true
+        },
+        "fandom_velocity": {
+          "value": 0.6667,
+          "independent_signal_groups": 2
+        },
+        "short_form_edit_potential": {
+          "status": "PRE_CONCEPT_DIAGNOSTIC_ONLY",
+          "observed_lower_bound": 0.15,
+          "threshold": 0.35,
+          "editability_term_hits_in_retained_text": 0,
+          "specific_intro_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "named_character_focus_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "direct_tiktok_data_used": false,
+          "summary": "Observed evidence-only lower bound 0.15; insufficient to label a supported edit concept. This is an inferred cross-platform diagnostic, not a virality probability, and direct TikTok data was not used."
+        },
+        "relationship_or_character_salience": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "footage_actionability": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "evidence_quality": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "source_diversity": {
+          "value": 1.0,
+          "independence_groups": 4,
+          "groups": [
+            "owner:future-plc",
+            "owner:penske-media",
+            "publisher:tvmaze",
+            "youtube-channel:ucx-kwltklb83hdi6ukectjq"
+          ],
+          "diagnostic_only": true
+        },
+        "uncertainty_penalty": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "total": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "editorial_concept_scores": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        }
+      },
+      "evidence_shape": {
+        "official_primary_groups": [
+          "youtube-channel:ucx-kwltklb83hdi6ukectjq"
+        ],
+        "metadata_groups": [
+          "publisher:tvmaze"
+        ],
+        "current_discussion_groups": [
+          "owner:future-plc",
+          "owner:penske-media"
+        ],
+        "would_pass_if_audience_supported": true
+      },
+      "exact_rejection_gate": "audience-fit:evidence-floor",
+      "additional_blockers": [
+        "concept:not-attempted",
+        "footage:not-attempted"
+      ],
+      "failure_classification": "EVIDENCE_RELATED"
+    },
+    {
+      "shortlist_rank": 2,
+      "title": "Furious",
+      "why_it_entered_the_shortlist": "Selected as female-audience-prior discovery slot 2 of 6 by the TVmaze discovery ordering over fresh scripted/editable metadata. This was a discovery prior, not audience or fandom proof. The historical fixture did not persist the numeric focus, creative-affinity, episode-title, provider-weight, region, official-host, or recency rank components.",
+      "shortlist_rank_components": {
+        "focus_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "creative_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "episode_title_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight_band": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "region_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "official_host_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "recency_sort_key": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        }
+      },
+      "current_hook_summary": "TVmaze lists They Make a Noise Like Feathers as Season 1 Episode 6.",
+      "current_hook_found": [
+        {
+          "claim_id": "aa6e328b-dfeb-4364-b401-a658a2e445ab",
+          "claim_kind": "EPISODE_IDENTITY",
+          "verification": "SECONDARY_CORROBORATED",
+          "event_or_release_at": "2026-08-17T16:00:00Z",
+          "claim": "TVmaze lists They Make a Noise Like Feathers as Season 1 Episode 6.",
+          "episode_locator": {
+            "episodeNumber": 6,
+            "episodeTitle": "They Make a Noise Like Feathers",
+            "seasonNumber": 1,
+            "showOrTitle": "Furious"
+          }
+        }
+      ],
+      "audience_fit_evidence": {
+        "direct_statements": [],
+        "distinct_affinity_cues": [],
+        "summary": "No source-owned evidence of female-skewing fandom appeal was retained."
+      },
+      "fandom_evidence": {
+        "current_discussion_source_titles": [],
+        "independent_owner_groups": [],
+        "summary": "No usable current title-bound discussion signal was retrieved."
+      },
+      "story_or_episode_evidence": {
+        "episode_claims": [
+          {
+            "claim_id": "aa6e328b-dfeb-4364-b401-a658a2e445ab",
+            "text": "TVmaze lists They Make a Noise Like Feathers as Season 1 Episode 6.",
+            "event_or_release_at": "2026-08-17T16:00:00Z",
+            "episode_locator": {
+              "episodeNumber": 6,
+              "episodeTitle": "They Make a Noise Like Feathers",
+              "seasonNumber": 1,
+              "showOrTitle": "Furious"
+            }
+          }
+        ],
+        "official_hook_claims": [],
+        "named_cast": [
+          "Special Agent Alice Black (Emmy Rossum)",
+          "Catherine Grace (Lola Petticrew)",
+          "Supervisory Special Agent Nora Washington (Quincy Tyler Bernstine)",
+          "Detective Danny Kelly (Scoot McNairy)"
+        ],
+        "summary": "TVmaze lists They Make a Noise Like Feathers as Season 1 Episode 6. 4 cast identity record(s) were retained. No verified quote, relationship history, or episode-scene description was retained."
+      },
+      "source_categories": [
+        "tvmaze:METADATA"
+      ],
+      "evidence_references": [
+        {
+          "source_id": "f7992886-da69-4125-8a83-e32ae602e317",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "Furious cast listing",
+          "canonical_url": "https://api.tvmaze.com/shows/87753/cast"
+        },
+        {
+          "source_id": "a69ae9e8-604c-4f92-9968-ed7ca99e5c40",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "Furious — S01E06: They Make a Noise Like Feathers",
+          "canonical_url": "https://www.tvmaze.com/episodes/3641307/furious-1x06-they-make-a-noise-like-feathers"
+        }
+      ],
+      "scores": {
+        "ranking_profile_id": "m1.1-intent-editorial-v1",
+        "intent_fit": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "audience_fit": {
+          "value": 0.05,
+          "threshold": 0.4,
+          "evidence_floor_pass": false
+        },
+        "freshness": {
+          "value": 0.8593,
+          "window_days": 14,
+          "diagnostic_only": true
+        },
+        "fandom_velocity": {
+          "value": 0.0,
+          "independent_signal_groups": 0
+        },
+        "short_form_edit_potential": {
+          "status": "PRE_CONCEPT_DIAGNOSTIC_ONLY",
+          "observed_lower_bound": 0.0,
+          "threshold": 0.35,
+          "editability_term_hits_in_retained_text": 0,
+          "specific_intro_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "named_character_focus_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "direct_tiktok_data_used": false,
+          "summary": "Observed evidence-only lower bound 0.00; insufficient to label a supported edit concept. This is an inferred cross-platform diagnostic, not a virality probability, and direct TikTok data was not used."
+        },
+        "relationship_or_character_salience": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "footage_actionability": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "evidence_quality": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "source_diversity": {
+          "value": 0.25,
+          "independence_groups": 1,
+          "groups": [
+            "publisher:tvmaze"
+          ],
+          "diagnostic_only": true
+        },
+        "uncertainty_penalty": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "total": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "editorial_concept_scores": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        }
+      },
+      "evidence_shape": {
+        "official_primary_groups": [],
+        "metadata_groups": [
+          "publisher:tvmaze"
+        ],
+        "current_discussion_groups": [],
+        "would_pass_if_audience_supported": false
+      },
+      "exact_rejection_gate": "audience-fit:evidence-floor",
+      "additional_blockers": [
+        "retrieval:no-current-title-bound-discussion",
+        "concept:not-attempted",
+        "footage:not-attempted"
+      ],
+      "failure_classification": "RETRIEVAL_RELATED"
+    },
+    {
+      "shortlist_rank": 3,
+      "title": "Fightland",
+      "why_it_entered_the_shortlist": "Selected as female-audience-prior discovery slot 3 of 6 by the TVmaze discovery ordering over fresh scripted/editable metadata. This was a discovery prior, not audience or fandom proof. The historical fixture did not persist the numeric focus, creative-affinity, episode-title, provider-weight, region, official-host, or recency rank components.",
+      "shortlist_rank_components": {
+        "focus_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "creative_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "episode_title_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight_band": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "region_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "official_host_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "recency_sort_key": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        }
+      },
+      "current_hook_summary": "TVmaze lists No Innocents as Season 1 Episode 3.",
+      "current_hook_found": [
+        {
+          "claim_id": "2ad2ec6b-aafd-467e-b673-35c02a8ef2da",
+          "claim_kind": "EPISODE_IDENTITY",
+          "verification": "SECONDARY_CORROBORATED",
+          "event_or_release_at": "2026-08-15T01:00:00Z",
+          "claim": "TVmaze lists No Innocents as Season 1 Episode 3.",
+          "episode_locator": {
+            "episodeNumber": 3,
+            "episodeTitle": "No Innocents",
+            "seasonNumber": 1,
+            "showOrTitle": "Fightland"
+          }
+        }
+      ],
+      "audience_fit_evidence": {
+        "direct_statements": [],
+        "distinct_affinity_cues": [],
+        "summary": "No source-owned evidence of female-skewing fandom appeal was retained."
+      },
+      "fandom_evidence": {
+        "current_discussion_source_titles": [
+          "All the US dramas you can watch on UK services: 22-28 August"
+        ],
+        "independent_owner_groups": [
+          "owner:future-plc"
+        ],
+        "summary": "1 current title-bound article signal(s) across 1 owner group(s). These are qualitative coverage leads, not a fandom census or direct TikTok data."
+      },
+      "story_or_episode_evidence": {
+        "episode_claims": [
+          {
+            "claim_id": "2ad2ec6b-aafd-467e-b673-35c02a8ef2da",
+            "text": "TVmaze lists No Innocents as Season 1 Episode 3.",
+            "event_or_release_at": "2026-08-15T01:00:00Z",
+            "episode_locator": {
+              "episodeNumber": 3,
+              "episodeTitle": "No Innocents",
+              "seasonNumber": 1,
+              "showOrTitle": "Fightland"
+            }
+          }
+        ],
+        "official_hook_claims": [],
+        "named_cast": [
+          "Cebella \"Cece\" Marshall (Anita-Joy Uwajeh)",
+          "Ezekiel \"Zeek\" Marshall (Charles Babalola)",
+          "Joy Marshall (Deborah Ayorinde)",
+          "Maduka \"Duke\" Kilroy (Howard Charles)",
+          "Kingsley Marshall (Nicholas Pinnock)",
+          "Gary \"Gazzer\" Kilroy (Richard Pepple)",
+          "Joseph \"The Jackhammer\" Minott (Sylvester Akinrolabu)",
+          "Kim Harper (Tahirah Sharif)",
+          "Justin \"Jay\" Hall (Tyler Conti)"
+        ],
+        "summary": "TVmaze lists No Innocents as Season 1 Episode 3. 9 cast identity record(s) were retained. No verified quote, relationship history, or episode-scene description was retained."
+      },
+      "source_categories": [
+        "openai:ARTICLE",
+        "tvmaze:METADATA"
+      ],
+      "evidence_references": [
+        {
+          "source_id": "c9293b83-cce8-4594-bc01-b7827c73e9ba",
+          "provider": "openai",
+          "source_type": "ARTICLE",
+          "independence_group": "owner:future-plc",
+          "title": "All the US dramas you can watch on UK services: 22-28 August",
+          "canonical_url": "https://www.whattowatch.com/tv-shows/us-shows/tv-spy-the-terror-devil-in-silver-fightland-and-all-the-us-dramas-you-can-watch-on-uk-services-22-28-august"
+        },
+        {
+          "source_id": "4864fbe5-39ce-49c8-ab1d-4616f9b1168c",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "Fightland cast listing",
+          "canonical_url": "https://api.tvmaze.com/shows/65782/cast"
+        },
+        {
+          "source_id": "4aae4da1-be99-48f8-9a59-0db47d3ff9df",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "Fightland — S01E03: No Innocents",
+          "canonical_url": "https://www.tvmaze.com/episodes/3610644/fightland-1x03-no-innocents"
+        }
+      ],
+      "scores": {
+        "ranking_profile_id": "m1.1-intent-editorial-v1",
+        "intent_fit": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "audience_fit": {
+          "value": 0.05,
+          "threshold": 0.4,
+          "evidence_floor_pass": false
+        },
+        "freshness": {
+          "value": 0.6718,
+          "window_days": 14,
+          "diagnostic_only": true
+        },
+        "fandom_velocity": {
+          "value": 0.3333,
+          "independent_signal_groups": 1
+        },
+        "short_form_edit_potential": {
+          "status": "PRE_CONCEPT_DIAGNOSTIC_ONLY",
+          "observed_lower_bound": 0.0,
+          "threshold": 0.35,
+          "editability_term_hits_in_retained_text": 0,
+          "specific_intro_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "named_character_focus_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "direct_tiktok_data_used": false,
+          "summary": "Observed evidence-only lower bound 0.00; insufficient to label a supported edit concept. This is an inferred cross-platform diagnostic, not a virality probability, and direct TikTok data was not used."
+        },
+        "relationship_or_character_salience": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "footage_actionability": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "evidence_quality": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "source_diversity": {
+          "value": 0.5,
+          "independence_groups": 2,
+          "groups": [
+            "owner:future-plc",
+            "publisher:tvmaze"
+          ],
+          "diagnostic_only": true
+        },
+        "uncertainty_penalty": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "total": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "editorial_concept_scores": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        }
+      },
+      "evidence_shape": {
+        "official_primary_groups": [],
+        "metadata_groups": [
+          "publisher:tvmaze"
+        ],
+        "current_discussion_groups": [
+          "owner:future-plc"
+        ],
+        "would_pass_if_audience_supported": false
+      },
+      "exact_rejection_gate": "audience-fit:evidence-floor",
+      "additional_blockers": [
+        "evidence:insufficient-independent-source-shape",
+        "concept:not-attempted",
+        "footage:not-attempted"
+      ],
+      "failure_classification": "EVIDENCE_RELATED"
+    },
+    {
+      "shortlist_rank": 4,
+      "title": "Paris is Always a Good Idea",
+      "why_it_entered_the_shortlist": "Selected as female-audience-prior discovery slot 4 of 6 by the TVmaze discovery ordering over fresh scripted/editable metadata. This was a discovery prior, not audience or fandom proof. The historical fixture did not persist the numeric focus, creative-affinity, episode-title, provider-weight, region, official-host, or recency rank components.",
+      "shortlist_rank_components": {
+        "focus_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "creative_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "episode_title_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight_band": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "region_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "official_host_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "recency_sort_key": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        }
+      },
+      "current_hook_summary": "TVmaze lists Knightly as Season 1 Episode 4.",
+      "current_hook_found": [
+        {
+          "claim_id": "ef82fe9e-ee84-4f7e-bbca-5fca732ef8e9",
+          "claim_kind": "EPISODE_IDENTITY",
+          "verification": "SECONDARY_CORROBORATED",
+          "event_or_release_at": "2026-08-13T16:00:00Z",
+          "claim": "TVmaze lists Knightly as Season 1 Episode 4.",
+          "episode_locator": {
+            "episodeNumber": 4,
+            "episodeTitle": "Knightly",
+            "seasonNumber": 1,
+            "showOrTitle": "Paris is Always a Good Idea"
+          }
+        }
+      ],
+      "audience_fit_evidence": {
+        "direct_statements": [],
+        "distinct_affinity_cues": [],
+        "summary": "No source-owned evidence of female-skewing fandom appeal was retained."
+      },
+      "fandom_evidence": {
+        "current_discussion_source_titles": [
+          "I Loved The Eiffel Tower Scene In Paris Is Always A Good Idea, But Shooting It Sounds Rough"
+        ],
+        "independent_owner_groups": [
+          "owner:future-plc"
+        ],
+        "summary": "1 current title-bound article signal(s) across 1 owner group(s). These are qualitative coverage leads, not a fandom census or direct TikTok data."
+      },
+      "story_or_episode_evidence": {
+        "episode_claims": [
+          {
+            "claim_id": "ef82fe9e-ee84-4f7e-bbca-5fca732ef8e9",
+            "text": "TVmaze lists Knightly as Season 1 Episode 4.",
+            "event_or_release_at": "2026-08-13T16:00:00Z",
+            "episode_locator": {
+              "episodeNumber": 4,
+              "episodeTitle": "Knightly",
+              "seasonNumber": 1,
+              "showOrTitle": "Paris is Always a Good Idea"
+            }
+          }
+        ],
+        "official_hook_claims": [],
+        "named_cast": [
+          "Marcos Vera (Alejandro Albarracín)",
+          "Sherrie (Barbara Niven)",
+          "Glenn Martin (Henry Czerny)",
+          "Sebastian Villeret (Julien Marlon Samani)",
+          "Chelsea Martin (Lacey Chabert)",
+          "Aidan Booth (Ramon Tikaram)",
+          "Annabelle Martin (Rebecca Hanssen)",
+          "Jason Knightly (Scott Michael Foster)",
+          "Colin O'Donahue (Stephen Hagan)"
+        ],
+        "summary": "TVmaze lists Knightly as Season 1 Episode 4. 9 cast identity record(s) were retained. No verified quote, relationship history, or episode-scene description was retained."
+      },
+      "source_categories": [
+        "openai:ARTICLE",
+        "tvmaze:METADATA"
+      ],
+      "evidence_references": [
+        {
+          "source_id": "daf79c94-8d27-44a8-9b3a-71d47b6ef829",
+          "provider": "openai",
+          "source_type": "ARTICLE",
+          "independence_group": "owner:future-plc",
+          "title": "I Loved The Eiffel Tower Scene In Paris Is Always A Good Idea, But Shooting It Sounds Rough",
+          "canonical_url": "https://www.cinemablend.com/streaming-news/filming-eiffel-tower-scene-paris-is-always-a-good-idea-sounds-rough-lacey-chabert-hallmark-plus"
+        },
+        {
+          "source_id": "7e96d788-c96b-4923-89d9-9847b1783bb7",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "Paris is Always a Good Idea cast listing",
+          "canonical_url": "https://api.tvmaze.com/shows/93184/cast"
+        },
+        {
+          "source_id": "f03925a7-341e-45b0-82ca-13607043d4ba",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "Paris is Always a Good Idea — S01E04: Knightly",
+          "canonical_url": "https://www.tvmaze.com/episodes/3678550/paris-is-always-a-good-idea-1x04-knightly"
+        }
+      ],
+      "scores": {
+        "ranking_profile_id": "m1.1-intent-editorial-v1",
+        "intent_fit": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "audience_fit": {
+          "value": 0.05,
+          "threshold": 0.4,
+          "evidence_floor_pass": false
+        },
+        "freshness": {
+          "value": 0.5736,
+          "window_days": 14,
+          "diagnostic_only": true
+        },
+        "fandom_velocity": {
+          "value": 0.3333,
+          "independent_signal_groups": 1
+        },
+        "short_form_edit_potential": {
+          "status": "PRE_CONCEPT_DIAGNOSTIC_ONLY",
+          "observed_lower_bound": 0.3,
+          "threshold": 0.35,
+          "editability_term_hits_in_retained_text": 2,
+          "specific_intro_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "named_character_focus_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "direct_tiktok_data_used": false,
+          "summary": "Observed evidence-only lower bound 0.30; insufficient to label a supported edit concept. This is an inferred cross-platform diagnostic, not a virality probability, and direct TikTok data was not used."
+        },
+        "relationship_or_character_salience": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "footage_actionability": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "evidence_quality": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "source_diversity": {
+          "value": 0.5,
+          "independence_groups": 2,
+          "groups": [
+            "owner:future-plc",
+            "publisher:tvmaze"
+          ],
+          "diagnostic_only": true
+        },
+        "uncertainty_penalty": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "total": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "editorial_concept_scores": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        }
+      },
+      "evidence_shape": {
+        "official_primary_groups": [],
+        "metadata_groups": [
+          "publisher:tvmaze"
+        ],
+        "current_discussion_groups": [
+          "owner:future-plc"
+        ],
+        "would_pass_if_audience_supported": false
+      },
+      "exact_rejection_gate": "audience-fit:evidence-floor",
+      "additional_blockers": [
+        "evidence:insufficient-independent-source-shape",
+        "concept:not-attempted",
+        "footage:not-attempted"
+      ],
+      "failure_classification": "EVIDENCE_RELATED"
+    },
+    {
+      "shortlist_rank": 5,
+      "title": "Las Azules",
+      "why_it_entered_the_shortlist": "Selected as female-audience-prior discovery slot 5 of 6 by the TVmaze discovery ordering over fresh scripted/editable metadata. This was a discovery prior, not audience or fandom proof. The historical fixture did not persist the numeric focus, creative-affinity, episode-title, provider-weight, region, official-host, or recency rank components.",
+      "shortlist_rank_components": {
+        "focus_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "creative_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "episode_title_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight_band": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "region_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "official_host_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "recency_sort_key": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        }
+      },
+      "current_hook_summary": "TVmaze lists Filiberto as Season 2 Episode 2.",
+      "current_hook_found": [
+        {
+          "claim_id": "2d746586-a829-4c53-b15d-b943a10e2abe",
+          "claim_kind": "EPISODE_IDENTITY",
+          "verification": "SECONDARY_CORROBORATED",
+          "event_or_release_at": "2026-08-19T12:00:00Z",
+          "claim": "TVmaze lists Filiberto as Season 2 Episode 2.",
+          "episode_locator": {
+            "episodeNumber": 2,
+            "episodeTitle": "Filiberto",
+            "seasonNumber": 2,
+            "showOrTitle": "Las Azules"
+          }
+        }
+      ],
+      "audience_fit_evidence": {
+        "direct_statements": [],
+        "distinct_affinity_cues": [],
+        "summary": "No source-owned evidence of female-skewing fandom appeal was retained."
+      },
+      "fandom_evidence": {
+        "current_discussion_source_titles": [],
+        "independent_owner_groups": [],
+        "summary": "No usable current title-bound discussion signal was retrieved."
+      },
+      "story_or_episode_evidence": {
+        "episode_claims": [
+          {
+            "claim_id": "2d746586-a829-4c53-b15d-b943a10e2abe",
+            "text": "TVmaze lists Filiberto as Season 2 Episode 2.",
+            "event_or_release_at": "2026-08-19T12:00:00Z",
+            "episode_locator": {
+              "episodeNumber": 2,
+              "episodeTitle": "Filiberto",
+              "seasonNumber": 2,
+              "showOrTitle": "Las Azules"
+            }
+          }
+        ],
+        "official_hook_claims": [],
+        "named_cast": [
+          "Gabina (Amorita Rasgado)",
+          "María (Bárbara Mori)",
+          "Valentina (Natalia Téllez)",
+          "Angeles (Ximena Sariñana)"
+        ],
+        "summary": "TVmaze lists Filiberto as Season 2 Episode 2. 4 cast identity record(s) were retained. No verified quote, relationship history, or episode-scene description was retained."
+      },
+      "source_categories": [
+        "tvmaze:METADATA"
+      ],
+      "evidence_references": [
+        {
+          "source_id": "a669bf2d-c50c-43dd-928d-2ecbf584c8e8",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "Las Azules cast listing",
+          "canonical_url": "https://api.tvmaze.com/shows/62238/cast"
+        },
+        {
+          "source_id": "757ed53e-c1b4-4b41-b404-e3bd0b6cf82b",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "Las Azules — S02E02: Filiberto",
+          "canonical_url": "https://www.tvmaze.com/episodes/3581331/las-azules-2x02-filiberto"
+        }
+      ],
+      "scores": {
+        "ranking_profile_id": "m1.1-intent-editorial-v1",
+        "intent_fit": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "audience_fit": {
+          "value": 0.05,
+          "threshold": 0.4,
+          "evidence_floor_pass": false
+        },
+        "freshness": {
+          "value": 0.9903,
+          "window_days": 14,
+          "diagnostic_only": true
+        },
+        "fandom_velocity": {
+          "value": 0.0,
+          "independent_signal_groups": 0
+        },
+        "short_form_edit_potential": {
+          "status": "PRE_CONCEPT_DIAGNOSTIC_ONLY",
+          "observed_lower_bound": 0.0,
+          "threshold": 0.35,
+          "editability_term_hits_in_retained_text": 0,
+          "specific_intro_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "named_character_focus_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "direct_tiktok_data_used": false,
+          "summary": "Observed evidence-only lower bound 0.00; insufficient to label a supported edit concept. This is an inferred cross-platform diagnostic, not a virality probability, and direct TikTok data was not used."
+        },
+        "relationship_or_character_salience": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "footage_actionability": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "evidence_quality": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "source_diversity": {
+          "value": 0.25,
+          "independence_groups": 1,
+          "groups": [
+            "publisher:tvmaze"
+          ],
+          "diagnostic_only": true
+        },
+        "uncertainty_penalty": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "total": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "editorial_concept_scores": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        }
+      },
+      "evidence_shape": {
+        "official_primary_groups": [],
+        "metadata_groups": [
+          "publisher:tvmaze"
+        ],
+        "current_discussion_groups": [],
+        "would_pass_if_audience_supported": false
+      },
+      "exact_rejection_gate": "audience-fit:evidence-floor",
+      "additional_blockers": [
+        "retrieval:no-current-title-bound-discussion",
+        "concept:not-attempted",
+        "footage:not-attempted"
+      ],
+      "failure_classification": "RETRIEVAL_RELATED"
+    },
+    {
+      "shortlist_rank": 6,
+      "title": "My Brilliant Career",
+      "why_it_entered_the_shortlist": "Selected as female-audience-prior discovery slot 6 of 6 by the TVmaze discovery ordering over fresh scripted/editable metadata. This was a discovery prior, not audience or fandom proof. The historical fixture did not persist the numeric focus, creative-affinity, episode-title, provider-weight, region, official-host, or recency rank components.",
+      "shortlist_rank_components": {
+        "focus_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "creative_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "episode_title_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight_band": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "region_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "official_host_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "recency_sort_key": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        }
+      },
+      "current_hook_summary": "TVmaze lists TA TA as Season 1 Episode 6.",
+      "current_hook_found": [
+        {
+          "claim_id": "565120f5-ddac-441b-bcd2-2f31aa74f1e3",
+          "claim_kind": "EPISODE_IDENTITY",
+          "verification": "SECONDARY_CORROBORATED",
+          "event_or_release_at": "2026-08-13T12:00:00Z",
+          "claim": "TVmaze lists TA TA as Season 1 Episode 6.",
+          "episode_locator": {
+            "episodeNumber": 6,
+            "episodeTitle": "TA TA",
+            "seasonNumber": 1,
+            "showOrTitle": "My Brilliant Career"
+          }
+        }
+      ],
+      "audience_fit_evidence": {
+        "direct_statements": [],
+        "distinct_affinity_cues": [],
+        "summary": "No source-owned evidence of female-skewing fandom appeal was retained."
+      },
+      "fandom_evidence": {
+        "current_discussion_source_titles": [
+          "My Brilliant Career is Netflix's best period drama to date — even Bridgerton can't hold a candle to this level of chaotic passion"
+        ],
+        "independent_owner_groups": [
+          "owner:future-plc"
+        ],
+        "summary": "1 current title-bound article signal(s) across 1 owner group(s). These are qualitative coverage leads, not a fandom census or direct TikTok data."
+      },
+      "story_or_episode_evidence": {
+        "episode_claims": [
+          {
+            "claim_id": "565120f5-ddac-441b-bcd2-2f31aa74f1e3",
+            "text": "TVmaze lists TA TA as Season 1 Episode 6.",
+            "event_or_release_at": "2026-08-13T12:00:00Z",
+            "episode_locator": {
+              "episodeNumber": 6,
+              "episodeTitle": "TA TA",
+              "seasonNumber": 1,
+              "showOrTitle": "My Brilliant Career"
+            }
+          }
+        ],
+        "official_hook_claims": [],
+        "named_cast": [
+          "Julius Bossier (Alexander England)",
+          "Mrs Bossier (Anna Chancellor)",
+          "Harry Beecham (Christopher Chung)",
+          "Helen Bell (Genevieve O'Reilly)",
+          "Frank Hawden (Jake Dunn)",
+          "Augusta Beecham (Kate Mulvany)",
+          "Betty Kirby (Miah Madden)",
+          "Sybylla Melvyn (Philippa Northeast)",
+          "Nell Kirby (Sherry-Lee Watson)"
+        ],
+        "summary": "TVmaze lists TA TA as Season 1 Episode 6. 9 cast identity record(s) were retained. No verified quote, relationship history, or episode-scene description was retained."
+      },
+      "source_categories": [
+        "openai:ARTICLE",
+        "tvmaze:METADATA"
+      ],
+      "evidence_references": [
+        {
+          "source_id": "11673db1-180f-46e5-8421-ee03874b77ce",
+          "provider": "openai",
+          "source_type": "ARTICLE",
+          "independence_group": "owner:future-plc",
+          "title": "My Brilliant Career is Netflix's best period drama to date — even Bridgerton can't hold a candle to this level of chaotic passion",
+          "canonical_url": "https://www.techradar.com/streaming/netflix/my-brilliant-career-review"
+        },
+        {
+          "source_id": "71559bad-3b4d-4075-90f6-370483fb8a52",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "My Brilliant Career cast listing",
+          "canonical_url": "https://api.tvmaze.com/shows/85474/cast"
+        },
+        {
+          "source_id": "b9554ac6-d0e1-4084-8df4-6fc9efa3a1f0",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "My Brilliant Career — S01E06: TA TA",
+          "canonical_url": "https://www.tvmaze.com/episodes/3684273/my-brilliant-career-1x06-ta-ta"
+        }
+      ],
+      "scores": {
+        "ranking_profile_id": "m1.1-intent-editorial-v1",
+        "intent_fit": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "audience_fit": {
+          "value": 0.05,
+          "threshold": 0.4,
+          "evidence_floor_pass": false
+        },
+        "freshness": {
+          "value": 0.5617,
+          "window_days": 14,
+          "diagnostic_only": true
+        },
+        "fandom_velocity": {
+          "value": 0.3333,
+          "independent_signal_groups": 1
+        },
+        "short_form_edit_potential": {
+          "status": "PRE_CONCEPT_DIAGNOSTIC_ONLY",
+          "observed_lower_bound": 0.0,
+          "threshold": 0.35,
+          "editability_term_hits_in_retained_text": 0,
+          "specific_intro_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "named_character_focus_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "direct_tiktok_data_used": false,
+          "summary": "Observed evidence-only lower bound 0.00; insufficient to label a supported edit concept. This is an inferred cross-platform diagnostic, not a virality probability, and direct TikTok data was not used."
+        },
+        "relationship_or_character_salience": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "footage_actionability": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "evidence_quality": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "source_diversity": {
+          "value": 0.5,
+          "independence_groups": 2,
+          "groups": [
+            "owner:future-plc",
+            "publisher:tvmaze"
+          ],
+          "diagnostic_only": true
+        },
+        "uncertainty_penalty": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "total": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "editorial_concept_scores": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        }
+      },
+      "evidence_shape": {
+        "official_primary_groups": [],
+        "metadata_groups": [
+          "publisher:tvmaze"
+        ],
+        "current_discussion_groups": [
+          "owner:future-plc"
+        ],
+        "would_pass_if_audience_supported": false
+      },
+      "exact_rejection_gate": "audience-fit:evidence-floor",
+      "additional_blockers": [
+        "evidence:insufficient-independent-source-shape",
+        "concept:not-attempted",
+        "footage:not-attempted"
+      ],
+      "failure_classification": "EVIDENCE_RELATED"
+    },
+    {
+      "shortlist_rank": 7,
+      "title": "The Librarians: The Next Chapter",
+      "why_it_entered_the_shortlist": "Selected as broad scripted/editable discovery slot 1 of 2 by the TVmaze discovery ordering over fresh scripted/editable metadata. This was a discovery prior, not audience or fandom proof. The historical fixture did not persist the numeric focus, creative-affinity, episode-title, provider-weight, region, official-host, or recency rank components.",
+      "shortlist_rank_components": {
+        "focus_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "creative_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "episode_title_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight_band": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "region_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "official_host_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "recency_sort_key": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        }
+      },
+      "current_hook_summary": "TVmaze lists And Descartes' Dilemma as Season 2 Episode 6.",
+      "current_hook_found": [
+        {
+          "claim_id": "ae4ef64a-f50f-4c18-a67b-9c5c2adb8389",
+          "claim_kind": "EPISODE_IDENTITY",
+          "verification": "SECONDARY_CORROBORATED",
+          "event_or_release_at": "2026-08-18T01:00:00Z",
+          "claim": "TVmaze lists And Descartes' Dilemma as Season 2 Episode 6.",
+          "episode_locator": {
+            "episodeNumber": 6,
+            "episodeTitle": "And Descartes' Dilemma",
+            "seasonNumber": 2,
+            "showOrTitle": "The Librarians: The Next Chapter"
+          }
+        }
+      ],
+      "audience_fit_evidence": {
+        "direct_statements": [],
+        "distinct_affinity_cues": [],
+        "summary": "No source-owned evidence of female-skewing fandom appeal was retained."
+      },
+      "fandom_evidence": {
+        "current_discussion_source_titles": [],
+        "independent_owner_groups": [],
+        "summary": "No usable current title-bound discussion signal was retrieved."
+      },
+      "story_or_episode_evidence": {
+        "episode_claims": [
+          {
+            "claim_id": "ae4ef64a-f50f-4c18-a67b-9c5c2adb8389",
+            "text": "TVmaze lists And Descartes' Dilemma as Season 2 Episode 6.",
+            "event_or_release_at": "2026-08-18T01:00:00Z",
+            "episode_locator": {
+              "episodeNumber": 6,
+              "episodeTitle": "And Descartes' Dilemma",
+              "seasonNumber": 2,
+              "showOrTitle": "The Librarians: The Next Chapter"
+            }
+          }
+        ],
+        "official_hook_claims": [],
+        "named_cast": [
+          "Connor Green (Bluey Robinson)",
+          "Vikram Chamberlain (Callum McGowan)",
+          "Charlie Cornwall (Jessica Green)",
+          "Lysa Pascal (Olivia Morris)"
+        ],
+        "summary": "TVmaze lists And Descartes' Dilemma as Season 2 Episode 6. 4 cast identity record(s) were retained. No verified quote, relationship history, or episode-scene description was retained."
+      },
+      "source_categories": [
+        "tvmaze:METADATA"
+      ],
+      "evidence_references": [
+        {
+          "source_id": "ed105ac0-3422-4f7d-8175-3f84532cb7be",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "The Librarians: The Next Chapter cast listing",
+          "canonical_url": "https://api.tvmaze.com/shows/68801/cast"
+        },
+        {
+          "source_id": "330513f8-ee5c-4e34-a6d1-d9be1e7f9fe8",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "The Librarians: The Next Chapter — S02E06: And Descartes' Dilemma",
+          "canonical_url": "https://www.tvmaze.com/episodes/3616896/the-librarians-the-next-chapter-2x06-and-descartes-dilemma"
+        }
+      ],
+      "scores": {
+        "ranking_profile_id": "m1.1-intent-editorial-v1",
+        "intent_fit": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "audience_fit": {
+          "value": 0.05,
+          "threshold": 0.4,
+          "evidence_floor_pass": false
+        },
+        "freshness": {
+          "value": 0.8861,
+          "window_days": 14,
+          "diagnostic_only": true
+        },
+        "fandom_velocity": {
+          "value": 0.0,
+          "independent_signal_groups": 0
+        },
+        "short_form_edit_potential": {
+          "status": "PRE_CONCEPT_DIAGNOSTIC_ONLY",
+          "observed_lower_bound": 0.0,
+          "threshold": 0.35,
+          "editability_term_hits_in_retained_text": 0,
+          "specific_intro_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "named_character_focus_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "direct_tiktok_data_used": false,
+          "summary": "Observed evidence-only lower bound 0.00; insufficient to label a supported edit concept. This is an inferred cross-platform diagnostic, not a virality probability, and direct TikTok data was not used."
+        },
+        "relationship_or_character_salience": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "footage_actionability": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "evidence_quality": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "source_diversity": {
+          "value": 0.25,
+          "independence_groups": 1,
+          "groups": [
+            "publisher:tvmaze"
+          ],
+          "diagnostic_only": true
+        },
+        "uncertainty_penalty": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "total": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "editorial_concept_scores": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        }
+      },
+      "evidence_shape": {
+        "official_primary_groups": [],
+        "metadata_groups": [
+          "publisher:tvmaze"
+        ],
+        "current_discussion_groups": [],
+        "would_pass_if_audience_supported": false
+      },
+      "exact_rejection_gate": "audience-fit:evidence-floor",
+      "additional_blockers": [
+        "retrieval:no-current-title-bound-discussion",
+        "concept:not-attempted",
+        "footage:not-attempted"
+      ],
+      "failure_classification": "RETRIEVAL_RELATED"
+    },
+    {
+      "shortlist_rank": 8,
+      "title": "Lanterns",
+      "why_it_entered_the_shortlist": "Selected as broad scripted/editable discovery slot 2 of 2 by the TVmaze discovery ordering over fresh scripted/editable metadata. This was a discovery prior, not audience or fandom proof. The historical fixture did not persist the numeric focus, creative-affinity, episode-title, provider-weight, region, official-host, or recency rank components.",
+      "shortlist_rank_components": {
+        "focus_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "creative_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "episode_title_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight_band": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "region_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "official_host_affinity": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "provider_weight": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        },
+        "recency_sort_key": {
+          "status": "NOT_RECORDED",
+          "reason": "The live fixture predates candidate-level funnel instrumentation."
+        }
+      },
+      "current_hook_summary": "TVmaze lists Pilot as Season 1 Episode 1.",
+      "current_hook_found": [
+        {
+          "claim_id": "7807af36-57c0-4e03-bd3a-eae39bbda022",
+          "claim_kind": "EPISODE_IDENTITY",
+          "verification": "SECONDARY_CORROBORATED",
+          "event_or_release_at": "2026-08-17T01:00:00Z",
+          "claim": "TVmaze lists Pilot as Season 1 Episode 1.",
+          "episode_locator": {
+            "episodeNumber": 1,
+            "episodeTitle": "Pilot",
+            "seasonNumber": 1,
+            "showOrTitle": "Lanterns"
+          }
+        }
+      ],
+      "audience_fit_evidence": {
+        "direct_statements": [],
+        "distinct_affinity_cues": [],
+        "summary": "No source-owned evidence of female-skewing fandom appeal was retained."
+      },
+      "fandom_evidence": {
+        "current_discussion_source_titles": [
+          "Lanterns release schedule: When is episode 2 on HBO Max and NOW TV?",
+          "HBO’s Next Must-See TV Event Is a Superhero ‘True Detective’",
+          "5 biggest new shows to stream this week — including 'Reacher' and 'Lanterns'"
+        ],
+        "independent_owner_groups": [
+          "owner:future-plc",
+          "owner:iac"
+        ],
+        "summary": "3 current title-bound article signal(s) across 2 owner group(s). These are qualitative coverage leads, not a fandom census or direct TikTok data."
+      },
+      "story_or_episode_evidence": {
+        "episode_claims": [
+          {
+            "claim_id": "7807af36-57c0-4e03-bd3a-eae39bbda022",
+            "text": "TVmaze lists Pilot as Season 1 Episode 1.",
+            "event_or_release_at": "2026-08-17T01:00:00Z",
+            "episode_locator": {
+              "episodeNumber": 1,
+              "episodeTitle": "Pilot",
+              "seasonNumber": 1,
+              "showOrTitle": "Lanterns"
+            }
+          }
+        ],
+        "official_hook_claims": [],
+        "named_cast": [
+          "John Stewart (Aaron Pierre)",
+          "William \"Will\" Macon (Garret Dillahunt)",
+          "Sheriff Kelly Kerry (Kelly Macdonald)",
+          "Hal Jordan / Green Lantern (Kyle Chandler)",
+          "Zoe Macon (Poorna Jagannathan)",
+          "Sinestro (Ulrich Thomsen)"
+        ],
+        "summary": "TVmaze lists Pilot as Season 1 Episode 1. 6 cast identity record(s) were retained. No verified quote, relationship history, or episode-scene description was retained."
+      },
+      "source_categories": [
+        "openai:ARTICLE",
+        "tvmaze:METADATA"
+      ],
+      "evidence_references": [
+        {
+          "source_id": "50cd683d-7092-4893-920c-082f414ed8a9",
+          "provider": "openai",
+          "source_type": "ARTICLE",
+          "independence_group": "owner:future-plc",
+          "title": "5 biggest new shows to stream this week — including 'Reacher' and 'Lanterns'",
+          "canonical_url": "https://www.tomsguide.com/entertainment/streaming/5-biggest-new-shows-to-stream-this-week-including-reacher-and-lanterns"
+        },
+        {
+          "source_id": "80f81c55-da19-42c1-a42e-790411238032",
+          "provider": "openai",
+          "source_type": "ARTICLE",
+          "independence_group": "owner:iac",
+          "title": "HBO’s Next Must-See TV Event Is a Superhero ‘True Detective’",
+          "canonical_url": "https://www.thedailybeast.com/obsessed/lanterns-hbos-next-must-see-tv-event-is-a-superhero-true-detective/"
+        },
+        {
+          "source_id": "4adffbe2-7c6c-4e1a-bbed-51972f67306a",
+          "provider": "openai",
+          "source_type": "ARTICLE",
+          "independence_group": "owner:future-plc",
+          "title": "Lanterns release schedule: When is episode 2 on HBO Max and NOW TV?",
+          "canonical_url": "https://www.gamesradar.com/entertainment/dc-tv-shows/lanterns-release-date-time-schedule-hbo-max/"
+        },
+        {
+          "source_id": "813bf433-37c1-45c6-a565-70af6d860ad5",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "Lanterns cast listing",
+          "canonical_url": "https://api.tvmaze.com/shows/44776/cast"
+        },
+        {
+          "source_id": "0bea56a7-04b4-4fde-aeb9-3fe3b25c981c",
+          "provider": "tvmaze",
+          "source_type": "METADATA",
+          "independence_group": "publisher:tvmaze",
+          "title": "Lanterns — S01E01: Pilot",
+          "canonical_url": "https://www.tvmaze.com/episodes/3606548/lanterns-1x01-pilot"
+        }
+      ],
+      "scores": {
+        "ranking_profile_id": "m1.1-intent-editorial-v1",
+        "intent_fit": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "audience_fit": {
+          "value": 0.05,
+          "threshold": 0.4,
+          "evidence_floor_pass": false
+        },
+        "freshness": {
+          "value": 0.8147,
+          "window_days": 14,
+          "diagnostic_only": true
+        },
+        "fandom_velocity": {
+          "value": 0.6667,
+          "independent_signal_groups": 2
+        },
+        "short_form_edit_potential": {
+          "status": "PRE_CONCEPT_DIAGNOSTIC_ONLY",
+          "observed_lower_bound": 0.15,
+          "threshold": 0.35,
+          "editability_term_hits_in_retained_text": 0,
+          "specific_intro_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "named_character_focus_component": {
+            "status": "NOT_COMPUTED",
+            "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+          },
+          "direct_tiktok_data_used": false,
+          "summary": "Observed evidence-only lower bound 0.15; insufficient to label a supported edit concept. This is an inferred cross-platform diagnostic, not a virality probability, and direct TikTok data was not used."
+        },
+        "relationship_or_character_salience": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "footage_actionability": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "evidence_quality": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "source_diversity": {
+          "value": 0.75,
+          "independence_groups": 3,
+          "groups": [
+            "owner:future-plc",
+            "owner:iac",
+            "publisher:tvmaze"
+          ],
+          "diagnostic_only": true
+        },
+        "uncertainty_penalty": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "total": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        },
+        "editorial_concept_scores": {
+          "status": "NOT_COMPUTED",
+          "reason": "Candidate was rejected before a canonical opportunity and footage request reached the final ranker."
+        }
+      },
+      "evidence_shape": {
+        "official_primary_groups": [],
+        "metadata_groups": [
+          "publisher:tvmaze"
+        ],
+        "current_discussion_groups": [
+          "owner:future-plc",
+          "owner:iac"
+        ],
+        "would_pass_if_audience_supported": true
+      },
+      "exact_rejection_gate": "audience-fit:evidence-floor",
+      "additional_blockers": [
+        "concept:not-attempted",
+        "footage:not-attempted"
+      ],
+      "failure_classification": "EVIDENCE_RELATED"
+    }
+  ]
+}

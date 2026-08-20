@@ -25,6 +25,11 @@ from ai_edit_machine.contracts import (  # noqa: E402
 )
 from ai_edit_machine.m1_contracts import (  # noqa: E402
     CastIdentityFactV2,
+    DossierCharacterV1,
+    DossierCurrentSourceKind,
+    DossierCurrentSourceV1,
+    DossierEvidenceFactV1,
+    EditorialConceptDraftV1,
     EpisodeLocatorFactV2,
     EvidenceClaimKind,
     EvidenceClaimRecordV2,
@@ -33,7 +38,9 @@ from ai_edit_machine.m1_contracts import (  # noqa: E402
     FootageQuoteV2,
     FootageRequestDraftV2,
     FootageVerificationLevel,
+    FandomStoryDossierDraftV1,
     IntroMaterialLeadDraftV2,
+    LegacyConnectionType,
     MediaIdentityV2,
     NaturalFootageRequestV2,
     OpportunityEvidenceSelectionV2,
@@ -53,6 +60,8 @@ from ai_edit_machine.providers.base import (  # noqa: E402
     CancellationToken,
     EvidenceCandidate,
     ProviderBatch,
+    ProviderCandidateFunnel,
+    ProviderCandidateTrace,
     ProviderResearchContext,
     ProviderRunOutcome,
 )
@@ -69,9 +78,12 @@ from ai_edit_machine.research.source_ownership import (  # noqa: E402
 from ai_edit_machine.research.synthesis import SynthesisProviderResult  # noqa: E402
 from ai_edit_machine.research.workflow import (  # noqa: E402
     ProviderPlan,
+    ResearchStageCounts,
     ResearchWorkflow,
+    _attach_candidate_funnel,
     _attach_official_video_sources,
     _merge_reusable_evidence,
+    _no_opportunity,
     _official_video_source_drafts,
     _provider_reusable_discussion_context,
 )
@@ -161,7 +173,7 @@ class _DynamicTrailerSynthesizer:
     name = "openai"
 
     def synthesize(self, intent, *, evidence_sources, evidence_claims, authorization, cancellation):
-        del evidence_sources, authorization
+        del authorization
         cancellation.raise_if_cancelled()
         primary = next(
             claim
@@ -173,17 +185,24 @@ class _DynamicTrailerSynthesizer:
             for claim in evidence_claims
             if claim.claim_kind is EvidenceClaimKind.VIEWER_DISCUSSION
         ]
+        assert primary.scene_fact is not None
+        current_source = next(
+            source for source in evidence_sources if source.source_id == primary.source_id
+        )
+        characters = list(primary.scene_fact.characters)
+        relationship = primary.scene_fact.relationship_or_topic or "Ava and Bea"
+        concept_key = "promise_relationship_reversal"
         source = RequestedSourceDraftV2(
             source_key="official_trailer",
             priority=1,
             acquisition_effort=1,
             asset_kind=SourceAcquisitionKind.OFFICIAL_TRAILER,
             show_or_title="Example Film",
-            characters=[],
-            relationship_or_topic="the central relationship",
-            scene_or_moment=primary.text,
+            characters=characters,
+            relationship_or_topic=relationship,
+            scene_or_moment=primary.scene_fact.description,
             purposes=[SourcePurpose.INTRO, SourcePurpose.MONTAGE],
-            verification_level=FootageVerificationLevel.LIKELY_INFERRED,
+            verification_level=FootageVerificationLevel.VERIFIED,
             source_quality_summary="Untrusted model copy.",
             supporting_claim_ids=[primary.claim_id],
             why_it_matters_emotionally="The official trailer supplies setup and payoff imagery.",
@@ -191,11 +210,24 @@ class _DynamicTrailerSynthesizer:
         )
         footage = _request(
             source,
+            concept_key=concept_key,
             natural_request=NaturalFootageRequestV2(
                 best="Give me the official Example Film trailer.",
                 minimum="The official trailer is enough.",
             ),
             minimum_useful_source_keys=["official_trailer"],
+            intro_leads=[
+                IntroMaterialLeadDraftV2(
+                    source_key="official_trailer",
+                    moment_description=primary.scene_fact.description,
+                    why_it_might_lead_into_montage=(
+                        "The discussed relationship turn opens the emotional question "
+                        "that the ordered montage explores."
+                    ),
+                    verification_level=FootageVerificationLevel.VERIFIED,
+                    supporting_claim_ids=[primary.claim_id],
+                )
+            ],
             search_queries=["Example Film official trailer"],
         )
         opportunity = TrendOpportunityDraftV2(
@@ -204,7 +236,7 @@ class _DynamicTrailerSynthesizer:
                 media_kind=MediaKind.TRAILER, show_or_title="Example Film"
             ),
             title="Example Film official-trailer relationship turn",
-            focus=OpportunityFocus(characters=[], relationship_or_topic="central relationship"),
+            focus=OpportunityFocus(characters=characters, relationship_or_topic=relationship),
             why_now="A fresh official trailer establishes a current release moment.",
             what_viewers_are_discussing="Two independent current sources discuss the relationship turn.",
             creative_hook="Open on the official setup, then move into the emotional contrast.",
@@ -226,12 +258,99 @@ class _DynamicTrailerSynthesizer:
             ],
             confidence=0.8,
         )
+        concept = EditorialConceptDraftV1(
+            concept_key=concept_key,
+            dossier_key="example_film_dossier",
+            title="The promise before the reversal",
+            central_subject="Example Film's relationship reversal",
+            central_relationship=relationship,
+            core_emotion="a quiet promise becoming uncertainty",
+            viewer_hook="The trailer's promise asks whether the relationship can survive its reversal.",
+            why_fans_may_care="Current discussion focuses on the relationship reversal and payoff.",
+            current_event="The official Example Film trailer makes the relationship reversal current.",
+            legacy_or_contextual_connection="The concept stays within the evidence-supported trailer context.",
+            legacy_connection_type=LegacyConnectionType.NONE,
+            intro_leads=footage.intro_leads,
+            song_handoff_idea="Cut from the quiet promise into the first sign that the relationship is changing.",
+            montage_arc=[
+                "the trailer's quiet promise",
+                "signs of trust in the central relationship",
+                "the discussed relationship reversal",
+                "the trailer's unresolved emotional payoff",
+            ],
+            ending_or_payoff="Return to the relationship reversal and leave its promised payoff unresolved.",
+            evidence=opportunity.evidence,
+            verification_status=FootageVerificationLevel.LIKELY_INFERRED,
+            creative_strength=0.82,
+            footage_feasibility=0.9,
+            known_uncertainties=[
+                "Exact trailer timing and usable reactions require local footage inspection."
+            ],
+            footage_request=footage,
+        )
+        dossier = FandomStoryDossierDraftV1(
+            dossier_key="example_film_dossier",
+            show_or_title="Example Film",
+            current_event_or_hook=DossierEvidenceFactV1(
+                text=primary.text,
+                verification_status=FootageVerificationLevel.VERIFIED,
+                supporting_claim_ids=[primary.claim_id],
+            ),
+            named_characters=[
+                DossierCharacterV1(
+                    character_name=character,
+                    show_or_title="Example Film",
+                    verification_status=FootageVerificationLevel.VERIFIED,
+                    supporting_claim_ids=[primary.claim_id],
+                )
+                for character in characters
+            ],
+            central_relationship=DossierEvidenceFactV1(
+                text=f"{relationship} move from a quiet promise toward uncertainty.",
+                verification_status=FootageVerificationLevel.STRONGLY_SUPPORTED,
+                supporting_claim_ids=[signals[0].claim_id],
+            ),
+            current_source=DossierCurrentSourceV1(
+                source_kind=DossierCurrentSourceKind.TRAILER,
+                show_or_title="Example Film",
+                source_title=current_source.title,
+                verification_status=FootageVerificationLevel.VERIFIED,
+                supporting_claim_ids=[primary.claim_id],
+            ),
+            relationship_or_character_history=[
+                DossierEvidenceFactV1(
+                    text=primary.scene_fact.description,
+                    verification_status=FootageVerificationLevel.VERIFIED,
+                    supporting_claim_ids=[primary.claim_id],
+                )
+            ],
+            why_fans_currently_care=[
+                DossierEvidenceFactV1(
+                    text=signals[0].text,
+                    verification_status=FootageVerificationLevel.STRONGLY_SUPPORTED,
+                    supporting_claim_ids=[signals[0].claim_id],
+                )
+            ],
+            audience_and_fandom_evidence=[
+                DossierEvidenceFactV1(
+                    text=signal.text,
+                    verification_status=FootageVerificationLevel.STRONGLY_SUPPORTED,
+                    supporting_claim_ids=[signal.claim_id],
+                )
+                for signal in signals
+            ],
+            uncertainties=["Exact timing requires local footage inspection."],
+            evidence=opportunity.evidence,
+        )
         return SynthesisProviderResult(
             provider=self.name,
             draft=ResearchSynthesisDraftV2(
                 recommendations=[
                     SynthesisRecommendationDraftV2(
-                        opportunity=opportunity, footage_request=footage
+                        opportunity=opportunity,
+                        fandom_story_dossier=dossier,
+                        editorial_concepts=[concept],
+                        recommended_concept_key=concept.concept_key,
                     )
                 ]
             ),
@@ -248,6 +367,18 @@ class _MetadataLowSynthesizer:
         del evidence_sources, authorization
         self.seen_claims = tuple(evidence_claims)
         cancellation.raise_if_cancelled()
+        return SynthesisProviderResult(
+            provider=self.name,
+            draft=ResearchSynthesisDraftV2(
+                no_strong_opportunity_reason=(
+                    "The evidence has a current title and discussion, but no supported "
+                    "named-character story dossier or editorial concept."
+                )
+            ),
+        )
+        # The former metadata-only scene-pack synthesis intentionally remains
+        # unreachable as a regression reference: M1.1b no longer manufactures
+        # a footage request before a supported concept exists.
         metadata = next(
             claim
             for claim in evidence_claims
@@ -331,6 +462,210 @@ class _MetadataLowSynthesizer:
 
 
 class M1ResearchTests(unittest.TestCase):
+
+    def test_broad_query_runs_one_soft_only_false_abstention_recovery_pass(self) -> None:
+        locator = EpisodeLocatorFactV2(
+            show_or_title="Recovery Show",
+            season_number=1,
+            episode_number=3,
+            episode_title="The Turn",
+        )
+        metadata = EvidenceCandidate(
+            provider="tvmaze",
+            provider_record_id="episode:recovery-3",
+            source_type=EvidenceSourceType.METADATA,
+            canonical_url="https://www.tvmaze.com/episodes/903/the-turn",
+            title="Recovery Show - S01E03: The Turn",
+            author_or_channel="TVmaze",
+            excerpt_type=ExcerptType.PARAPHRASE,
+            excerpt="TVmaze lists The Turn as Season 1 Episode 3.",
+            verification=VerificationState.SECONDARY_CORROBORATED,
+            claim_kind=EvidenceClaimKind.EPISODE_IDENTITY,
+            supports_why_now=False,
+            policy_class="tvmaze-metadata-v1",
+            event_or_release_at=NOW - timedelta(hours=2),
+            citation_verified=True,
+            episode_locator=locator,
+        )
+        signals = tuple(
+            EvidenceCandidate(
+                provider="openai",
+                provider_record_id=f"recovery:{host}",
+                source_type=EvidenceSourceType.ARTICLE,
+                canonical_url=f"https://{host}/recovery-show",
+                title=f"Recovery Show female-led discussion at {host}",
+                author_or_channel=host,
+                excerpt_type=ExcerptType.PARAPHRASE,
+                excerpt=(
+                    "Recovery Show has current female-led ensemble coverage."
+                    if host == "variety.com"
+                    else "Recovery Show has current female-led protagonist coverage."
+                ),
+                verification=VerificationState.SECONDARY_CORROBORATED,
+                claim_kind=EvidenceClaimKind.VIEWER_DISCUSSION,
+                supports_why_now=True,
+                policy_class="openai-web-evidence-v1",
+                source_created_at=NOW - timedelta(hours=1),
+                page_published_at=NOW - timedelta(hours=1),
+                citation_verified=True,
+                content_binding_verified=True,
+            )
+            for host in ("variety.com", "thewrap.com")
+        )
+
+        class RecoveryNoopSynthesizer:
+            name = "openai"
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def synthesize(self, *args, **kwargs):
+                self.calls += 1
+                return SynthesisProviderResult(
+                    provider=self.name,
+                    draft=ResearchSynthesisDraftV2(
+                        no_strong_opportunity_reason=(
+                            "The recovery evidence still lacks a specific story concept."
+                        )
+                    ),
+                )
+
+        synthesizer = RecoveryNoopSynthesizer()
+        workflow = ResearchWorkflow(
+            providers=[
+                ProviderPlan(
+                    FakeResearchProvider(
+                        name="tvmaze",
+                        operation="research.metadata",
+                        batches=[ProviderBatch(
+                            provider="tvmaze",
+                            evidence=(metadata,),
+                            candidate_funnel=ProviderCandidateFunnel(
+                                raw_release_candidates=1,
+                                candidates_after_freshness=1,
+                                candidates_after_hard_exclusions=1,
+                                candidates_after_audience_fit_screening=1,
+                                candidates_selected_for_social_research=1,
+                                candidate_traces=(
+                                    ProviderCandidateTrace(
+                                        candidate_name="Recovery Show — S01E03 The Turn",
+                                        title="Recovery Show",
+                                        shortlist_rank=1,
+                                        shortlist_reason="Synthetic bounded recovery shortlist.",
+                                        season_number=1,
+                                        episode_number=3,
+                                        episode_title="The Turn",
+                                    ),
+                                ),
+                            ),
+                        )],
+                    ),
+                    _authorization("tvmaze", "research.metadata"),
+                ),
+                ProviderPlan(
+                    FakeResearchProvider(
+                        name="openai",
+                        operation="research.web_verify",
+                        batches=[ProviderBatch(
+                            provider="openai",
+                            evidence=signals,
+                            candidate_funnel=ProviderCandidateFunnel(
+                                generated_search_variants=10,
+                                candidates_selected_for_social_research=1,
+                                candidates_with_usable_social_evidence=1,
+                                candidate_traces=(
+                                    ProviderCandidateTrace(
+                                        candidate_name="Recovery Show — S01E03 The Turn",
+                                        title="Recovery Show",
+                                        shortlist_rank=1,
+                                        shortlist_reason="Synthetic semantic title-slate selection.",
+                                        season_number=1,
+                                        episode_number=3,
+                                        episode_title="The Turn",
+                                    ),
+                                ),
+                            ),
+                        )],
+                    ),
+                    _authorization("openai", "research.web_verify"),
+                ),
+            ],
+            synthesizer=synthesizer,
+            synthesis_authorization=_authorization("openai", "research.synthesize"),
+            official_hosts=set(),
+        )
+
+        output = workflow.run(
+            intent_from_query("find shows for girls that'll likely be popular on tiktok"),
+            generated_at=NOW,
+            cancellation=CancellationToken(),
+        )
+
+        self.assertEqual(synthesizer.calls, 1)
+        self.assertEqual(output.result.status.value, "NO_STRONG_OPPORTUNITY")
+        assert output.result.candidate_funnel is not None
+        self.assertTrue(
+            output.result.candidate_funnel.false_abstention_recovery_attempted
+        )
+        self.assertEqual(output.result.candidate_funnel.recovered_candidate_count, 1)
+        self.assertIn(
+            "FandomStoryDossier",
+            output.result.candidate_funnel.evidence_coverage_warning or "",
+        )
+        self.assertEqual(output.result.footage_requests, [])
+        self.assertEqual(len(output.result.candidate_funnel.candidate_diagnostics), 1)
+        diagnostic = output.result.candidate_funnel.candidate_diagnostics[0]
+        self.assertEqual(diagnostic.title, "Recovery Show")
+        self.assertEqual(
+            diagnostic.exact_rejection_gate,
+            "THRESHOLD:NO_SUPPORTED_EDITORIAL_CONCEPT",
+        )
+        self.assertEqual(diagnostic.failure_class.value, "THRESHOLD_RELATED")
+        self.assertTrue(diagnostic.fandom_evidence)
+        self.assertTrue(diagnostic.story_or_episode_evidence)
+
+    def test_shortage_explains_evidence_or_audience_gate_loss(self) -> None:
+        intent = intent_from_query(
+            "find shows for girls that'll likely be popular on tiktok"
+        )
+        result = _no_opportunity(
+            intent,
+            generated_at=NOW,
+            run_id=uuid4(),
+            message="No strong opportunity found under these constraints.",
+            warnings=[],
+        )
+        result = _attach_candidate_funnel(
+            result,
+            ResearchStageCounts(
+                parsed_results=88,
+                normalized_evidence=88,
+                evidence_surviving_gates=0,
+                ranked_opportunities=0,
+                opportunities_returned_to_ui=0,
+                generated_search_variants=10,
+                raw_release_candidates=4027,
+                candidates_after_freshness=3660,
+                candidates_after_hard_exclusions=3660,
+                candidates_after_audience_fit_screening=3660,
+                candidates_selected_for_social_research=8,
+                candidates_with_usable_social_evidence=5,
+                candidates_surviving_evidence_gates=0,
+            ),
+        )
+
+        assert result.candidate_funnel is not None
+        self.assertIn(
+            "5 had usable evidence but did not jointly meet",
+            result.candidate_funnel.shortage_explanation,
+        )
+        self.assertEqual(
+            [
+                (item.reason_code, item.count)
+                for item in result.candidate_funnel.rejection_reasons
+            ],
+            [("evidence_or_audience_gate", 5)],
+        )
 
     def test_reusable_current_discussion_cannot_complete_owner_mix_without_live_revalidation(self) -> None:
         def discussion(host: str) -> EvidenceCandidate:
@@ -560,6 +895,60 @@ class M1ResearchTests(unittest.TestCase):
         self.assertEqual(intent.focus_terms, ["female-centered"])
         self.assertNotIn("romance", intent.focus_terms)
 
+    def test_not_romance_is_a_hard_exclusion_not_a_relationship_request(self) -> None:
+        intent = intent_from_query(
+            "female-led thriller that could make a good character edit, not romance"
+        )
+        assert intent.interpretation is not None
+        facet_ids = {item.facet_id for item in intent.interpretation.facets}
+
+        self.assertIn("romance", intent.exclusions)
+        self.assertIn("no_romance", facet_ids)
+        self.assertIn("character_edit", facet_ids)
+        self.assertNotIn("relationship_edit", facet_ids)
+        self.assertFalse(intent.interpretation.clarification_needed)
+
+    def test_contradictory_romance_request_abstains_before_any_provider(self) -> None:
+        class MustNotCollect:
+            name = "tvmaze"
+            operation = "research.metadata"
+
+            def collect(self, *args, **kwargs):
+                del args, kwargs
+                raise AssertionError("provider must not run for contradictory intent")
+
+        class MustNotSynthesize:
+            name = "openai"
+
+            def synthesize(self, *args, **kwargs):
+                del args, kwargs
+                raise AssertionError("synthesis must not run for contradictory intent")
+
+        workflow = ResearchWorkflow(
+            providers=[
+                ProviderPlan(
+                    MustNotCollect(),
+                    _authorization("tvmaze", "research.metadata"),
+                )
+            ],
+            synthesizer=MustNotSynthesize(),
+            synthesis_authorization=_authorization("openai", "research.synthesize"),
+            official_hosts=set(),
+        )
+        output = workflow.run(
+            intent_from_query("find romance TV for me, but no romance"),
+            generated_at=NOW,
+            cancellation=CancellationToken(),
+        )
+
+        self.assertEqual(output.provider_batches, ())
+        self.assertIsNone(output.synthesis)
+        self.assertEqual(output.result.status.value, "NO_STRONG_OPPORTUNITY")
+        self.assertIn("both asks for romance and excludes romance", output.result.message)
+        self.assertTrue(
+            any("No provider was contacted" in item for item in output.result.warnings)
+        )
+
     def test_explicit_female_audience_cannot_pass_on_title_only_discussion(self) -> None:
         title = "Stuart Fails to Save the Universe"
         locator = EpisodeLocatorFactV2(
@@ -665,7 +1054,7 @@ class M1ResearchTests(unittest.TestCase):
         self.assertEqual(output.result.opportunities, [])
         self.assertIsNone(output.synthesis)
 
-    def test_female_audience_gate_fills_every_distinct_supported_title(self) -> None:
+    def test_female_audience_gate_does_not_turn_generic_titles_into_edit_concepts(self) -> None:
         def metadata(
             *, title: str, record_id: int, episode_number: int
         ) -> EvidenceCandidate:
@@ -794,34 +1183,24 @@ class M1ResearchTests(unittest.TestCase):
             cancellation=CancellationToken(),
         )
 
+        self.assertEqual(output.result.status.value, "NO_STRONG_OPPORTUNITY")
+        self.assertEqual(output.result.opportunities, [])
+        self.assertIsNotNone(output.result.candidate_funnel)
+        assert output.result.candidate_funnel is not None
         self.assertEqual(
-            output.result.status.value,
-            "OPPORTUNITIES",
-            (
-                output.result.warnings,
-                [
-                    (source.title, source.independence_group)
-                    for source in output.evidence_sources
-                ],
-                [
-                    (claim.claim_kind.value, claim.text, claim.verification.value)
-                    for claim in output.evidence_claims
-                ],
-            ),
+            output.result.candidate_funnel.candidates_surviving_evidence_gates,
+            2,
         )
         self.assertEqual(
-            {item.media_identity.show_or_title for item in output.result.opportunities},
-            set(titles),
+            output.result.candidate_funnel.candidates_sent_to_final_ranker,
+            0,
         )
-        self.assertEqual(len(output.result.footage_requests), 2)
-        self.assertTrue(
-            any(
-                "2 independently qualified distinct TV title" in warning
-                for warning in output.result.warnings
-            )
+        self.assertIn(
+            "specific enough story or fandom angle",
+            output.result.message,
         )
 
-    def test_verified_official_video_scene_label_becomes_clickable_optional_source(self) -> None:
+    def test_verified_official_video_cannot_rescue_a_generic_conceptless_request(self) -> None:
         source = EvidenceSourceRecordV2(
             source_id=uuid4(),
             provider="youtube",
@@ -900,43 +1279,18 @@ class M1ResearchTests(unittest.TestCase):
             why_it_matters_emotionally="This is an inspection target.",
             search_queries=["Example Show character scene pack"],
         )
-        footage = FootageRequestDraftV2(
-            summary="A compact scene-pack request.",
-            natural_request=NaturalFootageRequestV2(
-                best="Give me an Example Show scene pack.",
-                minimum="One focused scene pack is enough.",
-            ),
-            required_sources=[required],
-            minimum_useful_source_keys=[required.source_key],
-            smallest_useful_set_reason="One focused pack is sufficient.",
-            search_queries=["Example Show character scene pack"],
-        )
-        enriched = _attach_official_video_sources(
-            footage,
-            show_or_title="Example Show",
-            claims=[claim],
-            source_by_id={source.source_id: source},
-        )
-        self.assertEqual(len(enriched.optional_sources), 1)
-        self.assertEqual(
-            enriched.optional_sources[0].source_key,
-            "host_official_video_1",
-        )
-        self.assertIsNotNone(enriched.natural_request.optional_improvement)
-        canonical = canonicalize_footage_request(
-            draft=enriched,
-            footage_request_id=uuid4(),
-            opportunity_id=uuid4(),
-            evidence_index=EvidenceIndex.build([source], [claim]),
-            allowed_claim_ids={claim.claim_id},
-        )
-        self.assertEqual(
-            canonical.optional_sources[0].search_queries,
-            [
-                'Example Show "A Quiet Confession" official clip',
-                "Example Show official clip",
-            ],
-        )
+        with self.assertRaisesRegex(ValidationError, "generic footage placeholders"):
+            FootageRequestDraftV2(
+                summary="A compact scene-pack request.",
+                natural_request=NaturalFootageRequestV2(
+                    best="Give me an Example Show scene pack.",
+                    minimum="One focused scene pack is enough.",
+                ),
+                required_sources=[required],
+                minimum_useful_source_keys=[required.source_key],
+                smallest_useful_set_reason="One focused pack is sufficient.",
+                search_queries=["Example Show character scene pack"],
+            )
 
     def test_exclusion_aliases_are_punctuation_and_metadata_aware(self) -> None:
         intent = intent_from_query("romance TV, no K-drama, no reality TV")
@@ -1006,7 +1360,7 @@ class M1ResearchTests(unittest.TestCase):
                 minimum_useful_source_keys=["first", "second"],
             )
 
-    def test_unknown_source_copy_is_broad_and_drops_unbound_locator_searches(self) -> None:
+    def test_unknown_source_cannot_be_canonicalized_into_a_generic_placeholder(self) -> None:
         source = _requested_source(
             source_key="unknown_pack",
             asset_kind=SourceAcquisitionKind.SCENE_PACK,
@@ -1018,21 +1372,18 @@ class M1ResearchTests(unittest.TestCase):
             scene_or_moment="The Season 9 beach confession definitely happens here.",
             search_queries=["Example Show S9E99 beach confession quote"],
         )
-        rendered = canonicalize_footage_request(
-            draft=_request(
-                source,
-                minimum_useful_source_keys=["unknown_pack"],
-                search_queries=["Example Show S9E99 beach confession quote"],
-            ),
-            footage_request_id=uuid4(),
-            opportunity_id=uuid4(),
-            evidence_index=EvidenceIndex.build([], []),
-            allowed_claim_ids=set(),
-        )
-        serialized = json.dumps(rendered.model_dump(mode="json"))
-        self.assertIn("exact scene is unknown", rendered.required_sources[0].scene_or_moment)
-        self.assertNotIn("S9E99", serialized)
-        self.assertNotIn("confession", serialized)
+        with self.assertRaisesRegex(ValidationError, "generic footage placeholders"):
+            canonicalize_footage_request(
+                draft=_request(
+                    source,
+                    minimum_useful_source_keys=["unknown_pack"],
+                    search_queries=["Example Show S9E99 beach confession quote"],
+                ),
+                footage_request_id=uuid4(),
+                opportunity_id=uuid4(),
+                evidence_index=EvidenceIndex.build([], []),
+                allowed_claim_ids=set(),
+            )
 
     def test_exact_episode_number_cannot_be_inferred_from_same_show(self) -> None:
         source_record = _source()
@@ -1483,10 +1834,16 @@ class M1ResearchTests(unittest.TestCase):
                     media_kind=MediaKind.TRAILER, show_or_title="Example Film"
                 ),
             ),
+            scene_fact=SceneMomentFactV2(
+                show_or_title="Example Film",
+                description="Ava makes a quiet promise to Bea before their relationship reverses.",
+                characters=["Ava", "Bea"],
+                relationship_or_topic="Ava and Bea",
+            ),
         )
         discussion_texts = {
-            "variety.com": "Example Film turns a quiet promise into the trailer's emotional hook.",
-            "thewrap.com": "Example Film viewers are focused on the relationship reversal and payoff.",
+            "variety.com": "Example Film turns Ava's quiet promise to Bea into the trailer's emotional hook.",
+            "thewrap.com": "Example Film viewers are focused on Ava and Bea's relationship reversal and payoff.",
         }
         signals = tuple(
             EvidenceCandidate(
@@ -1556,15 +1913,16 @@ class M1ResearchTests(unittest.TestCase):
         )
         self.assertEqual(len(output.result.opportunities), 1)
         requested = output.result.footage_requests[0].required_sources[0]
-        self.assertEqual(requested.source_quality_summary, (
-            "Likely or inferred from relevant evidence; the exact moment is not verified."
-        ))
+        self.assertEqual(
+            requested.source_quality_summary,
+            "Verified against authoritative source evidence.",
+        )
         opportunity = output.result.opportunities[0]
         self.assertEqual(opportunity.evidence_gate, EvidenceGate.PASSED)
-        self.assertEqual(opportunity.title, "Example Film: central relationship")
+        self.assertEqual(opportunity.title, "Example Film: Ava and Bea")
         self.assertNotIn("Open on", opportunity.creative_hook)
 
-    def test_live_camp_rock_shape_uses_bound_discussions_and_safe_film_fallback(self) -> None:
+    def test_live_camp_rock_shape_rejects_generic_film_fallback_but_keeps_bound_evidence(self) -> None:
         """Regress the 2026-08-17 packaged film synthesis rejection.
 
         The current publisher pages were directly bound to Camp Rock 3, but one
@@ -1651,6 +2009,17 @@ class M1ResearchTests(unittest.TestCase):
             ):
                 del intent, evidence_sources, authorization
                 cancellation.raise_if_cancelled()
+                return SynthesisProviderResult(
+                    provider=self.name,
+                    draft=ResearchSynthesisDraftV2(
+                        no_strong_opportunity_reason=(
+                            "The current release is supported, but no named-character story "
+                            "dossier or specific editorial concept is supported."
+                        )
+                    ),
+                )
+                # The former fabricated nostalgia-pack draft is retained below
+                # only as a regression reference and is intentionally unreachable.
                 identity_claim = next(
                     claim
                     for claim in evidence_claims
@@ -1756,24 +2125,14 @@ class M1ResearchTests(unittest.TestCase):
             cancellation=CancellationToken(),
         )
 
-        self.assertEqual(output.result.status.value, "OPPORTUNITIES")
-        opportunity = output.result.opportunities[0]
-        self.assertEqual(opportunity.media_identity.show_or_title, "Camp Rock 3")
-        self.assertEqual(opportunity.evidence_gate, EvidenceGate.PASSED)
-        self.assertEqual(opportunity.score.independent_source_count, 3)
-        request = output.result.footage_requests[0]
-        self.assertEqual(
-            request.required_sources[0].verification_level,
-            FootageVerificationLevel.UNKNOWN,
-        )
-        self.assertTrue(request.optional_sources)
-        self.assertTrue(request.alternative_sources)
-        self.assertTrue(request.search_queries)
-        self.assertIn("smallest useful set", request.natural_request.minimum)
-        warnings = " ".join(output.result.warnings)
-        self.assertIn("footage:inferred-source-support=1", warnings)
-        self.assertIn("passed-gate film/trailer scene-pack fallback", warnings)
+        self.assertEqual(output.result.status.value, "NO_STRONG_OPPORTUNITY")
+        self.assertEqual(output.result.opportunities, [])
+        self.assertEqual(output.result.fandom_story_dossiers, [])
         self.assertNotIn("nostalgic reunion callback", output.result.model_dump_json().casefold())
+        self.assertIn(
+            "specific enough story or fandom angle",
+            output.result.message,
+        )
 
         source_by_id = {source.source_id: source for source in output.evidence_sources}
         identity_record = next(
@@ -1852,6 +2211,12 @@ class M1ResearchTests(unittest.TestCase):
                     media_kind=MediaKind.TRAILER, show_or_title="Example Film"
                 ),
             ),
+            scene_fact=SceneMomentFactV2(
+                show_or_title="Example Film",
+                description="Ava makes a quiet promise to Bea before their relationship reverses.",
+                characters=["Ava", "Bea"],
+                relationship_or_topic="Ava and Bea",
+            ),
         )
         signal = EvidenceCandidate(
             provider="openai",
@@ -1861,7 +2226,7 @@ class M1ResearchTests(unittest.TestCase):
             title="Example Film central relationship discussion",
             author_or_channel="thewrap.com",
             excerpt_type=ExcerptType.PARAPHRASE,
-            excerpt="Example Film viewers are discussing the central relationship payoff.",
+            excerpt="Example Film viewers are discussing Ava and Bea's relationship payoff.",
             verification=VerificationState.SECONDARY_CORROBORATED,
             claim_kind=EvidenceClaimKind.VIEWER_DISCUSSION,
             supports_why_now=True,
@@ -1914,7 +2279,7 @@ class M1ResearchTests(unittest.TestCase):
             )
         )
 
-    def test_current_tvmaze_episode_plus_localized_discussion_yields_honest_low_confidence_scene_pack(self) -> None:
+    def test_current_tvmaze_episode_plus_localized_discussion_abstains_without_specific_scene(self) -> None:
         locator = EpisodeLocatorFactV2(
             show_or_title="Example Show",
             season_number=3,
@@ -2060,7 +2425,7 @@ class M1ResearchTests(unittest.TestCase):
             cancellation=CancellationToken(),
         )
 
-        self.assertEqual(output.result.status.value, "OPPORTUNITIES")
+        self.assertEqual(output.result.status.value, "NO_STRONG_OPPORTUNITY")
         self.assertFalse(
             any(
                 claim.episode_locator is not None
@@ -2071,45 +2436,15 @@ class M1ResearchTests(unittest.TestCase):
             )
         )
         self.assertEqual(len(synthesizer.seen_claims), 3)
-        opportunity = output.result.opportunities[0]
-        self.assertEqual(opportunity.evidence_gate, EvidenceGate.LOW_CONFIDENCE)
-        self.assertTrue(
-            opportunity.why_now.startswith(
-                "Current episode metadata (not an official why-now proof):"
-            )
+        self.assertEqual(output.result.footage_requests, [])
+        self.assertIn(
+            "specific enough story or fandom angle",
+            output.result.message,
         )
-        self.assertIn("no official why-now proof", " ".join(opportunity.caveats))
-        self.assertIn("not proof of a specific scene", opportunity.emotional_edit_direction)
-        requested = output.result.footage_requests[0].required_sources[0]
-        self.assertEqual(requested.asset_kind, SourceAcquisitionKind.SCENE_PACK)
-        self.assertIsNone(requested.season_number)
-        self.assertIsNone(requested.episode_number)
-        self.assertIn("scene pack", output.result.footage_requests[0].natural_request.best)
 
         class RejectedMetadataSynthesizer(_MetadataLowSynthesizer):
             def synthesize(self, *args, **kwargs):
-                result = super().synthesize(*args, **kwargs)
-                assert result.draft is not None
-                recommendation = result.draft.recommendations[0]
-                rejected_opportunity = recommendation.opportunity.model_copy(
-                    update={
-                        "focus": OpportunityFocus(
-                            characters=[],
-                            relationship_or_topic="fabricated beach kiss",
-                        )
-                    }
-                )
-                return SynthesisProviderResult(
-                    provider=self.name,
-                    draft=ResearchSynthesisDraftV2(
-                        recommendations=[
-                            SynthesisRecommendationDraftV2(
-                                opportunity=rejected_opportunity,
-                                footage_request=recommendation.footage_request,
-                            )
-                        ]
-                    ),
-                )
+                return super().synthesize(*args, **kwargs)
 
         fallback_workflow = ResearchWorkflow(
             providers=[
@@ -2156,36 +2491,15 @@ class M1ResearchTests(unittest.TestCase):
             generated_at=NOW,
             cancellation=CancellationToken(),
         )
-        self.assertEqual(fallback_output.result.status.value, "OPPORTUNITIES")
-        fallback_opportunity = fallback_output.result.opportunities[0]
-        self.assertEqual(fallback_opportunity.evidence_gate, EvidenceGate.LOW_CONFIDENCE)
+        self.assertEqual(
+            fallback_output.result.status.value,
+            "NO_STRONG_OPPORTUNITY",
+        )
         self.assertNotIn(
             "fabricated beach kiss",
-            fallback_opportunity.model_dump_json().casefold(),
+            fallback_output.result.model_dump_json().casefold(),
         )
-        fallback_request = fallback_output.result.footage_requests[0]
-        fallback_source = fallback_request.required_sources[0]
-        self.assertEqual(fallback_source.asset_kind, SourceAcquisitionKind.SCENE_PACK)
-        self.assertEqual(
-            fallback_source.verification_level,
-            FootageVerificationLevel.UNKNOWN,
-        )
-        self.assertIsNone(fallback_source.season_number)
-        self.assertIsNone(fallback_source.episode_number)
-        self.assertIsNone(fallback_source.quote)
-        self.assertEqual(fallback_request.intro_leads, [])
-        self.assertEqual(len(fallback_request.optional_sources), 1)
-        self.assertIsNotNone(
-            fallback_request.natural_request.optional_improvement
-        )
-        self.assertEqual(
-            fallback_request.optional_sources[0].asset_kind,
-            SourceAcquisitionKind.OFFICIAL_CLIP,
-        )
-        self.assertTrue(
-            any("deterministic low-confidence scene-pack fallback" in warning
-                for warning in fallback_output.result.warnings)
-        )
+        self.assertEqual(fallback_output.result.fandom_story_dossiers, [])
 
         forged_signals = (
             signals[0],
@@ -2226,7 +2540,7 @@ class M1ResearchTests(unittest.TestCase):
         )
         self.assertEqual(forged_output.result.status.value, "NO_STRONG_OPPORTUNITY")
 
-    def test_live_lanterns_shape_omits_bad_intro_and_never_uses_article_headline_as_footage_focus(self) -> None:
+    def test_live_lanterns_shape_rejects_bad_intro_and_generic_scene_pack(self) -> None:
         """Regress the 2026-08-17 packaged Lanterns footage-request failure."""
 
         locator = EpisodeLocatorFactV2(
@@ -2336,6 +2650,16 @@ class M1ResearchTests(unittest.TestCase):
             ):
                 del intent, evidence_sources, authorization
                 cancellation.raise_if_cancelled()
+                return SynthesisProviderResult(
+                    provider=self.name,
+                    draft=ResearchSynthesisDraftV2(
+                        no_strong_opportunity_reason=(
+                            "The evidence names the cast, but it does not support a specific "
+                            "current scene and coherent editorial concept."
+                        )
+                    ),
+                )
+                # The former unknown scene-pack draft is intentionally unreachable.
                 identity_claim = next(
                     claim
                     for claim in evidence_claims
@@ -2507,43 +2831,20 @@ class M1ResearchTests(unittest.TestCase):
             )
 
         salvaged = run_with(InvalidOptionalIntroSynthesizer())
-        self.assertEqual(salvaged.result.status.value, "OPPORTUNITIES")
-        self.assertEqual(salvaged.result.footage_requests[0].intro_leads, [])
-        self.assertTrue(
-            any(
-                "Omitted 1 optional synthesized intro lead" in item
-                for item in salvaged.result.warnings
-            )
-        )
-        self.assertFalse(
-            any(
-                "Recommendation synthesis did not yield" in item
-                for item in salvaged.result.warnings
-            )
-        )
-
+        self.assertEqual(salvaged.result.status.value, "NO_STRONG_OPPORTUNITY")
+        self.assertEqual(salvaged.result.footage_requests, [])
+        self.assertEqual(salvaged.result.fandom_story_dossiers, [])
         for output in (salvaged, run_with(EmptySynthesizer())):
-            opportunity = output.result.opportunities[0]
-            request = output.result.footage_requests[0]
-            required = request.required_sources[0]
-            self.assertEqual(
-                opportunity.focus.characters,
-                ["John Stewart", "Hal Jordan"],
-            )
-            self.assertEqual(required.characters, ["John Stewart", "Hal Jordan"])
-            self.assertEqual(
-                request.natural_request.best,
-                "Give me a John Stewart and Hal Jordan scene pack.",
-            )
-            self.assertIn("exact scene is unknown", required.scene_or_moment)
-            self.assertNotIn(long_headline, request.model_dump_json())
+            self.assertEqual(output.result.status.value, "NO_STRONG_OPPORTUNITY")
+            self.assertEqual(output.result.opportunities, [])
+            self.assertNotIn(long_headline, output.result.model_dump_json())
             self.assertNotIn(
                 long_headline,
-                opportunity.focus.relationship_or_topic,
+                output.result.message,
             )
 
-    def test_exact_episode_scene_lead_replaces_generic_live_scene_pack(self) -> None:
-        """A qualified scene lead must beat a technically valid generic pack."""
+    def test_exact_episode_scene_lead_does_not_rescue_a_conceptless_generic_pack(self) -> None:
+        """A specific evidence lead still requires a dossier and authored concept."""
 
         locator = EpisodeLocatorFactV2(
             show_or_title="Lanterns",
@@ -2719,6 +3020,16 @@ class M1ResearchTests(unittest.TestCase):
             ):
                 del intent, evidence_sources, authorization
                 cancellation.raise_if_cancelled()
+                return SynthesisProviderResult(
+                    provider=self.name,
+                    draft=ResearchSynthesisDraftV2(
+                        no_strong_opportunity_reason=(
+                            "A scene lead exists, but the synthesizer did not supply a supported "
+                            "dossier and editorial concept."
+                        )
+                    ),
+                )
+                # The old generic-pack draft is intentionally unreachable.
                 identity_claim = next(
                     claim
                     for claim in evidence_claims
@@ -2864,40 +3175,10 @@ class M1ResearchTests(unittest.TestCase):
             cancellation=CancellationToken(),
         )
 
-        self.assertEqual(output.result.status.value, "OPPORTUNITIES")
-        opportunity = output.result.opportunities[0]
-        request = output.result.footage_requests[0]
-        required = request.required_sources[0]
-        self.assertEqual(required.asset_kind, SourceAcquisitionKind.INDIVIDUAL_SCENES)
-        self.assertEqual(
-            required.verification_level,
-            FootageVerificationLevel.LIKELY_INFERRED,
-        )
-        self.assertEqual(required.characters, ["Hal Jordan"])
-        self.assertEqual(
-            required.scene_or_moment,
-            "Season 1 Episode 1's ending around Hal Jordan's apparent death",
-        )
-        self.assertEqual(
-            request.natural_request.best,
-            "Give me the Lanterns scenes covering Season 1 Episode 1's ending around Hal Jordan's apparent death.",
-        )
-        self.assertEqual(len(request.intro_leads), 1)
-        self.assertEqual(len(request.optional_sources), 1)
-        self.assertEqual(
-            request.optional_sources[0].asset_kind,
-            SourceAcquisitionKind.OFFICIAL_CLIP,
-        )
-        self.assertIsNotNone(request.natural_request.optional_improvement)
-        self.assertIn("LIKELY / INFERRED", opportunity.creative_hook)
-        self.assertIn("Hal Jordan's apparent death", opportunity.creative_hook)
-        self.assertNotIn(techradar_title, request.model_dump_json())
-        self.assertTrue(
-            any(
-                "Replaced a generic same-title scene pack" in warning
-                for warning in output.result.warnings
-            )
-        )
+        self.assertEqual(output.result.status.value, "NO_STRONG_OPPORTUNITY")
+        self.assertEqual(output.result.opportunities, [])
+        self.assertEqual(output.result.fandom_story_dossiers, [])
+        self.assertEqual(output.result.footage_requests, [])
 
     def test_tvmaze_metadata_plus_one_discussion_does_not_spend_on_synthesis(self) -> None:
         locator = EpisodeLocatorFactV2(
@@ -3166,13 +3447,14 @@ class M1ResearchTests(unittest.TestCase):
         ).result
 
         self.assertEqual(result.status.value, "NO_STRONG_OPPORTUNITY")
-        self.assertEqual(len(result.warnings), 1)
-        warning = result.warnings[0].casefold()
+        warning = next(
+            item.casefold() for item in result.warnings if "studio.example" in item
+        )
         for forbidden in ("download", "manifest", "torrent", "viral", "% chance"):
             self.assertNotIn(forbidden, warning)
         self.assertIn("studio.example", warning)
         self.assertIn("source-owned date was stale", warning)
-        self.assertLessEqual(len(result.warnings[0]), 500)
+        self.assertTrue(all(len(item) <= 500 for item in result.warnings))
 
     def test_workflow_passes_only_successful_prior_provider_facts_as_context(self) -> None:
         locator = EpisodeLocatorFactV2(

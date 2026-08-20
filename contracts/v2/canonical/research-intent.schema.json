@@ -1,5 +1,95 @@
 {
   "$defs": {
+    "IntentFacetCategory": {
+      "enum": [
+        "HARD_CONSTRAINT",
+        "SOFT_PREFERENCE",
+        "AUDIENCE",
+        "PLATFORM_FIT",
+        "CREATIVE_EDIT"
+      ],
+      "title": "IntentFacetCategory",
+      "type": "string"
+    },
+    "IntentFacetSource": {
+      "enum": [
+        "EXPLICIT",
+        "INFERRED_PRIOR"
+      ],
+      "title": "IntentFacetSource",
+      "type": "string"
+    },
+    "IntentFacetV1": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/IntentFacetCategory"
+        },
+        "facet_id": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "title": "Facet Id",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "rationale": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "removable": {
+          "default": true,
+          "title": "Removable",
+          "type": "boolean"
+        },
+        "source": {
+          "$ref": "#/$defs/IntentFacetSource"
+        }
+      },
+      "required": [
+        "facet_id",
+        "category",
+        "label",
+        "source",
+        "rationale"
+      ],
+      "title": "IntentFacetV1",
+      "type": "object"
+    },
+    "IntentSearchQuestionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_goal": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Evidence Goal",
+          "type": "string"
+        },
+        "query": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Query",
+          "type": "string"
+        },
+        "question_id": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "title": "Question Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question_id",
+        "query",
+        "evidence_goal"
+      ],
+      "title": "IntentSearchQuestionV1",
+      "type": "object"
+    },
     "MediaKind": {
       "enum": [
         "TV_EPISODE",
@@ -19,6 +109,76 @@
       ],
       "title": "SpoilerPolicy",
       "type": "string"
+    },
+    "UserIntentInterpretationV1": {
+      "additionalProperties": false,
+      "properties": {
+        "broad_query": {
+          "default": false,
+          "title": "Broad Query",
+          "type": "boolean"
+        },
+        "clarification_needed": {
+          "default": false,
+          "title": "Clarification Needed",
+          "type": "boolean"
+        },
+        "clarification_reason": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clarification Reason"
+        },
+        "direct_tiktok_data_used": {
+          "default": false,
+          "title": "Direct Tiktok Data Used",
+          "type": "boolean"
+        },
+        "facets": {
+          "items": {
+            "$ref": "#/$defs/IntentFacetV1"
+          },
+          "maxItems": 30,
+          "title": "Facets",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "search_questions": {
+          "items": {
+            "$ref": "#/$defs/IntentSearchQuestionV1"
+          },
+          "maxItems": 20,
+          "title": "Search Questions",
+          "type": "array"
+        },
+        "short_form_inference_disclaimer": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Short Form Inference Disclaimer"
+        }
+      },
+      "title": "UserIntentInterpretationV1",
+      "type": "object"
     }
   },
   "$id": "https://ai-edit-machine.local/contracts/v2/canonical/research-intent.schema.json",
@@ -51,6 +211,17 @@
       "minimum": 1,
       "title": "Freshness Days",
       "type": "integer"
+    },
+    "interpretation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/UserIntentInterpretationV1"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "max_results": {
       "default": 5,

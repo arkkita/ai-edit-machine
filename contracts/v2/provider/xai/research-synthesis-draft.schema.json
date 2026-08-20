@@ -1,6 +1,402 @@
 {
   "$comment": "Provider baseline only; M1 adapter conformance must verify the live API.",
   "$defs": {
+    "DossierCharacterV1": {
+      "additionalProperties": false,
+      "properties": {
+        "character_name": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "performer_name": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "type": "array"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "character_name",
+        "performer_name",
+        "show_or_title",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "type": "object"
+    },
+    "DossierCurrentSourceKind": {
+      "enum": [
+        "EPISODE",
+        "SEASON",
+        "TRAILER",
+        "OFFICIAL_CLIP",
+        "ANNOUNCEMENT",
+        "INTERVIEW",
+        "ARTICLE",
+        "OTHER"
+      ],
+      "type": "string"
+    },
+    "DossierCurrentSourceV1": {
+      "additionalProperties": false,
+      "properties": {
+        "episode_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "episode_title": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "season_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_kind": {
+          "$ref": "#/$defs/DossierCurrentSourceKind"
+        },
+        "source_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "source_kind",
+        "show_or_title",
+        "source_title",
+        "season_number",
+        "episode_number",
+        "episode_title",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "type": "object"
+    },
+    "DossierEvidenceFactV1": {
+      "additionalProperties": false,
+      "properties": {
+        "supporting_claim_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array"
+        },
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "text",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "type": "object"
+    },
+    "DossierFranchiseConnectionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "characters": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "connected_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "connection_type": {
+          "$ref": "#/$defs/LegacyConnectionType"
+        },
+        "current_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "connection_type",
+        "current_title",
+        "connected_title",
+        "characters",
+        "description",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "type": "object"
+    },
+    "DossierQuoteLeadV1": {
+      "additionalProperties": false,
+      "properties": {
+        "quote": {
+          "$ref": "#/$defs/FootageQuoteV2"
+        },
+        "source_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "type": "array"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        }
+      },
+      "required": [
+        "quote",
+        "source_title",
+        "verification_status",
+        "supporting_claim_ids"
+      ],
+      "type": "object"
+    },
+    "EditorialConceptDraftV1": {
+      "additionalProperties": false,
+      "properties": {
+        "central_relationship": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "central_subject": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "concept_key": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "type": "string"
+        },
+        "core_emotion": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "creative_strength": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "current_event": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "dossier_key": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "type": "string"
+        },
+        "ending_or_payoff": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/OpportunityEvidenceSelectionV2"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array"
+        },
+        "footage_feasibility": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "footage_request": {
+          "$ref": "#/$defs/FootageRequestDraftV2"
+        },
+        "intro_leads": {
+          "items": {
+            "$ref": "#/$defs/IntroMaterialLeadDraftV2"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "type": "array"
+        },
+        "known_uncertainties": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "legacy_connection_type": {
+          "$ref": "#/$defs/LegacyConnectionType"
+        },
+        "legacy_or_contextual_connection": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "montage_arc": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 3,
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "type": "string"
+        },
+        "song_handoff_idea": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        },
+        "viewer_hook": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "why_fans_may_care": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "concept_key",
+        "dossier_key",
+        "title",
+        "central_subject",
+        "central_relationship",
+        "core_emotion",
+        "viewer_hook",
+        "why_fans_may_care",
+        "current_event",
+        "legacy_or_contextual_connection",
+        "legacy_connection_type",
+        "intro_leads",
+        "song_handoff_idea",
+        "montage_arc",
+        "ending_or_payoff",
+        "evidence",
+        "verification_status",
+        "creative_strength",
+        "footage_feasibility",
+        "known_uncertainties",
+        "footage_request"
+      ],
+      "type": "object"
+    },
     "EvidenceRole": {
       "enum": [
         "PRIMARY_WHY_NOW",
@@ -9,6 +405,122 @@
         "CONTEXT"
       ],
       "type": "string"
+    },
+    "FandomStoryDossierDraftV1": {
+      "additionalProperties": false,
+      "properties": {
+        "audience_and_fandom_evidence": {
+          "items": {
+            "$ref": "#/$defs/DossierEvidenceFactV1"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "type": "array"
+        },
+        "central_relationship": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DossierEvidenceFactV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "current_event_or_hook": {
+          "$ref": "#/$defs/DossierEvidenceFactV1"
+        },
+        "current_source": {
+          "$ref": "#/$defs/DossierCurrentSourceV1"
+        },
+        "dossier_key": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/OpportunityEvidenceSelectionV2"
+          },
+          "maxItems": 60,
+          "minItems": 1,
+          "type": "array"
+        },
+        "exact_or_likely_quote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DossierQuoteLeadV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "franchise_connections": {
+          "items": {
+            "$ref": "#/$defs/DossierFranchiseConnectionV1"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "named_characters": {
+          "items": {
+            "$ref": "#/$defs/DossierCharacterV1"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array"
+        },
+        "relationship_or_character_history": {
+          "items": {
+            "$ref": "#/$defs/DossierEvidenceFactV1"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "type": "string"
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "uncertainties": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "type": "array"
+        },
+        "why_fans_currently_care": {
+          "items": {
+            "$ref": "#/$defs/DossierEvidenceFactV1"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "dossier_key",
+        "show_or_title",
+        "current_event_or_hook",
+        "named_characters",
+        "central_relationship",
+        "current_source",
+        "exact_or_likely_quote",
+        "franchise_connections",
+        "relationship_or_character_history",
+        "why_fans_currently_care",
+        "audience_and_fandom_evidence",
+        "uncertainties",
+        "evidence"
+      ],
+      "type": "object"
     },
     "FootageQuoteStatus": {
       "enum": [
@@ -73,6 +585,17 @@
           },
           "maxItems": 30,
           "type": "array"
+        },
+        "concept_key": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{1,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "intro_leads": {
           "items": {
@@ -144,6 +667,7 @@
       },
       "required": [
         "schema_version",
+        "concept_key",
         "summary",
         "natural_request",
         "required_sources",
@@ -213,6 +737,19 @@
         "supporting_claim_ids"
       ],
       "type": "object"
+    },
+    "LegacyConnectionType": {
+      "enum": [
+        "NONE",
+        "SAME_CHARACTER",
+        "SAME_CANONICAL_UNIVERSE",
+        "EXPLICIT_CALLBACK",
+        "THEMATIC_PARALLEL",
+        "ACTOR_CONNECTION_ONLY",
+        "FAN_INTERPRETATION",
+        "UNSUPPORTED_SPECULATION"
+      ],
+      "type": "string"
     },
     "MediaIdentityV2": {
       "additionalProperties": false,
@@ -559,16 +1096,30 @@
       "additionalProperties": false,
       "description": "One untrusted recommendation pair produced from an evidence allow-list.",
       "properties": {
-        "footage_request": {
-          "$ref": "#/$defs/FootageRequestDraftV2"
+        "editorial_concepts": {
+          "items": {
+            "$ref": "#/$defs/EditorialConceptDraftV1"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "type": "array"
+        },
+        "fandom_story_dossier": {
+          "$ref": "#/$defs/FandomStoryDossierDraftV1"
         },
         "opportunity": {
           "$ref": "#/$defs/TrendOpportunityDraftV2"
+        },
+        "recommended_concept_key": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "type": "string"
         }
       },
       "required": [
         "opportunity",
-        "footage_request"
+        "fandom_story_dossier",
+        "editorial_concepts",
+        "recommended_concept_key"
       ],
       "type": "object"
     },

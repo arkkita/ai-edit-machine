@@ -1,0 +1,85 @@
+{
+  "schema_version": "1.0.0",
+  "bakeoff_id": "m1.1-provider-role-audit-2026-08-19",
+  "evidence_packet_id": "m1.1-identical-sanitized-evidence-packet-v1",
+  "configurations": [
+    {
+      "configuration_id": "A-xai-grok-4.6-x-search",
+      "required_configuration": "A",
+      "provider": "xai",
+      "requested_model": "grok-4.6",
+      "intended_roles": ["current fandom discussion", "semantic X search", "relationship and moment validation"],
+      "official_documentation_status": "Official xAI documentation reviewed on 2026-08-19 documented Grok 4.5, not the requested Grok 4.6 model ID.",
+      "official_sources": ["https://docs.x.ai/developers/tools/x-search", "https://docs.x.ai/developers/pricing"],
+      "execution_status": "BLOCKED_OFFICIAL_ID_UNVERIFIED",
+      "reason": "Fail closed: model existence and a price-card binding cannot be inferred from the request, and no older model was silently substituted.",
+      "scores": null,
+      "latency_ms": null,
+      "cost_micro_usd": null
+    },
+    {
+      "configuration_id": "B-google-gemini-3.7-flash-grounding",
+      "required_configuration": "B",
+      "provider": "google",
+      "requested_model": "gemini-3.7-flash",
+      "intended_roles": ["candidate expansion", "release and episode research", "grounded quote and scene verification", "structured synthesis"],
+      "official_documentation_status": "Official Google AI documentation reviewed on 2026-08-19 documented Gemini 3.6 Flash, not the requested Gemini 3.7 Flash model ID.",
+      "official_sources": ["https://ai.google.dev/gemini-api/docs/models", "https://ai.google.dev/gemini-api/docs/google-search", "https://ai.google.dev/gemini-api/docs/pricing"],
+      "execution_status": "BLOCKED_OFFICIAL_ID_UNVERIFIED",
+      "reason": "Fail closed: the requested model ID could not be preflighted from first-party documentation, and Gemini 3.6 Flash was not silently substituted.",
+      "scores": null,
+      "latency_ms": null,
+      "cost_micro_usd": null
+    },
+    {
+      "configuration_id": "C-openai-gpt-5.6-sol-web",
+      "required_configuration": "C",
+      "provider": "openai",
+      "requested_model": "gpt-5.6-sol",
+      "intended_roles": ["final user-intent critique", "editorial usefulness", "final ranking", "human-request mismatch detection"],
+      "official_documentation_status": "Official OpenAI model and pricing documentation verified the requested model ID and published pricing on 2026-08-19.",
+      "official_sources": ["https://developers.openai.com/api/docs/models/gpt-5.6-sol", "https://developers.openai.com/api/docs/models", "https://developers.openai.com/api/docs/guides/latest-model"],
+      "execution_status": "NOT_RUN_NO_APPROVED_ADAPTER",
+      "reason": "The verified one-result root cause was funnel allocation and gating, not an established model deficit. The trusted catalog and Windows-credential adapter remain bound to Luna, so no production model was changed before evidence justified it.",
+      "scores": null,
+      "latency_ms": null,
+      "cost_micro_usd": null
+    },
+    {
+      "configuration_id": "C-openai-gpt-5.6-terra-web",
+      "required_configuration": "C",
+      "provider": "openai",
+      "requested_model": "gpt-5.6-terra",
+      "intended_roles": ["final user-intent critique", "editorial usefulness", "final ranking", "human-request mismatch detection"],
+      "official_documentation_status": "Official OpenAI model and pricing documentation verified the requested model ID and published pricing on 2026-08-19.",
+      "official_sources": ["https://developers.openai.com/api/docs/models", "https://developers.openai.com/api/docs/guides/latest-model"],
+      "execution_status": "NOT_RUN_NO_APPROVED_ADAPTER",
+      "reason": "No model replacement was warranted by the diagnosed failure, and the current trusted adapter has no reviewed Terra price card or preflight binding.",
+      "scores": null,
+      "latency_ms": null,
+      "cost_micro_usd": null
+    },
+    {
+      "configuration_id": "CURRENT-openai-gpt-5.6-luna-m1.1",
+      "required_configuration": "CURRENT",
+      "provider": "openai",
+      "requested_model": "gpt-5.6-luna",
+      "intended_roles": ["web verification", "structured editorial synthesis"],
+      "official_documentation_status": "Current trusted catalog binding retained after the exact live regression replay on 2026-08-19.",
+      "official_sources": ["https://developers.openai.com/api/docs/models", "https://developers.openai.com/api/docs/pricing"],
+      "execution_status": "NOT_RUN_NO_ELIGIBLE_SYNTHESIS_PACKET",
+      "reason": "The exact live replay measured Luna web verification, but no candidate passed both the evidence and audience-fit gates. Synthesis was correctly not started, so editorial quality was not scored or inferred.",
+      "retrieval_observation": {
+        "fixture": "live-regression-2026-08-19-run5.json",
+        "web_verify_cost_micro_usd": 226893,
+        "end_to_end_latency_ms": 159064,
+        "web_verify_requests": 40,
+        "web_search_tool_invocations": 20,
+        "synthesis_status": "NOT_STARTED"
+      },
+      "scores": null,
+      "latency_ms": null,
+      "cost_micro_usd": null
+    }
+  ]
+}

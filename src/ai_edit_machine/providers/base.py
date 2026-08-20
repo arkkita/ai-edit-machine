@@ -241,7 +241,85 @@ EMPTY_PROVIDER_RESEARCH_CONTEXT = ProviderResearchContext()
 # bounds keep the provider context below its 200-record ceiling while allowing
 # the verifier to choose among a meaningfully diverse candidate set.
 MAX_TVMAZE_DISCOVERY_SHOWS = 15
+MAX_M11_TVMAZE_DISCOVERY_SHOWS = 30
 MAX_TVMAZE_CAST_SHOWS = 8
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderCandidateTrace:
+    """Sanitized immutable identity for one deep-research candidate.
+
+    The trace deliberately contains no URL, excerpt, query, provider payload,
+    or user-secret data.  It exists so a development/result diagnostic can
+    explain which exact title consumed a bounded deep-research slot.
+    """
+
+    candidate_name: str
+    title: str
+    shortlist_rank: int
+    shortlist_reason: str
+    season_number: int | None = None
+    episode_number: int | None = None
+    episode_title: str | None = None
+
+    def __post_init__(self) -> None:
+        text_values = (
+            self.candidate_name,
+            self.title,
+            self.shortlist_reason,
+            *(value for value in (self.episode_title,) if value is not None),
+        )
+        if (
+            not 1 <= self.shortlist_rank <= 1_000
+            or any(
+                not value
+                or len(value) > 500
+                or any(character in value for character in "\r\n\0")
+                for value in text_values
+            )
+            or (self.season_number is None) != (self.episode_number is None)
+            or (self.season_number is not None and self.season_number < 0)
+            or (self.episode_number is not None and self.episode_number < 1)
+        ):
+            raise ValueError("provider candidate trace is invalid")
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderCandidateFunnel:
+    """Provider observability for M1 candidate allocation.
+
+    Counters remain value-free. Candidate traces contain only bounded immutable
+    title/episode identities and a host-authored allocation reason; they never
+    retain queries, URLs, excerpts, or provider payloads.
+    """
+
+    generated_search_variants: int = 0
+    raw_release_candidates: int = 0
+    candidates_after_freshness: int = 0
+    candidates_after_hard_exclusions: int = 0
+    candidates_after_audience_fit_screening: int = 0
+    candidates_selected_for_social_research: int = 0
+    candidates_with_usable_social_evidence: int = 0
+    candidate_traces: tuple[ProviderCandidateTrace, ...] = ()
+
+    def __post_init__(self) -> None:
+        values = (
+            self.generated_search_variants,
+            self.raw_release_candidates,
+            self.candidates_after_freshness,
+            self.candidates_after_hard_exclusions,
+            self.candidates_after_audience_fit_screening,
+            self.candidates_selected_for_social_research,
+            self.candidates_with_usable_social_evidence,
+        )
+        if any(value < 0 for value in values):
+            raise ValueError("candidate-funnel counters cannot be negative")
+        if len(self.candidate_traces) > 30:
+            raise ValueError("candidate-funnel trace exceeds the bounded title slate")
+        ranks = [item.shortlist_rank for item in self.candidate_traces]
+        titles = [item.title.casefold() for item in self.candidate_traces]
+        if len(ranks) != len(set(ranks)) or len(titles) != len(set(titles)):
+            raise ValueError("candidate-funnel traces must have unique ranks and titles")
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,6 +387,9 @@ class ProviderBatch:
     error: str | None = None
     attributions: tuple[str, ...] = ()
     trusted_official_hosts: tuple[str, ...] = ()
+    candidate_funnel: ProviderCandidateFunnel = field(
+        default_factory=ProviderCandidateFunnel
+    )
 
     def __post_init__(self) -> None:
         details = [self.refusal, self.incomplete, self.error]

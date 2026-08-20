@@ -7,14 +7,13 @@ Prices are estimates from current official pages, not quotes. The application mu
 
 | Provider/capability | Planning price | Official source |
 |---|---:|---|
-| xAI `grok-4.6` | Under 200k context: $2/M input, $0.50/M cached input, $6/M output; at/above 200k: $4/$1/$12 | [xAI pricing](https://docs.x.ai/developers/pricing) |
-| xAI `grok-4.3` fallback | Under 200k context: $1.25/M input, $0.20/M cached input, $2.50/M output | [xAI pricing](https://docs.x.ai/developers/pricing) |
-| xAI X Search / Web Search | $0.005 per tool invocation | [xAI pricing](https://docs.x.ai/developers/pricing) |
+| xAI requested `grok-4.6` / fallback | No executable price card: the 2026-08-19 first-party recheck did not establish the requested 4.6 identifier. | [xAI pricing](https://docs.x.ai/developers/pricing) |
+| xAI X Search / Web Search | Documentation audited, but no M1 authorization while the exact model/cap binding is unverified. | [xAI X Search](https://docs.x.ai/developers/tools/x-search) |
 | OpenAI `gpt-5.6-luna` | $0.20/M input; $0.02/M cached input; $1.20/M output | [OpenAI Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna) |
 | OpenAI web search | $0.01 per call plus model-rate search-content tokens | [OpenAI pricing](https://developers.openai.com/api/docs/pricing) |
-| OpenAI `gpt-5.6-terra` / `sol` optional critics | Terra $2.50/M input, $15/M output; Sol $5/M input, $30/M output | [OpenAI pricing](https://developers.openai.com/api/docs/pricing) |
-| Google Gemini 3.7/3.6 Flash through 2026-12-31 | $0.75/M input; $3.75/M output; batch/flex half price | [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing) |
-| Google Gemini 3.7/3.6 Flash from 2027-01-01 | $1.50/M input; $7.50/M output | [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing) |
+| OpenAI `gpt-5.6-terra` / `sol` optional critics | Terra $2/M input, $12/M output; Sol $5/M input, $30/M output | [OpenAI models](https://developers.openai.com/api/docs/models) |
+| Google Gemini 3.6 Flash through 2026-12-31 | $0.75/M input; $3.75/M output; batch/flex half price. Requested 3.7 was not established and has no executable card. | [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing) |
+| Google Gemini 3.6 Flash from 2027-01-01 | $1.50/M input; $7.50/M output | [Gemini 3.6 Flash](https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash) |
 | OpenAI `gpt-transcribe` | about $0.0045/minute | [OpenAI pricing](https://developers.openai.com/api/docs/pricing) |
 | OpenAI `whisper-1` | $0.006/minute | [Whisper-1](https://developers.openai.com/api/docs/models/whisper-1) |
 | Direct X API Post read | $0.005/resource | [X API pricing](https://docs.x.com/x-api/getting-started/pricing) |
@@ -28,21 +27,53 @@ The OpenAI Luna model page and central pricing table were rechecked on 2026-08-1
 
 ### Milestone 1 ordinary opportunity run
 
-Illustrative bounded run:
+The current M1.1 production plan uses free TVmaze metadata, one bounded Luna
+web-verification capability, optional official YouTube metadata, and one Luna
+structured-synthesis capability. xAI and Google are not part of the executable
+M1.1 plan.
 
-- Grok 4.6: 20k input + 5k output = about $0.0700;
-- five X Search + two xAI Web Search invocations = $0.035;
-- up to six OpenAI web-search tool calls = $0.060;
-- Luna verification/synthesis tokens, 10k input + 3k output = about $0.0280;
-- TVmaze/YouTube metadata = no per-call dollar charge.
+The verifier reserves twenty built-in web-search calls before consent. The host
+uses broad coverage followed by candidate-scoped exact-title owner lanes for up
+to eight titles, all through Responses with `tool_choice="required"`; assistant
+prose never becomes evidence. The host consumes each hosted tool's complete
+`web_search_call.action.sources` list and independently validates pages. The
+verifier may additionally make credential-free public-page checks within a
+forty-request aggregate ceiling; those checks remain HTTPS-only, DNS-pinned,
+exact-host, byte-bounded, and subject to the same source/date/identity
+validation. The [official OpenAI Web Search guide](https://developers.openai.com/api/docs/guides/tools-web-search)
+documents the complete source list and required/auto distinction.
 
-**Illustrative total: about $0.14.** A practical ordinary range is **$0.08–$0.40** depending on source count, retries, output, and selected 4.6/4.3 tier. Suggested M1 defaults are a $0.25 warning and $0.50 hard cap per run.
-
-The M1 OpenAI verifier reserves fourteen built-in web-search calls before consent. The host uses two owner-partitioned coverage searches followed by candidate-scoped exact-title searches, all through Responses with `tool_choice="required"`; assistant prose never becomes evidence. The host consumes each hosted tool's complete `web_search_call.action.sources` list and independently validates pages. The verifier may additionally make credential-free public-page checks within a forty-request aggregate ceiling; those checks remain HTTPS-only, DNS-pinned, exact-host, byte-bounded, and subject to the same source/date/identity validation. The [official OpenAI Web Search guide](https://developers.openai.com/api/docs/guides/tools-web-search) documents that `tool_choice="auto"` makes search optional, that `required` should be used when search must run, and that `web_search_call.action.sources` is the complete list of consulted URLs rather than only inline citations. The verifier also sends `search_context_size="low"`; OpenAI documents that this controls how much search-result context is made available, but does not promise an exact token or source count. Provider-added search context can therefore make reported billable input exceed the locally estimated request-body size.
-
-The current trusted capability separately reserves at most 170,000 provider-reported input tokens, 5,333 output tokens, and fourteen searches. At the current Luna rates that is **$0.180400**. Synthesis reserves 30,000 input plus 8,000 output tokens for the first attempt and an equal **$0.015600** allowance for the one syntax-only repair, for a **$0.031200** synthesis maximum. The complete ordinary M1 cloud maximum is **$0.211600**, below the independent $0.50 per-run hard cap. Public-page checks carry no provider charge but remain request- and time-bounded.
+The current trusted verifier capability reserves at most 230,000
+provider-reported input tokens, 7,500 output tokens, and twenty searches. At the
+current Luna rates that is **$0.255000**. Synthesis reserves 30,000 input plus
+8,000 output tokens for the first attempt and an equal **$0.015600** allowance
+for the one syntax-only repair, for a **$0.031200** synthesis maximum. The
+complete ordinary M1.1 cloud maximum is **$0.286200**, below the independent
+$0.50 ordinary-run hard cap. Public-page and TVmaze checks carry no provider
+charge but remain request- and time-bounded. Provider-added search context can
+make reported billable input exceed the locally estimated request-body size;
+the higher accounting ceiling is therefore separate from the tighter request
+body cap.
 
 The development-only M1 provider probe is a different, fixed capability: exactly one hosted search, at most 198,000 reported input tokens and 300 output tokens, no synthesis, no repair, and no network retry. Its conservative reservation is **$0.049960** under an independent immutable **$0.050000** run-scope cap. It is compiled out of release builds, uses the ordinary Rust-owned credential lookup and cost ledger, and a committed or held first paid request prevents a second authorization. `search_context_size="low"` is not described as an exact billable-token cap; any provider-reported overrun is still reconciled and surfaced.
+
+The M1.1 calibration command is also development-only but exercises the full
+normal live plan for the one fixed regression prompt. Every run uses the same
+immutable `m1-1-live-calibration-2026-08-19-v1` scope under a **$2.000000**
+aggregate hard cap. A full run reserves **$0.286200**; six such unresolved/full
+reservations total $1.717200 and a seventh would total $2.003400, so the trusted
+transaction rejects it before network activity. The command forces fresh
+provider calls, neither reads nor writes reusable/shared research caches, saves
+only a credential-checked create-new sanitized canonical fixture, and is absent
+from production behavior.
+
+As of the M1.1b offline checkpoint on **2026-08-20**, that immutable scope has
+reconciled **$0.940791** of paid provider usage, leaving **$1.059209** before the
+$2.000000 ceiling. M1.1b implementation, the eight-candidate regression
+diagnosis, fixtures, schema work, backend checks, and UI checks made **zero**
+additional paid calls. At most one bounded live regression rerun is permitted
+after the complete offline evaluation passes; the same Rust reservation ledger
+must reject it before network activity if aggregate capacity is insufficient.
 
 The token values above are conservative accounting ceilings calibrated from observed usage with margin, not claims that `search_context_size` hard-caps billed input. Opaque provider call IDs are stored only as bounded SHA-256-derived audit labels. A response that reports usage beyond any reserved dimension is still reconciled as an overrun and held conservatively; it is not discarded as malformed, silently undercounted, or allowed to authorize a later call. Historical ledger entries remain bound to the immutable price card that authorized them; discovering a newer card does not silently rewrite prior reservations or actuals. The earlier one-call `$0.0912` verifier diagnostic authorization is exhausted and is not reusable under the corrected card.
 

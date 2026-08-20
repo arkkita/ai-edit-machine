@@ -21,11 +21,22 @@ from ..contracts import (
     VerificationState,
 )
 from ..m1_contracts import (
+    CandidateDiagnosticV1,
+    CandidateFailureClass,
+    CandidateFunnelRejectionV1,
+    CandidateFunnelV1,
+    CandidateScoreStatus,
+    CandidateScoreTraceV1,
+    FandomStoryDossierDraftV1,
+    FandomStoryDossierV1,
+    EditorialConceptDraftV1,
+    EditorialConceptV1,
     EvidenceClaimKind,
     EvidenceClaimRecordV2,
     EvidenceSourceRecordV2,
     FootageRequestDraftV2,
     FootageVerificationLevel,
+    LegacyConnectionType,
     IntroMaterialLeadDraftV2,
     MediaIdentityV2,
     NaturalFootageRequestV2,
@@ -36,6 +47,7 @@ from ..m1_contracts import (
     ResearchResultV2,
     SourceAcquisitionKind,
     SourcePurpose,
+    TrustedOpportunityEvidenceReferenceV2,
     TrendOpportunityDraftV2,
 )
 from ..providers.base import (
@@ -55,6 +67,11 @@ from .evidence import EvidenceIndex, build_trusted_opportunity
 from .footage import canonicalize_footage_request, render_natural_request
 from .intent import violates_exclusions
 from .policy import PolicyRule
+from .ranking import (
+    opportunity_passes_m11_quality_gate,
+    score_editorial_concept,
+    score_opportunity_quality,
+)
 from .source_ownership import (
     source_record_binds_media_title,
     source_record_binds_tvmaze_show,
@@ -62,10 +79,34 @@ from .source_ownership import (
 from .synthesis import ResearchSynthesizer, SynthesisProviderResult
 
 
-_FEMALE_CENTERED_FOCUS = "female-centered"
-_FEMALE_CENTERED_EVIDENCE = re.compile(
-    r"(?:\bfemale[\s-]*(?:centered|centred|focused|led)\b|"
-    r"\b(?:girls?|women|woman)\b|\b(?:mother|daughter|sister)s?\b)",
+_FEMALE_AUDIENCE_DIRECT = re.compile(
+    r"\b(?:female[\s-]*(?:skewing\s+)?(?:audience|fandom|fans?|viewers?)|"
+    r"(?:girls?|women)\s+(?:audience|fandom|fans?|viewers?|watchers?|discussion)|"
+    r"popular\s+(?:among|with)\s+(?:girls?|women))\b",
+    re.IGNORECASE,
+)
+_FEMALE_AFFINITY_CUE = re.compile(
+    r"\b(?:female[\s-]*(?:centered|centred|focused|led)|women\s+at\s+the\s+center|"
+    r"cent(?:er|re)s?\s+(?:its\s+)?women|"
+    r"heroines?|mother|daughter|sister|young[\s-]?adult|teen(?:age)?r?s?|romance|"
+    r"romantic|romcom|ship(?:ping)?|couple|chemistry|kiss|confession|"
+    r"relationship\s+fandom)\b",
+    re.IGNORECASE,
+)
+_MALE_AUDIENCE_DIRECT = re.compile(
+    r"\b(?:male[\s-]*(?:skewing\s+)?(?:audience|fandom|fans?|viewers?)|"
+    r"(?:boys?|men)\s+(?:audience|fandom|fans?|viewers?|watchers?|discussion)|"
+    r"popular\s+(?:among|with)\s+(?:boys?|men))\b",
+    re.IGNORECASE,
+)
+_MALE_AFFINITY_CUE = re.compile(
+    r"\b(?:male[\s-]*(?:centered|centred|focused|led)|action|combat|military|"
+    r"sports?|rivalry|underdog|victory|power\s+shift)\b",
+    re.IGNORECASE,
+)
+_QUEER_AUDIENCE_DIRECT = re.compile(
+    r"\b(?:queer|lgbtq\+?|lesbian|gay|bisexual)\s+"
+    r"(?:audience|fandom|fans?|viewers?|discussion)\b",
     re.IGNORECASE,
 )
 
@@ -85,6 +126,23 @@ class ResearchStageCounts:
     evidence_surviving_gates: int
     ranked_opportunities: int
     opportunities_returned_to_ui: int
+    parsed_intent: int = 1
+    generated_search_variants: int = 0
+    raw_release_candidates: int = 0
+    candidates_after_freshness: int = 0
+    candidates_after_hard_exclusions: int = 0
+    candidates_after_audience_fit_screening: int = 0
+    candidates_selected_for_social_research: int = 0
+    candidates_with_usable_social_evidence: int = 0
+    candidates_surviving_evidence_gates: int = 0
+    candidates_surviving_deduplication: int = 0
+    candidates_sent_to_final_ranker: int = 0
+    final_opportunities_serialized: int = 0
+    false_abstention_recovery_attempted: bool = False
+    recovered_candidate_count: int = 0
+    evidence_coverage_warning: str | None = None
+    rejection_reason_counts: tuple[tuple[str, int], ...] = ()
+    candidate_diagnostics: tuple[CandidateDiagnosticV1, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +153,196 @@ class ResearchWorkflowOutput:
     provider_batches: tuple[ProviderBatch, ...]
     synthesis: SynthesisProviderResult | None
     stage_counts: ResearchStageCounts
+
+
+def _stage_counts(
+    *,
+    batches: list[ProviderBatch],
+    normalized_claim_count: int,
+    gate_claims: list[EvidenceClaimRecordV2] | None = None,
+    deduplicated_opportunity_count: int = 0,
+    ranker_input_count: int = 0,
+    serialized_opportunity_count: int = 0,
+    false_abstention_recovery_attempted: bool = False,
+    recovered_candidate_count: int = 0,
+    evidence_coverage_warning: str | None = None,
+    rejection_reason_counts: dict[str, int] | None = None,
+    candidate_diagnostics: list[CandidateDiagnosticV1] | None = None,
+) -> ResearchStageCounts:
+    """Combine value-free provider counters into the canonical 14-stage funnel."""
+
+    tvmaze_funnel = next(
+        (batch.candidate_funnel for batch in batches if batch.provider == "tvmaze"),
+        None,
+    )
+    web_funnel = next(
+        (
+            batch.candidate_funnel
+            for batch in batches
+            if batch.provider in {"openai", "xai"}
+            and batch.candidate_funnel.generated_search_variants > 0
+        ),
+        None,
+    )
+    gate_titles = {
+        _normalized(title)
+        for claim in (gate_claims or [])
+        if (title := _claim_show_or_title(claim)) is not None
+    }
+    selected_for_social = (
+        web_funnel.candidates_selected_for_social_research
+        if web_funnel is not None
+        else (
+            tvmaze_funnel.candidates_selected_for_social_research
+            if tvmaze_funnel is not None
+            else 0
+        )
+    )
+    serialized = max(0, serialized_opportunity_count)
+    return ResearchStageCounts(
+        parsed_results=sum(len(item.evidence) for item in batches),
+        normalized_evidence=normalized_claim_count,
+        # Preserve the pre-M1.1 diagnostic meaning for existing fixtures while
+        # exposing the distinct-title gate count separately below.
+        evidence_surviving_gates=len(gate_claims or []),
+        ranked_opportunities=max(0, ranker_input_count),
+        opportunities_returned_to_ui=serialized,
+        parsed_intent=1,
+        generated_search_variants=(
+            web_funnel.generated_search_variants if web_funnel is not None else 0
+        ),
+        raw_release_candidates=(
+            tvmaze_funnel.raw_release_candidates if tvmaze_funnel is not None else 0
+        ),
+        candidates_after_freshness=(
+            tvmaze_funnel.candidates_after_freshness
+            if tvmaze_funnel is not None
+            else 0
+        ),
+        candidates_after_hard_exclusions=(
+            tvmaze_funnel.candidates_after_hard_exclusions
+            if tvmaze_funnel is not None
+            else 0
+        ),
+        candidates_after_audience_fit_screening=(
+            tvmaze_funnel.candidates_after_audience_fit_screening
+            if tvmaze_funnel is not None
+            else 0
+        ),
+        candidates_selected_for_social_research=selected_for_social,
+        candidates_with_usable_social_evidence=(
+            web_funnel.candidates_with_usable_social_evidence
+            if web_funnel is not None
+            else 0
+        ),
+        candidates_surviving_evidence_gates=len(gate_titles),
+        candidates_surviving_deduplication=max(0, deduplicated_opportunity_count),
+        candidates_sent_to_final_ranker=max(0, ranker_input_count),
+        final_opportunities_serialized=serialized,
+        false_abstention_recovery_attempted=false_abstention_recovery_attempted,
+        recovered_candidate_count=max(0, recovered_candidate_count),
+        evidence_coverage_warning=evidence_coverage_warning,
+        rejection_reason_counts=tuple(
+            sorted(
+                (code, count)
+                for code, count in (rejection_reason_counts or {}).items()
+                if code and count > 0
+            )
+        ),
+        candidate_diagnostics=tuple(candidate_diagnostics or ()),
+    )
+
+
+def _attach_candidate_funnel(
+    result: ResearchResultV2,
+    counts: ResearchStageCounts,
+) -> ResearchResultV2:
+    removed_hard = max(
+        0,
+        counts.candidates_after_freshness
+        - counts.candidates_after_hard_exclusions,
+    )
+    lacking_fandom = max(
+        0,
+        counts.candidates_selected_for_social_research
+        - counts.candidates_with_usable_social_evidence,
+    )
+    lacking_gate = max(
+        0,
+        counts.candidates_with_usable_social_evidence
+        - counts.candidates_surviving_evidence_gates,
+    )
+    lacking_actionability = max(
+        0,
+        counts.candidates_surviving_evidence_gates
+        - counts.candidates_sent_to_final_ranker,
+    )
+    shortage = counts.final_opportunities_serialized < 3
+    explanation = None
+    suggestions: list[str] = []
+    if shortage:
+        explanation = (
+            f"The search found {counts.raw_release_candidates} raw release record(s); "
+            f"{removed_hard} were removed by hard constraints, {lacking_fandom} of the "
+            "social-research shortlist lacked usable current fandom evidence, "
+            f"{lacking_gate} had usable evidence but did not jointly meet the "
+            "source-diversity, current-evidence, and requested-audience floor, and "
+            f"{lacking_actionability} evidence-gated candidate(s) did not reach the "
+            "final ranker with an actionable concept and footage request."
+        )
+        suggestions = [
+            "Broaden the freshness window.",
+            "Loosen one soft audience or genre preference.",
+            "Include upcoming official trailers.",
+            "Include films as well as television.",
+            "Include clearly labeled, less-proven opportunities.",
+            "Try a narrower character, relationship, or genre interpretation.",
+        ]
+    rejection_counts = dict(counts.rejection_reason_counts)
+    if lacking_gate:
+        rejection_counts["evidence_or_audience_gate"] = (
+            rejection_counts.get("evidence_or_audience_gate", 0) + lacking_gate
+        )
+    funnel = CandidateFunnelV1(
+        parsed_intent=counts.parsed_intent,
+        generated_search_variants=counts.generated_search_variants,
+        raw_release_candidates=counts.raw_release_candidates,
+        candidates_after_freshness=counts.candidates_after_freshness,
+        candidates_after_hard_exclusions=counts.candidates_after_hard_exclusions,
+        candidates_after_audience_fit_screening=(
+            counts.candidates_after_audience_fit_screening
+        ),
+        candidates_selected_for_social_research=(
+            counts.candidates_selected_for_social_research
+        ),
+        candidates_with_usable_social_evidence=(
+            counts.candidates_with_usable_social_evidence
+        ),
+        candidates_surviving_evidence_gates=(
+            counts.candidates_surviving_evidence_gates
+        ),
+        candidates_surviving_deduplication=(
+            counts.candidates_surviving_deduplication
+        ),
+        candidates_sent_to_final_ranker=counts.candidates_sent_to_final_ranker,
+        final_opportunities_serialized=counts.final_opportunities_serialized,
+        removed_by_hard_constraints=removed_hard,
+        lacking_current_fandom_evidence=lacking_fandom,
+        lacking_actionable_footage_information=lacking_actionability,
+        false_abstention_recovery_attempted=(
+            counts.false_abstention_recovery_attempted
+        ),
+        recovered_candidate_count=counts.recovered_candidate_count,
+        evidence_coverage_warning=counts.evidence_coverage_warning,
+        rejection_reasons=[
+            CandidateFunnelRejectionV1(reason_code=code, count=count)
+            for code, count in sorted(rejection_counts.items())
+        ],
+        candidate_diagnostics=list(counts.candidate_diagnostics),
+        shortage_explanation=explanation,
+        suggestions=suggestions,
+    )
+    return result.model_copy(update={"candidate_funnel": funnel})
 
 
 class ResearchWorkflow:
@@ -132,8 +380,43 @@ class ResearchWorkflow:
         if generated_at.tzinfo is None or generated_at.utcoffset() is None:
             raise ValueError("workflow generated_at must be timezone aware")
         authoritative_run_id = run_id or self._uuid_factory()
+        if (
+            intent.interpretation is not None
+            and intent.interpretation.clarification_needed
+        ):
+            result = _no_opportunity(
+                intent,
+                generated_at=generated_at,
+                run_id=authoritative_run_id,
+                message=intent.interpretation.clarification_reason
+                or "This request needs clarification before research can begin.",
+                warnings=[
+                    "No provider was contacted because explicit request constraints conflict."
+                ],
+            )
+            stage_counts = _stage_counts(
+                batches=[],
+                normalized_claim_count=0,
+                serialized_opportunity_count=0,
+            )
+            result = _attach_candidate_funnel(result, stage_counts)
+            return ResearchWorkflowOutput(
+                result=result,
+                evidence_sources=(),
+                evidence_claims=(),
+                provider_batches=(),
+                synthesis=None,
+                stage_counts=stage_counts,
+            )
         batches: list[ProviderBatch] = []
         warnings: list[str] = []
+        broad_recovery = bool(
+            intent.interpretation is not None
+            and intent.interpretation.broad_query
+        )
+        recovery_attempted = False
+        recovered_candidate_count = 0
+        evidence_coverage_warning: str | None = None
         prior_evidence = []
         trusted_official_hosts: set[str] = set()
         for plan in self._providers:
@@ -207,9 +490,28 @@ class ResearchWorkflow:
                 f"Reused {reused_count} still-current, policy-valid discussion source(s) from the local evidence cache."
             )
         sources, claims = _apply_exclusions(intent, sources, claims)
-        if not _could_support_recommendation(
+        strict_support = _could_support_recommendation(
             sources, claims, generated_at, intent
-        ):
+        )
+        recovery_support = strict_support
+        if broad_recovery:
+            recovery_attempted = True
+            recovery_support = _could_support_recommendation(
+                sources,
+                claims,
+                generated_at,
+                intent,
+                relaxed_soft_preferences=True,
+            )
+        if not recovery_support:
+            if recovery_attempted:
+                evidence_coverage_warning = (
+                    "The bounded false-abstention recovery pass used alternate semantic "
+                    "title-slate retrieval, reviewed lawful publisher sources, and a one-cue "
+                    "soft-audience floor, but no candidate retained the unchanged factual "
+                    "current-event and fandom-evidence requirements."
+                )
+                warnings.append(evidence_coverage_warning)
             result = _no_opportunity(
                 intent,
                 generated_at=generated_at,
@@ -217,32 +519,90 @@ class ResearchWorkflow:
                 message="No strong opportunity found under these constraints.",
                 warnings=warnings,
             )
+            stage_counts = _stage_counts(
+                batches=batches,
+                normalized_claim_count=len(claims),
+                false_abstention_recovery_attempted=recovery_attempted,
+                recovered_candidate_count=0,
+                evidence_coverage_warning=evidence_coverage_warning,
+                candidate_diagnostics=_build_candidate_diagnostics(
+                    batches=batches,
+                    sources=sources,
+                    claims=claims,
+                    intent=intent,
+                    now=generated_at,
+                    recovery_attempted=recovery_attempted,
+                ),
+            )
+            result = _attach_candidate_funnel(result, stage_counts)
             return ResearchWorkflowOutput(
                 result=result,
                 evidence_sources=tuple(sources),
                 evidence_claims=tuple(claims),
                 provider_batches=tuple(batches),
                 synthesis=None,
-                stage_counts=ResearchStageCounts(
-                    parsed_results=sum(len(item.evidence) for item in batches),
-                    normalized_evidence=len(claims),
-                    evidence_surviving_gates=0,
-                    ranked_opportunities=0,
-                    opportunities_returned_to_ui=0,
-                ),
+                stage_counts=stage_counts,
             )
 
-        synthesis_sources, synthesis_claims = _select_synthesis_evidence(
+        strict_synthesis_sources, strict_synthesis_claims = _select_synthesis_evidence(
             intent,
             sources,
             claims,
             now=generated_at,
         )
+        synthesis_sources = strict_synthesis_sources
+        synthesis_claims = strict_synthesis_claims
+        if broad_recovery:
+            recovery_sources, recovery_claims = _select_synthesis_evidence(
+                intent,
+                sources,
+                claims,
+                now=generated_at,
+                relaxed_soft_preferences=True,
+            )
+            strict_titles = {
+                _normalized(title)
+                for claim in strict_synthesis_claims
+                if (title := _claim_show_or_title(claim)) is not None
+                and claim.claim_kind
+                in {
+                    EvidenceClaimKind.WHY_NOW,
+                    EvidenceClaimKind.OFFICIAL_CLIP,
+                    EvidenceClaimKind.EPISODE_IDENTITY,
+                }
+            }
+            recovery_titles = {
+                _normalized(title)
+                for claim in recovery_claims
+                if (title := _claim_show_or_title(claim)) is not None
+                and claim.claim_kind
+                in {
+                    EvidenceClaimKind.WHY_NOW,
+                    EvidenceClaimKind.OFFICIAL_CLIP,
+                    EvidenceClaimKind.EPISODE_IDENTITY,
+                }
+            }
+            recovered_candidate_count = len(recovery_titles - strict_titles)
+            synthesis_sources, synthesis_claims = recovery_sources, recovery_claims
+            warnings.append(
+                "Completed one bounded false-abstention recovery pass: alternate semantic "
+                "title-slate queries and reviewed lawful publisher sources were evaluated, "
+                "only soft audience affinity was relaxed, and factual verification gates "
+                f"were unchanged; {recovered_candidate_count} additional candidate(s) entered "
+                "the synthesis allow-list."
+            )
         if not synthesis_sources or not synthesis_claims:
             warnings.append(
                 "The trusted synthesis allow-list was empty after title, media-kind, "
                 "freshness, and publisher-independence checks; paid synthesis was skipped."
             )
+            if recovery_attempted:
+                evidence_coverage_warning = (
+                    "The bounded recovery pass still produced no synthesis allow-list; the "
+                    "available sources did not jointly establish a current factual hook, "
+                    "credible fandom interest, and requested-audience relevance."
+                )
+                warnings.append(evidence_coverage_warning)
             result = _no_opportunity(
                 intent,
                 generated_at=generated_at,
@@ -250,19 +610,29 @@ class ResearchWorkflow:
                 message="No strong opportunity found under these constraints.",
                 warnings=warnings,
             )
+            stage_counts = _stage_counts(
+                batches=batches,
+                normalized_claim_count=len(claims),
+                false_abstention_recovery_attempted=recovery_attempted,
+                recovered_candidate_count=recovered_candidate_count,
+                evidence_coverage_warning=evidence_coverage_warning,
+                candidate_diagnostics=_build_candidate_diagnostics(
+                    batches=batches,
+                    sources=sources,
+                    claims=claims,
+                    intent=intent,
+                    now=generated_at,
+                    recovery_attempted=recovery_attempted,
+                ),
+            )
+            result = _attach_candidate_funnel(result, stage_counts)
             return ResearchWorkflowOutput(
                 result=result,
                 evidence_sources=tuple(sources),
                 evidence_claims=tuple(claims),
                 provider_batches=tuple(batches),
                 synthesis=None,
-                stage_counts=ResearchStageCounts(
-                    parsed_results=sum(len(item.evidence) for item in batches),
-                    normalized_evidence=len(claims),
-                    evidence_surviving_gates=0,
-                    ranked_opportunities=0,
-                    opportunities_returned_to_ui=0,
-                ),
+                stage_counts=stage_counts,
             )
         synthesis = self._synthesizer.synthesize(
             intent,
@@ -279,9 +649,10 @@ class ResearchWorkflow:
         evidence_index = EvidenceIndex.build(sources, claims)
         allowed_claim_ids = {UUID(str(item.claim_id)) for item in synthesis_claims}
         canonical_pairs = []
+        dossiers_by_opportunity: dict[UUID, FandomStoryDossierV1] = {}
+        concepts_by_opportunity: dict[UUID, list[EditorialConceptV1]] = {}
         rejected = 0
         rejection_codes: dict[str, int] = {}
-        omitted_intro_leads = 0
         recommendations = (
             synthesis.draft.recommendations
             if synthesis.outcome is ProviderRunOutcome.SUCCESS
@@ -292,64 +663,81 @@ class ResearchWorkflow:
             UUID(str(item.source_id)): item for item in synthesis_sources
         }
         for recommendation in recommendations:
-            try:
-                _validate_pair_against_intent(
-                    intent,
-                    recommendation.opportunity,
-                    recommendation.footage_request,
-                    evidence_index=evidence_index,
+            concept_drafts = [
+                item.model_copy(
+                    update={
+                        "footage_request": _attach_official_video_sources(
+                            item.footage_request,
+                            show_or_title=(
+                                recommendation.opportunity.media_identity.show_or_title
+                            ),
+                            claims=synthesis_claims,
+                            source_by_id=synthesis_source_by_id,
+                        )
+                    }
                 )
+                for item in recommendation.editorial_concepts
+            ]
+            recommended_concept_key = recommendation.recommended_concept_key
+            selected_drafts = [
+                item
+                for item in concept_drafts
+                if item.concept_key == recommended_concept_key
+            ]
+            if len(selected_drafts) != 1:
+                rejected += 1
+                rejection_codes["concept:missing-selected"] = (
+                    rejection_codes.get("concept:missing-selected", 0) + 1
+                )
+                continue
+            footage_draft = selected_drafts[0].footage_request
+            try:
+                for concept_draft in concept_drafts:
+                    _validate_pair_against_intent(
+                        intent,
+                        recommendation.opportunity,
+                        concept_draft.footage_request,
+                        evidence_index=evidence_index,
+                        allow_cross_title_sources=True,
+                    )
             except (ValueError, KeyError) as error:
                 rejected += 1
                 code = _synthesis_rejection_code("intent", error)
                 rejection_codes[code] = rejection_codes.get(code, 0) + 1
                 continue
-            footage_draft = _attach_official_video_sources(
-                recommendation.footage_request,
-                show_or_title=recommendation.opportunity.media_identity.show_or_title,
-                claims=synthesis_claims,
-                source_by_id=synthesis_source_by_id,
-            )
             opportunity_id = self._uuid_factory()
+            dossier_id = self._uuid_factory()
+            concept_ids = {
+                item.concept_key: self._uuid_factory() for item in concept_drafts
+            }
+            selected_concept_id = concept_ids[recommended_concept_key]
             request_id = self._uuid_factory()
             try:
+                dossier = _canonicalize_fandom_story_dossier(
+                    recommendation.fandom_story_dossier,
+                    opportunity=recommendation.opportunity,
+                    dossier_id=dossier_id,
+                    opportunity_id=opportunity_id,
+                    evidence_index=evidence_index,
+                    allowed_claim_ids=allowed_claim_ids,
+                )
                 footage = canonicalize_footage_request(
                     draft=footage_draft,
                     footage_request_id=request_id,
                     opportunity_id=opportunity_id,
+                    concept_id=selected_concept_id,
                     evidence_index=evidence_index,
                     allowed_claim_ids=allowed_claim_ids,
                     uuid_factory=self._uuid_factory,
                 )
             except (ValueError, KeyError) as error:
-                if footage_draft.intro_leads and _is_omittable_intro_lead_error(error):
-                    # Intro leads are optional leaves.  A model-authored lead that
-                    # cannot bind to a scene/moment claim must not erase an otherwise
-                    # evidence-valid opportunity and footage request.  Retry only by
-                    # deleting those leaves; no fact, certainty, or source is added.
-                    omitted_intro_leads += len(footage_draft.intro_leads)
-                    footage_draft = footage_draft.model_copy(
-                        update={"intro_leads": []}
-                    )
-                    try:
-                        footage = canonicalize_footage_request(
-                            draft=footage_draft,
-                            footage_request_id=request_id,
-                            opportunity_id=opportunity_id,
-                            evidence_index=evidence_index,
-                            allowed_claim_ids=allowed_claim_ids,
-                            uuid_factory=self._uuid_factory,
-                        )
-                    except (ValueError, KeyError) as retry_error:
-                        rejected += 1
-                        code = _synthesis_rejection_code("footage", retry_error)
-                        rejection_codes[code] = rejection_codes.get(code, 0) + 1
-                        continue
-                else:
-                    rejected += 1
-                    code = _synthesis_rejection_code("footage", error)
-                    rejection_codes[code] = rejection_codes.get(code, 0) + 1
-                    continue
+                rejected += 1
+                code = _synthesis_rejection_code(
+                    "dossier" if "dossier" in str(error).casefold() else "footage",
+                    error,
+                )
+                rejection_codes[code] = rejection_codes.get(code, 0) + 1
+                continue
             try:
                 opportunity = build_trusted_opportunity(
                     draft=recommendation.opportunity,
@@ -361,109 +749,53 @@ class ResearchWorkflow:
                     freshness_days=intent.freshness_days,
                     footage_actionability=_footage_actionability(footage_draft),
                 )
+                quality_score, short_form_inference = score_opportunity_quality(
+                    intent=intent,
+                    opportunity=opportunity,
+                    footage=footage,
+                    sources=sources,
+                    claims=claims,
+                )
+                concepts, recommended_concept_id = _canonicalize_editorial_concepts(
+                    concept_drafts,
+                    recommended_concept_key=recommended_concept_key,
+                    opportunity_id=opportunity_id,
+                    selected_footage=footage,
+                    evidence_index=evidence_index,
+                    allowed_claim_ids=allowed_claim_ids,
+                    evidence_quality=quality_score.evidence_quality,
+                    dossier=dossier,
+                    concept_ids=concept_ids,
+                    uuid_factory=self._uuid_factory,
+                )
+                if not concepts:
+                    raise ValueError("concept:missing-specific-editorial-angle")
+                passes_quality, quality_rejection = opportunity_passes_m11_quality_gate(
+                    intent,
+                    quality_score,
+                )
+                if not passes_quality:
+                    raise ValueError(quality_rejection or "quality:unknown")
+                opportunity = opportunity.model_copy(
+                    update={
+                        "dossier_id": dossier_id,
+                        "quality_score": quality_score,
+                        "short_form_edit_potential": short_form_inference,
+                        "recommended_concept_id": recommended_concept_id,
+                    }
+                )
                 canonical_pairs.append((opportunity, footage))
+                dossiers_by_opportunity[opportunity_id] = dossier
+                concepts_by_opportunity[opportunity_id] = concepts
             except (ValueError, KeyError) as error:
                 rejected += 1
-                code = _synthesis_rejection_code("opportunity", error)
-                rejection_codes[code] = rejection_codes.get(code, 0) + 1
-        if omitted_intro_leads:
-            warnings.append(
-                f"Omitted {omitted_intro_leads} optional synthesized intro lead(s) because "
-                "the selected evidence did not bind the proposed moment."
-            )
-        canonical_pairs.sort(
-            key=lambda pair: (-pair[0].score.total, pair[0].title.casefold())
-        )
-        canonical_pairs = canonical_pairs[: intent.max_results]
-
-        # A valid generic UNKNOWN scene pack must not hide a smaller scene
-        # selector that the host has already bound to the exact TVmaze episode
-        # and a qualified current discussion source.  Build the deterministic
-        # LIKELY / INFERRED pair through the same validators and replace only a
-        # same-title generic pair; no evidence or certainty is added here.
-        upgrade_examined_titles: set[str] = set()
-        while len(upgrade_examined_titles) < intent.max_results:
-            metadata_scene_upgrade = _deterministic_metadata_scene_pack_fallback(
-                intent,
-                synthesis_sources,
-                synthesis_claims,
-                now=generated_at,
-                excluded_titles=frozenset(upgrade_examined_titles),
-            )
-            if metadata_scene_upgrade is None:
-                break
-            upgrade_opportunity_draft, upgrade_footage_draft = metadata_scene_upgrade
-            is_specific_upgrade = any(
-                source.asset_kind is SourceAcquisitionKind.INDIVIDUAL_SCENES
-                and source.verification_level
-                is FootageVerificationLevel.LIKELY_INFERRED
-                for source in upgrade_footage_draft.required_sources
-            )
-            upgrade_title = _normalized(
-                upgrade_opportunity_draft.media_identity.show_or_title
-            )
-            upgrade_examined_titles.add(upgrade_title)
-            same_title_pairs = [
-                pair
-                for pair in canonical_pairs
-                if _normalized(pair[0].media_identity.show_or_title)
-                == upgrade_title
-            ]
-            same_title_is_specific = any(
-                source.asset_kind is SourceAcquisitionKind.INDIVIDUAL_SCENES
-                and source.verification_level
-                is not FootageVerificationLevel.UNKNOWN
-                for _, footage in same_title_pairs
-                for source in footage.required_sources
-            )
-            if is_specific_upgrade and not same_title_is_specific:
-                try:
-                    _validate_pair_against_intent(
-                        intent,
-                        upgrade_opportunity_draft,
-                        upgrade_footage_draft,
-                        evidence_index=evidence_index,
-                    )
-                    opportunity_id = self._uuid_factory()
-                    request_id = self._uuid_factory()
-                    upgrade_footage = canonicalize_footage_request(
-                        draft=upgrade_footage_draft,
-                        footage_request_id=request_id,
-                        opportunity_id=opportunity_id,
-                        evidence_index=evidence_index,
-                        allowed_claim_ids=allowed_claim_ids,
-                        uuid_factory=self._uuid_factory,
-                    )
-                    upgrade_opportunity = build_trusted_opportunity(
-                        draft=upgrade_opportunity_draft,
-                        opportunity_id=opportunity_id,
-                        footage_request_id=request_id,
-                        evidence_index=evidence_index,
-                        allowed_claim_ids=allowed_claim_ids,
-                        now=generated_at,
-                        freshness_days=intent.freshness_days,
-                        footage_actionability=_footage_actionability(
-                            upgrade_footage_draft
-                        ),
-                    )
-                    canonical_pairs = [
-                        pair
-                        for pair in canonical_pairs
-                        if _normalized(pair[0].media_identity.show_or_title)
-                        != upgrade_title
-                    ]
-                    canonical_pairs.append((upgrade_opportunity, upgrade_footage))
-                    warnings.append(
-                        "Replaced a generic same-title scene pack with a smaller LIKELY / INFERRED exact-episode scene request from the same qualified evidence."
-                    )
-                except (ValueError, KeyError):
-                    warnings.append(
-                        "A provisional exact-episode scene upgrade failed trusted local validation and was omitted."
-                    )
-                canonical_pairs.sort(
-                    key=lambda pair: (-pair[0].score.total, pair[0].title.casefold())
+                code = _synthesis_rejection_code(
+                    "concept" if str(error).startswith(("concept:", "quality:")) else "opportunity",
+                    error,
                 )
-                canonical_pairs = canonical_pairs[: intent.max_results]
+                rejection_codes[code] = rejection_codes.get(code, 0) + 1
+        canonical_pairs.sort(key=_opportunity_sort_key)
+        canonical_pairs = canonical_pairs[: intent.max_results]
         if rejected:
             bounded_codes = ", ".join(
                 f"{code}={count}" for code, count in sorted(rejection_codes.items())
@@ -472,153 +804,53 @@ class ResearchWorkflow:
                 f"{rejected} synthesized recommendation(s) failed trusted evidence validation"
                 + (f" ({bounded_codes})." if bounded_codes else ".")
             )
-        # Synthesis is allowed to phrase the creative direction, but it must
-        # not collapse a multi-title evidence slate to one card. Fill any
-        # missing, independently gate-qualified TV titles through the same
-        # deterministic low-confidence builder and the same local validators.
-        # No source, identity, scene, or certainty is introduced here.
-        metadata_fallback_titles = {
-            _normalized(pair[0].media_identity.show_or_title)
-            for pair in canonical_pairs
-        }
-        metadata_fallback_added = 0
-        metadata_fallback_rejections: dict[str, int] = {}
-        while len(canonical_pairs) < intent.max_results:
-            metadata_fallback = _deterministic_metadata_scene_pack_fallback(
-                intent,
-                synthesis_sources,
-                synthesis_claims,
-                now=generated_at,
-                excluded_titles=frozenset(metadata_fallback_titles),
-            )
-            if metadata_fallback is None:
-                break
-            opportunity_draft, footage_draft = metadata_fallback
-            fallback_title = _normalized(
-                opportunity_draft.media_identity.show_or_title
-            )
-            metadata_fallback_titles.add(fallback_title)
-            try:
-                _validate_pair_against_intent(
-                    intent,
-                    opportunity_draft,
-                    footage_draft,
-                    evidence_index=evidence_index,
-                )
-                opportunity_id = self._uuid_factory()
-                request_id = self._uuid_factory()
-                footage = canonicalize_footage_request(
-                    draft=footage_draft,
-                    footage_request_id=request_id,
-                    opportunity_id=opportunity_id,
-                    evidence_index=evidence_index,
-                    allowed_claim_ids=allowed_claim_ids,
-                    uuid_factory=self._uuid_factory,
-                )
-                opportunity = build_trusted_opportunity(
-                    draft=opportunity_draft,
-                    opportunity_id=opportunity_id,
-                    footage_request_id=request_id,
-                    evidence_index=evidence_index,
-                    allowed_claim_ids=allowed_claim_ids,
-                    now=generated_at,
-                    freshness_days=intent.freshness_days,
-                    footage_actionability=_footage_actionability(footage_draft),
-                )
-                canonical_pairs.append((opportunity, footage))
-                metadata_fallback_added += 1
-            except (ValueError, KeyError) as error:
-                code = _synthesis_rejection_code("metadata-fallback", error)
-                metadata_fallback_rejections[code] = (
-                    metadata_fallback_rejections.get(code, 0) + 1
-                )
-                continue
-        if metadata_fallback_added:
-            warnings.append(
-                "Added a deterministic low-confidence scene-pack fallback for "
-                f"{metadata_fallback_added} independently qualified distinct TV "
-                "title(s) that synthesis omitted."
-            )
-        if metadata_fallback_rejections:
-            warnings.append(
-                "Deterministic distinct-title fallback rejected "
-                + ", ".join(
-                    f"{code}={count}"
-                    for code, count in sorted(
-                        metadata_fallback_rejections.items()
-                    )
-                )
-                + "."
-            )
-        if not canonical_pairs:
-            fallback = _deterministic_primary_scene_pack_fallback(
-                intent,
-                synthesis_sources,
-                synthesis_claims,
-                now=generated_at,
-            )
-            fallback_warning = (
-                "Recommendation synthesis did not yield a trusted card; a deterministic "
-                "passed-gate film/trailer scene-pack fallback was built from the same "
-                "qualified primary evidence and independent current title-bound discussion sources."
-            )
-            if fallback is None:
-                fallback = _deterministic_metadata_scene_pack_fallback(
-                    intent,
-                    synthesis_sources,
-                    synthesis_claims,
-                    now=generated_at,
-                )
-                fallback_warning = (
-                    "Recommendation synthesis did not yield a trusted card; a deterministic "
-                    "low-confidence scene-pack fallback was built from exact current TVmaze "
-                    "episode metadata plus two independent current title-bound discussion sources."
-                )
-            if fallback is not None:
-                opportunity_draft, footage_draft = fallback
-                try:
-                    _validate_pair_against_intent(
-                        intent,
-                        opportunity_draft,
-                        footage_draft,
-                        evidence_index=evidence_index,
-                    )
-                    opportunity_id = self._uuid_factory()
-                    request_id = self._uuid_factory()
-                    footage = canonicalize_footage_request(
-                        draft=footage_draft,
-                        footage_request_id=request_id,
-                        opportunity_id=opportunity_id,
-                        evidence_index=evidence_index,
-                        allowed_claim_ids=allowed_claim_ids,
-                        uuid_factory=self._uuid_factory,
-                    )
-                    opportunity = build_trusted_opportunity(
-                        draft=opportunity_draft,
-                        opportunity_id=opportunity_id,
-                        footage_request_id=request_id,
-                        evidence_index=evidence_index,
-                        allowed_claim_ids=allowed_claim_ids,
-                        now=generated_at,
-                        freshness_days=intent.freshness_days,
-                        footage_actionability=_footage_actionability(footage_draft),
-                    )
-                    canonical_pairs.append((opportunity, footage))
-                    warnings.append(fallback_warning)
-                except (ValueError, KeyError):
-                    # The deterministic path is subject to the same evidence and intent
-                    # validators as model output. Any mismatch remains an honest no-op.
-                    pass
-        canonical_pairs.sort(
-            key=lambda pair: (-pair[0].score.total, pair[0].title.casefold())
-        )
+        # M1.1b has no generic scene-pack fallback. A title without a supported
+        # dossier and specific concept remains an honest abstention.
+        canonical_pairs.sort(key=_opportunity_sort_key)
         canonical_pairs = canonical_pairs[: intent.max_results]
+        retained_opportunity_ids = {
+            UUID(str(pair[0].opportunity_id)) for pair in canonical_pairs
+        }
+        concepts_by_opportunity = {
+            key: value
+            for key, value in concepts_by_opportunity.items()
+            if key in retained_opportunity_ids
+        }
+        dossiers_by_opportunity = {
+            key: value
+            for key, value in dossiers_by_opportunity.items()
+            if key in retained_opportunity_ids
+        }
+        final_dossiers = [
+            dossiers_by_opportunity[UUID(str(opportunity.opportunity_id))]
+            for opportunity, _ in canonical_pairs
+        ]
+        final_concepts = [
+            concept
+            for opportunity, _ in canonical_pairs
+            for concept in concepts_by_opportunity.get(
+                UUID(str(opportunity.opportunity_id)),
+                [],
+            )
+        ]
         if not canonical_pairs:
             reason = (
                 synthesis.draft.no_strong_opportunity_reason
                 if synthesis.draft is not None
                 else None
             )
+            if synthesis_claims:
+                reason = (
+                    "This title appears current, but I could not yet find a specific "
+                    "enough story or fandom angle to recommend a strong edit concept."
+                )
+            if recovery_attempted:
+                evidence_coverage_warning = (
+                    "The bounded recovery pass found evidence worth synthesis but no candidate "
+                    "could support a validated FandomStoryDossier, coherent editorial concept, "
+                    "and concept-specific footage request. Factual verification was not relaxed."
+                )
+                warnings.append(evidence_coverage_warning)
             result = _no_opportunity(
                 intent,
                 generated_at=generated_at,
@@ -641,7 +873,9 @@ class ResearchWorkflow:
                 status=ResearchResultStatus.OPPORTUNITIES,
                 intent=intent,
                 opportunities=[pair[0] for pair in canonical_pairs],
+                fandom_story_dossiers=final_dossiers,
                 footage_requests=[pair[1] for pair in canonical_pairs],
+                editorial_concepts=final_concepts,
                 message=(
                     "Some opportunities are explicitly low confidence because they did not meet "
                     "the normal official-primary-plus-two-signals gate; inspect each card's "
@@ -654,19 +888,47 @@ class ResearchWorkflow:
                 warnings=_dedupe(warnings),
                 generated_at=generated_at,
             )
+        combined_rejection_counts = dict(rejection_codes)
+        deduplicated_count = len(
+            {
+                _normalized(pair[0].media_identity.show_or_title)
+                for pair in canonical_pairs
+            }
+        )
+        stage_counts = _stage_counts(
+            batches=batches,
+            normalized_claim_count=len(claims),
+            gate_claims=synthesis_claims,
+            deduplicated_opportunity_count=deduplicated_count,
+            ranker_input_count=len(canonical_pairs),
+            serialized_opportunity_count=len(result.opportunities),
+            false_abstention_recovery_attempted=recovery_attempted,
+            recovered_candidate_count=recovered_candidate_count,
+            evidence_coverage_warning=evidence_coverage_warning,
+            rejection_reason_counts=combined_rejection_counts,
+            candidate_diagnostics=_build_candidate_diagnostics(
+                batches=batches,
+                sources=sources,
+                claims=claims,
+                intent=intent,
+                now=generated_at,
+                recovery_attempted=recovery_attempted,
+                synthesis_titles={
+                    title
+                    for claim in synthesis_claims
+                    if (title := _claim_show_or_title(claim)) is not None
+                },
+                final_opportunities=list(result.opportunities),
+            ),
+        )
+        result = _attach_candidate_funnel(result, stage_counts)
         return ResearchWorkflowOutput(
             result=result,
             evidence_sources=tuple(sources),
             evidence_claims=tuple(claims),
             provider_batches=tuple(batches),
             synthesis=synthesis,
-            stage_counts=ResearchStageCounts(
-                parsed_results=sum(len(item.evidence) for item in batches),
-                normalized_evidence=len(claims),
-                evidence_surviving_gates=len(synthesis_claims),
-                ranked_opportunities=len(canonical_pairs),
-                opportunities_returned_to_ui=len(result.opportunities),
-            ),
+            stage_counts=stage_counts,
         )
 
 
@@ -866,24 +1128,39 @@ def _claim_search_text(claim: EvidenceClaimRecordV2) -> str:
     return " ".join(values)
 
 
-def _required_focus_is_supported(
+def _requested_audience_has_minimum_support(
     intent: ResearchIntentV2,
     show_or_title: str,
     claims: list[EvidenceClaimRecordV2],
     source_by_id: dict[UUID, EvidenceSourceRecordV2],
+    *,
+    relaxed_soft_preferences: bool = False,
 ) -> bool:
-    """Require source-owned support for explicit audience-fit constraints.
+    """Apply a minimum evidence floor to explicit audience requests.
 
-    ``female-centered`` is a deterministic user constraint, not a genre guess or
-    model-writable label.  A title can pass only when one of its selected,
-    normalized evidence records explicitly carries a female-centered cue.  Cast
-    names and the model's own opportunity prose never establish this property.
+    Audience facets remain soft ranking preferences, not genre stereotypes. A
+    direct audience statement is enough; otherwise two distinct affinity cues
+    are required. A lone romance/action label therefore cannot establish a
+    gender-skewed audience, and model-authored opportunity prose is ignored.
     """
 
-    required = {_normalized(value) for value in intent.focus_terms}
-    if _FEMALE_CENTERED_FOCUS not in required:
+    facet_ids = {
+        item.facet_id
+        for item in (
+            intent.interpretation.facets
+            if intent.interpretation is not None
+            else []
+        )
+    }
+    requested = facet_ids & {
+        "female_skewing_fandom",
+        "male_skewing_fandom",
+        "queer_fandom",
+    }
+    if not requested:
         return True
     normalized_title = _normalized(show_or_title)
+    relevant_text: list[str] = []
     for claim in claims:
         source = source_by_id.get(UUID(str(claim.source_id)))
         if source is None:
@@ -893,9 +1170,25 @@ def _required_focus_is_supported(
             source, show_or_title
         ):
             continue
-        if _FEMALE_CENTERED_EVIDENCE.search(source.title):
+        relevant_text.append(f"{source.title} {claim.text}")
+    corpus = " ".join(relevant_text)
+    if "female_skewing_fandom" in requested:
+        if _FEMALE_AUDIENCE_DIRECT.search(corpus):
             return True
-    return False
+        cues = {
+            _normalized(match.group(0))
+            for match in _FEMALE_AFFINITY_CUE.finditer(corpus)
+        }
+        return len(cues) >= (1 if relaxed_soft_preferences else 2)
+    if "male_skewing_fandom" in requested:
+        if _MALE_AUDIENCE_DIRECT.search(corpus):
+            return True
+        cues = {
+            _normalized(match.group(0))
+            for match in _MALE_AFFINITY_CUE.finditer(corpus)
+        }
+        return len(cues) >= (1 if relaxed_soft_preferences else 2)
+    return bool(_QUEER_AUDIENCE_DIRECT.search(corpus))
 
 
 def _could_support_recommendation(
@@ -903,6 +1196,8 @@ def _could_support_recommendation(
     claims: list[EvidenceClaimRecordV2],
     now: datetime,
     intent: ResearchIntentV2,
+    *,
+    relaxed_soft_preferences: bool = False,
 ) -> bool:
     cutoff = now - timedelta(days=intent.freshness_days)
     source_by_id = {UUID(str(item.source_id)): item for item in sources}
@@ -945,11 +1240,12 @@ def _could_support_recommendation(
             for claim, source in signals
             if _source_matches_show(source, identity.show_or_title)
         ]
-        if not _required_focus_is_supported(
+        if not _requested_audience_has_minimum_support(
             intent,
             identity.show_or_title,
             [primary_claim, *(claim for claim, _ in relevant_signals)],
             source_by_id,
+            relaxed_soft_preferences=relaxed_soft_preferences,
         ):
             continue
         relevant_signal_groups = {
@@ -984,11 +1280,12 @@ def _could_support_recommendation(
                 source, metadata_claim.episode_locator.show_or_title
             )
         ]
-        if not _required_focus_is_supported(
+        if not _requested_audience_has_minimum_support(
             intent,
             metadata_claim.episode_locator.show_or_title,
             [metadata_claim, *(claim for claim, _ in relevant_signals)],
             source_by_id,
+            relaxed_soft_preferences=relaxed_soft_preferences,
         ):
             continue
         relevant_signal_groups = {
@@ -1032,12 +1329,370 @@ def _claim_show_or_title(claim: EvidenceClaimRecordV2) -> str | None:
     return None
 
 
+def _build_candidate_diagnostics(
+    *,
+    batches: list[ProviderBatch],
+    sources: list[EvidenceSourceRecordV2],
+    claims: list[EvidenceClaimRecordV2],
+    intent: ResearchIntentV2,
+    now: datetime,
+    recovery_attempted: bool,
+    synthesis_titles: set[str] | None = None,
+    final_opportunities: list | None = None,
+) -> list[CandidateDiagnosticV1]:
+    """Explain every bounded deep-research title without retaining web payloads."""
+
+    trace_funnel = next(
+        (
+            batch.candidate_funnel
+            for batch in batches
+            if batch.provider in {"openai", "xai"}
+            and batch.candidate_funnel.candidate_traces
+        ),
+        None,
+    ) or next(
+        (
+            batch.candidate_funnel
+            for batch in batches
+            if batch.candidate_funnel.candidate_traces
+        ),
+        None,
+    )
+    if trace_funnel is None:
+        return []
+    source_by_id = {UUID(str(item.source_id)): item for item in sources}
+    cutoff = now - timedelta(days=intent.freshness_days)
+    selected_titles = {_normalized(value) for value in (synthesis_titles or set())}
+    final_by_title = {
+        _normalized(item.media_identity.show_or_title): item
+        for item in (final_opportunities or [])
+    }
+    facet_ids = {
+        item.facet_id
+        for item in (
+            intent.interpretation.facets if intent.interpretation is not None else []
+        )
+    }
+    audience_requested = bool(
+        facet_ids & {"female_skewing_fandom", "male_skewing_fandom", "queer_fandom"}
+    )
+    diagnostics: list[CandidateDiagnosticV1] = []
+    ranking_metrics = (
+        "intent_fit",
+        "audience_fit",
+        "freshness",
+        "fandom_velocity",
+        "short_form_edit_potential",
+        "relationship_or_character_salience",
+        "footage_actionability",
+        "evidence_quality",
+        "source_diversity",
+        "uncertainty_penalty",
+        "total",
+    )
+    metric_thresholds = {
+        "audience_fit": 0.40,
+        "short_form_edit_potential": 0.35,
+        "footage_actionability": 0.35,
+    }
+
+    for trace in trace_funnel.candidate_traces[:12]:
+        normalized_title = _normalized(trace.title)
+        relevant: list[tuple[EvidenceClaimRecordV2, EvidenceSourceRecordV2]] = []
+        for claim in claims:
+            source = source_by_id.get(UUID(str(claim.source_id)))
+            if source is None:
+                continue
+            claim_title = _claim_show_or_title(claim)
+            if (
+                claim_title is not None
+                and _normalized(claim_title) == normalized_title
+            ) or (
+                claim_title is None and _source_matches_show(source, trace.title)
+            ):
+                relevant.append((claim, source))
+
+        current_identities = [
+            (claim, source)
+            for claim, source in relevant
+            if (
+                claim.verification is VerificationState.PRIMARY_VERIFIED
+                and claim.claim_kind
+                in {EvidenceClaimKind.WHY_NOW, EvidenceClaimKind.OFFICIAL_CLIP}
+                and claim.supports_why_now
+                and claim.event_or_release_at is not None
+                and cutoff <= claim.event_or_release_at <= now + timedelta(minutes=5)
+            )
+            or (
+                claim.claim_kind is EvidenceClaimKind.EPISODE_IDENTITY
+                and claim.verification is VerificationState.SECONDARY_CORROBORATED
+                and claim.episode_locator is not None
+                and claim.event_or_release_at is not None
+                and cutoff <= claim.event_or_release_at <= now + timedelta(minutes=5)
+            )
+        ]
+        current_signals = [
+            (claim, source)
+            for claim, source in relevant
+            if claim.claim_kind is EvidenceClaimKind.VIEWER_DISCUSSION
+            and claim.verification is VerificationState.SECONDARY_CORROBORATED
+            and claim.supports_why_now
+            and (source.source_created_at or source.page_published_at) is not None
+            and cutoff
+            <= (source.source_created_at or source.page_published_at)
+            <= now + timedelta(minutes=5)
+        ]
+        signal_groups = {source.independence_group for _, source in current_signals}
+        has_primary = any(
+            claim.verification is VerificationState.PRIMARY_VERIFIED
+            and claim.claim_kind
+            in {EvidenceClaimKind.WHY_NOW, EvidenceClaimKind.OFFICIAL_CLIP}
+            for claim, _ in current_identities
+        )
+        required_signal_groups = 1 if has_primary else 2
+        evidence_claims = [claim for claim, _ in relevant]
+        strict_audience = (
+            _requested_audience_has_minimum_support(
+                intent,
+                trace.title,
+                evidence_claims,
+                source_by_id,
+            )
+            if evidence_claims
+            else not audience_requested
+        )
+        recovery_audience = (
+            _requested_audience_has_minimum_support(
+                intent,
+                trace.title,
+                evidence_claims,
+                source_by_id,
+                relaxed_soft_preferences=True,
+            )
+            if evidence_claims
+            else not audience_requested
+        )
+        effective_audience = strict_audience or (
+            recovery_attempted and recovery_audience
+        )
+        corpus = " ".join(
+            [
+                *(claim.text for claim, _ in relevant),
+                *(source.title for _, source in relevant),
+            ]
+        )
+        audience_pattern = (
+            _FEMALE_AUDIENCE_DIRECT
+            if "female_skewing_fandom" in facet_ids
+            else _MALE_AUDIENCE_DIRECT
+            if "male_skewing_fandom" in facet_ids
+            else _QUEER_AUDIENCE_DIRECT
+        )
+        affinity_pattern = (
+            _FEMALE_AFFINITY_CUE
+            if "female_skewing_fandom" in facet_ids
+            else _MALE_AFFINITY_CUE
+            if "male_skewing_fandom" in facet_ids
+            else _QUEER_AUDIENCE_DIRECT
+        )
+        direct_audience = bool(audience_pattern.search(corpus)) if audience_requested else True
+        affinity_cues = {
+            match.group(0).casefold() for match in affinity_pattern.finditer(corpus)
+        } if audience_requested else {"general-audience"}
+        audience_units = 2 if direct_audience else min(2, len(affinity_cues))
+        audience_threshold = 1 if recovery_attempted else 2
+
+        current_hook = current_identities[0][0].text if current_identities else None
+        fandom_copy = list(
+            dict.fromkeys(claim.text for claim, _ in current_signals)
+        )[:12]
+        audience_copy = list(
+            dict.fromkeys(
+                claim.text
+                for claim, source in current_signals
+                if audience_pattern.search(f"{claim.text} {source.title}")
+                or affinity_pattern.search(f"{claim.text} {source.title}")
+            )
+        )[:12]
+        story_copy = list(
+            dict.fromkeys(
+                claim.text
+                for claim, _ in relevant
+                if claim.claim_kind
+                in {
+                    EvidenceClaimKind.EPISODE_IDENTITY,
+                    EvidenceClaimKind.QUOTE,
+                    EvidenceClaimKind.SCENE_CONTEXT,
+                    EvidenceClaimKind.CAST_IDENTITY,
+                }
+            )
+        )[:12]
+        source_categories = list(
+            dict.fromkeys(
+                f"{source.provider}:{source.source_type.value}:{claim.claim_kind.value}"
+                for claim, source in relevant
+            )
+        )[:20]
+        evidence_references = list(
+            dict.fromkeys(claim.claim_id for claim, _ in relevant)
+        )[:40]
+
+        final = final_by_title.get(normalized_title)
+        if final is not None:
+            gate = "SUPPORTED"
+            failure_class = CandidateFailureClass.SUPPORTED
+        elif not relevant:
+            gate = "RETRIEVAL:NO_TITLE_BOUND_EVIDENCE"
+            failure_class = CandidateFailureClass.RETRIEVAL_RELATED
+        elif not current_identities:
+            gate = "EVIDENCE:NO_CURRENT_HOOK"
+            failure_class = CandidateFailureClass.EVIDENCE_RELATED
+        elif not current_signals:
+            gate = "RETRIEVAL:NO_USABLE_CURRENT_FANDOM_EVIDENCE"
+            failure_class = CandidateFailureClass.RETRIEVAL_RELATED
+        elif not effective_audience:
+            gate = "EVIDENCE:REQUESTED_AUDIENCE_FIT_FLOOR"
+            failure_class = CandidateFailureClass.EVIDENCE_RELATED
+        elif len(signal_groups) < required_signal_groups:
+            gate = "EVIDENCE:CURRENT_FANDOM_SOURCE_FLOOR"
+            failure_class = CandidateFailureClass.EVIDENCE_RELATED
+        elif normalized_title in selected_titles:
+            gate = "THRESHOLD:NO_SUPPORTED_EDITORIAL_CONCEPT"
+            failure_class = CandidateFailureClass.THRESHOLD_RELATED
+        else:
+            gate = "EVIDENCE:NOT_SELECTED_FOR_SYNTHESIS"
+            failure_class = CandidateFailureClass.EVIDENCE_RELATED
+
+        scores = [
+            CandidateScoreTraceV1(
+                metric="current_event_evidence",
+                count_value=len(current_identities),
+                count_threshold=1,
+                status=(
+                    CandidateScoreStatus.PASSED
+                    if current_identities
+                    else CandidateScoreStatus.FAILED
+                ),
+                note="A current title-bound official hook or exact episode identity is required.",
+            ),
+            CandidateScoreTraceV1(
+                metric="current_fandom_independent_sources",
+                count_value=len(signal_groups),
+                count_threshold=required_signal_groups,
+                status=(
+                    CandidateScoreStatus.PASSED
+                    if len(signal_groups) >= required_signal_groups
+                    else CandidateScoreStatus.FAILED
+                ),
+                note=(
+                    "One credible current fandom source can support a low-confidence card beside a strong official story source; metadata-only identity requires two."
+                ),
+            ),
+            CandidateScoreTraceV1(
+                metric="requested_audience_support_units",
+                count_value=audience_units,
+                count_threshold=audience_threshold,
+                status=(
+                    CandidateScoreStatus.PASSED
+                    if effective_audience
+                    else CandidateScoreStatus.FAILED
+                ),
+                note=(
+                    "Audience intent is a soft evidence prior, not a demographic stereotype; recovery may reduce two affinity cues to one without relaxing facts."
+                ),
+            ),
+        ]
+        quality = getattr(final, "quality_score", None) if final is not None else None
+        for metric in ranking_metrics:
+            value = getattr(quality, metric) if quality is not None else None
+            threshold = metric_thresholds.get(metric)
+            if value is None:
+                status = CandidateScoreStatus.NOT_COMPUTED
+                note = "Not computed because the candidate did not reach a validated opportunity and concept-specific footage request."
+            elif threshold is None:
+                status = CandidateScoreStatus.INFORMATIONAL
+                note = "Recorded ranking component; it is not a standalone universal gate."
+            else:
+                status = (
+                    CandidateScoreStatus.PASSED
+                    if value >= threshold
+                    else CandidateScoreStatus.FAILED
+                )
+                note = "Recorded M1.1 quality-gate component."
+            scores.append(
+                CandidateScoreTraceV1(
+                    metric=metric,
+                    value=value,
+                    threshold=threshold,
+                    status=status,
+                    note=note,
+                )
+            )
+        scores.extend(
+            [
+                CandidateScoreTraceV1(
+                    metric="concept_specificity",
+                    threshold=0.50,
+                    status=CandidateScoreStatus.NOT_COMPUTED,
+                    note="Computed only after a dossier-backed editorial concept exists.",
+                ),
+                CandidateScoreTraceV1(
+                    metric="editorial_concept_total",
+                    threshold=0.45,
+                    status=CandidateScoreStatus.NOT_COMPUTED,
+                    note="Computed only after concept and footage validation.",
+                ),
+            ]
+        )
+        if final is not None and final.short_form_edit_potential is not None:
+            short_form_inference = (
+                f"{final.short_form_edit_potential.band.value}: "
+                f"{final.short_form_edit_potential.explanation}"
+            )
+        elif current_signals and story_copy:
+            short_form_inference = (
+                "PROMISING SIGNALS, NOT SCORED: current fandom plus story-level evidence was found; "
+                "the full inferred metric awaits a supported concept. Direct TikTok data was not used."
+            )
+        elif current_signals:
+            short_form_inference = (
+                "LIMITED SIGNALS, NOT SCORED: current fandom evidence exists but no actionable "
+                "story evidence survived. Direct TikTok data was not used."
+            )
+        else:
+            short_form_inference = (
+                "INSUFFICIENT EVIDENCE, NOT SCORED: no usable current fandom signal survived. "
+                "Direct TikTok data was not used."
+            )
+
+        diagnostics.append(
+            CandidateDiagnosticV1(
+                candidate_name=trace.candidate_name,
+                title=trace.title,
+                shortlist_rank=trace.shortlist_rank,
+                shortlist_reason=trace.shortlist_reason,
+                current_hook=current_hook,
+                audience_fit_evidence=audience_copy,
+                fandom_evidence=fandom_copy,
+                story_or_episode_evidence=story_copy,
+                source_categories=source_categories,
+                evidence_references=evidence_references,
+                inferred_short_form_edit_potential=short_form_inference,
+                scores_and_thresholds=scores,
+                exact_rejection_gate=gate,
+                failure_class=failure_class,
+            )
+        )
+    return diagnostics
+
+
 def _select_synthesis_evidence(
     intent: ResearchIntentV2,
     sources: list[EvidenceSourceRecordV2],
     claims: list[EvidenceClaimRecordV2],
     *,
     now: datetime,
+    relaxed_soft_preferences: bool = False,
 ) -> tuple[list[EvidenceSourceRecordV2], list[EvidenceClaimRecordV2]]:
     """Select a compact, gate-capable allow-list for paid synthesis.
 
@@ -1110,11 +1765,12 @@ def _select_synthesis_evidence(
                 source_by_id[UUID(str(signal.source_id))], show_or_title
             )
         ]
-        if not _required_focus_is_supported(
+        if not _requested_audience_has_minimum_support(
             intent,
             show_or_title,
             [identity_claim, *relevant_signals],
             source_by_id,
+            relaxed_soft_preferences=relaxed_soft_preferences,
         ):
             continue
         signal_groups = {
@@ -1236,6 +1892,16 @@ def _synthesis_rejection_code(stage: str, error: Exception) -> str:
 
     message = str(error)
     known = (
+        ("concept:missing-specific-editorial-angle", "missing-editorial-concept"),
+        ("concept:missing-specific-intro", "missing-concept-intro"),
+        ("concept:quality-gate", "concept-quality"),
+        ("quality:audience-fit", "audience-fit"),
+        ("quality:short-form-edit-potential", "short-form-edit-potential"),
+        ("quality:footage-actionability", "footage-actionability"),
+        ("unsupported franchise speculation", "unsupported-franchise-connection"),
+        ("concept asserted an unsupported canonical/franchise connection", "unsupported-franchise-connection"),
+        ("concept asserted an unsupported quote", "unsupported-concept-quote"),
+        ("concept asserted an unsupported episode locator", "unsupported-concept-episode"),
         ("LIKELY_INFERRED source needs relevant identity and moment evidence", "inferred-source-support"),
         ("STRONGLY_SUPPORTED source needs asset and exact-scene evidence", "supported-source-evidence"),
         ("VERIFIED source needs authoritative asset and exact-scene evidence", "verified-source-evidence"),
@@ -1272,6 +1938,633 @@ def _is_omittable_intro_lead_error(error: Exception) -> bool:
     ) or message.startswith(
         "verified/supported intro lead needs a matching scene fact"
     )
+
+
+def _editorial_concepts_required(intent: ResearchIntentV2) -> bool:
+    interpretation = intent.interpretation
+    if interpretation is None:
+        return False
+    return interpretation.broad_query or any(
+        item.category.value != "HARD_CONSTRAINT"
+        for item in interpretation.facets
+    )
+
+
+def _derive_evidence_bound_concept(
+    opportunity: TrendOpportunityDraftV2,
+    footage: FootageRequestDraftV2,
+) -> tuple[FootageRequestDraftV2, EditorialConceptDraftV1] | None:
+    """Upgrade a specific legacy M1 pair without adding a factual claim.
+
+    The r73 synthesis contract exposed one opportunity and one footage request.
+    M1.1 asks the synthesis model for first-class concept routes, but replay
+    fixtures and an in-flight older response may still use the earlier shape.
+    This bounded bridge is permitted only when the request already names an
+    evidence-linked source moment. It never invents a quote, episode, character,
+    franchise link, or availability claim, and generic title-only packs still
+    fail closed.
+    """
+
+    intro_leads = list(footage.intro_leads)
+    if not intro_leads:
+        source = next(
+            (
+                item
+                for item in footage.required_sources
+                if item.verification_level
+                is not FootageVerificationLevel.UNKNOWN
+                and item.asset_kind
+                in {
+                    SourceAcquisitionKind.EPISODE,
+                    SourceAcquisitionKind.OFFICIAL_TRAILER,
+                    SourceAcquisitionKind.OFFICIAL_CLIP,
+                    SourceAcquisitionKind.INDIVIDUAL_SCENES,
+                }
+                if item.scene_or_moment.strip()
+                and item.supporting_claim_ids
+                and len(item.scene_or_moment.split()) >= 4
+                and not re.match(
+                    r"^(?:any\s+relevant|any\s+scenes?|generic|clips?\s+from)",
+                    item.scene_or_moment.strip(),
+                    re.IGNORECASE,
+                )
+            ),
+            None,
+        )
+        if source is None:
+            return None
+        intro_leads = [
+            IntroMaterialLeadDraftV2(
+                source_key=source.source_key,
+                moment_description=source.scene_or_moment,
+                why_it_might_lead_into_montage=(
+                    "This evidence-linked current moment establishes the exact "
+                    "subject that the proposed montage would explore; timing and "
+                    "usable reactions still require later footage inspection."
+                ),
+                verification_level=source.verification_level,
+                supporting_claim_ids=list(source.supporting_claim_ids),
+            )
+        ]
+        footage = footage.model_copy(update={"intro_leads": intro_leads})
+
+    subject = (
+        " and ".join(opportunity.focus.characters)
+        if opportunity.focus.characters
+        else opportunity.focus.relationship_or_topic
+    )
+    uncertainties = list(opportunity.caveats)
+    if all(lead.quote is None for lead in intro_leads):
+        uncertainties.append(
+            "Exact dialogue is not yet verified; provide the requested episode, trailer, "
+            "or scene pack so later footage analysis can inspect the proposed moment."
+        )
+    # These beats reorganize already-present synthesis copy. They describe
+    # semantic footage needs, not claims that a supplied file contains a shot.
+    montage_arc = [
+        f"Current setup — {opportunity.why_now}",
+        f"Fan-recognized subject — {opportunity.what_viewers_are_discussing}",
+        f"Emotional payoff to test in supplied footage — {opportunity.emotional_edit_direction}",
+    ]
+    concept = EditorialConceptDraftV1(
+        concept_key="evidence_bound_current_arc",
+        title=opportunity.title,
+        central_subject=subject,
+        central_relationship=opportunity.focus.relationship_or_topic,
+        core_emotion=opportunity.emotional_edit_direction[:500],
+        viewer_hook=opportunity.creative_hook,
+        why_fans_may_care=opportunity.what_viewers_are_discussing,
+        current_event=opportunity.why_now,
+        legacy_or_contextual_connection=(
+            "No canonical legacy connection is asserted by this evidence packet; "
+            "the concept stays within the supported current-title context."
+        ),
+        legacy_connection_type=LegacyConnectionType.NONE,
+        intro_leads=intro_leads,
+        song_handoff_idea=(
+            "End the evidence-linked intro lead on its unresolved emotional question, "
+            "then hand off into the first montage beat; exact timing awaits footage analysis."
+        ),
+        montage_arc=montage_arc,
+        ending_or_payoff=(
+            "Return to the current-event subject and test the proposed emotional payoff "
+            "against the supplied footage rather than assuming a usable final reaction."
+        ),
+        evidence=list(opportunity.evidence),
+        verification_status=min(
+            (lead.verification_level for lead in intro_leads),
+            key=lambda value: {
+                FootageVerificationLevel.UNKNOWN: 0,
+                FootageVerificationLevel.LIKELY_INFERRED: 1,
+                FootageVerificationLevel.STRONGLY_SUPPORTED: 2,
+                FootageVerificationLevel.VERIFIED: 3,
+            }[value],
+        ),
+        creative_strength=opportunity.confidence,
+        footage_feasibility=(0.78 if footage.required_sources else 0.30),
+        known_uncertainties=list(dict.fromkeys(uncertainties))[:20],
+        footage_request=footage,
+    )
+    return footage, concept
+
+
+def _opportunity_sort_key(pair) -> tuple[float, float, str]:
+    opportunity = pair[0]
+    quality_total = (
+        opportunity.quality_score.total
+        if opportunity.quality_score is not None
+        else opportunity.score.total
+    )
+    # Quality score is authoritative for M1.1. The legacy score remains a
+    # deterministic tie-breaker and a compatibility diagnostic only.
+    return (-quality_total, -opportunity.score.total, opportunity.title.casefold())
+
+
+def _canonicalize_fandom_story_dossier(
+    draft: FandomStoryDossierDraftV1,
+    *,
+    opportunity: TrendOpportunityDraftV2,
+    dossier_id: UUID,
+    opportunity_id: UUID,
+    evidence_index: EvidenceIndex,
+    allowed_claim_ids: set[UUID],
+) -> FandomStoryDossierV1:
+    if _normalized(draft.show_or_title) != _normalized(
+        opportunity.media_identity.show_or_title
+    ):
+        raise ValueError("dossier title must match its opportunity")
+    trusted: list[TrustedOpportunityEvidenceReferenceV2] = []
+    joined: dict[UUID, tuple[EvidenceClaimRecordV2, EvidenceSourceRecordV2]] = {}
+    for selection in draft.evidence:
+        claim_id = UUID(str(selection.claim_id))
+        if claim_id not in allowed_claim_ids:
+            raise ValueError("dossier selected a claim outside the request allow-list")
+        claim, source = evidence_index.joined(claim_id)
+        if selection.supports_why_now != claim.supports_why_now:
+            raise ValueError("dossier cannot change a claim's why-now support")
+        joined[claim_id] = (claim, source)
+        trusted.append(
+            TrustedOpportunityEvidenceReferenceV2(
+                claim_id=selection.claim_id,
+                role=selection.role,
+                supports_why_now=claim.supports_why_now,
+                independence_group=source.independence_group,
+            )
+        )
+    opportunity_ids = {UUID(str(item.claim_id)) for item in opportunity.evidence}
+    if not opportunity_ids.issubset(joined):
+        raise ValueError("dossier must retain every opportunity evidence claim")
+
+    def selected_pairs(values) -> list[tuple[EvidenceClaimRecordV2, EvidenceSourceRecordV2]]:
+        return [joined[UUID(str(value))] for value in values]
+
+    def validate_status(label: str, status: FootageVerificationLevel, values) -> None:
+        pairs = selected_pairs(values)
+        states = {claim.verification for claim, _ in pairs}
+        if status is FootageVerificationLevel.VERIFIED and VerificationState.PRIMARY_VERIFIED not in states:
+            raise ValueError(f"dossier {label} cannot be VERIFIED without primary evidence")
+        if status is FootageVerificationLevel.STRONGLY_SUPPORTED and not states & {
+            VerificationState.PRIMARY_VERIFIED,
+            VerificationState.SECONDARY_CORROBORATED,
+        }:
+            raise ValueError(f"dossier {label} lacks corroborated evidence")
+        if states & {VerificationState.STALE, VerificationState.RETRACTED}:
+            raise ValueError(f"dossier {label} cites stale or retracted evidence")
+
+    validate_status(
+        "current hook",
+        draft.current_event_or_hook.verification_status,
+        draft.current_event_or_hook.supporting_claim_ids,
+    )
+    hook_pairs = selected_pairs(draft.current_event_or_hook.supporting_claim_ids)
+    if not any(
+        claim.supports_why_now
+        or (
+            claim.claim_kind is EvidenceClaimKind.EPISODE_IDENTITY
+            and claim.event_or_release_at is not None
+        )
+        for claim, _ in hook_pairs
+    ):
+        raise ValueError("dossier current hook needs a dated current-event claim")
+
+    validate_status(
+        "current source",
+        draft.current_source.verification_status,
+        draft.current_source.supporting_claim_ids,
+    )
+    source_pairs = selected_pairs(draft.current_source.supporting_claim_ids)
+    if not any(
+        _normalized(draft.current_source.source_title) in _normalized(source.title)
+        or _normalized(source.title) in _normalized(draft.current_source.source_title)
+        for _, source in source_pairs
+    ):
+        raise ValueError("dossier current source title is not evidence-bound")
+    if draft.current_source.source_kind.value == "EPISODE" and not any(
+        claim.episode_locator is not None
+        and _normalized(claim.episode_locator.show_or_title)
+        == _normalized(draft.current_source.show_or_title)
+        and claim.episode_locator.season_number == draft.current_source.season_number
+        and claim.episode_locator.episode_number == draft.current_source.episode_number
+        and (
+            draft.current_source.episode_title is None
+            or _normalized(claim.episode_locator.episode_title)
+            == _normalized(draft.current_source.episode_title)
+        )
+        for claim, _ in source_pairs
+    ):
+        raise ValueError("dossier episode source lacks its exact locator evidence")
+
+    for character in draft.named_characters:
+        validate_status(
+            f"character {character.character_name}",
+            character.verification_status,
+            character.supporting_claim_ids,
+        )
+        if not any(
+            (
+                claim.cast_fact is not None
+                and _normalized(claim.cast_fact.character_name)
+                == _normalized(character.character_name)
+                and _normalized(claim.cast_fact.show_or_title)
+                == _normalized(character.show_or_title)
+            )
+            or (
+                claim.scene_fact is not None
+                and _normalized(claim.scene_fact.show_or_title)
+                == _normalized(character.show_or_title)
+                and any(
+                    _normalized(value) == _normalized(character.character_name)
+                    for value in claim.scene_fact.characters
+                )
+            )
+            for claim, _ in selected_pairs(character.supporting_claim_ids)
+        ):
+            raise ValueError("dossier named character lacks exact identity evidence")
+
+    fact_groups = (
+        ([draft.central_relationship] if draft.central_relationship is not None else []),
+        draft.relationship_or_character_history,
+        draft.why_fans_currently_care,
+        draft.audience_and_fandom_evidence,
+    )
+    for label, facts in zip(
+        ("central relationship", "history", "fan interest", "audience/fandom"),
+        fact_groups,
+        strict=True,
+    ):
+        for fact in facts:
+            validate_status(label, fact.verification_status, fact.supporting_claim_ids)
+    for fact in (*draft.why_fans_currently_care, *draft.audience_and_fandom_evidence):
+        if not any(
+            claim.claim_kind is EvidenceClaimKind.VIEWER_DISCUSSION
+            for claim, _ in selected_pairs(fact.supporting_claim_ids)
+        ):
+            raise ValueError("dossier fandom-interest facts require a current discussion claim")
+
+    if draft.exact_or_likely_quote is not None:
+        quote_lead = draft.exact_or_likely_quote
+        validate_status(
+            "quote",
+            quote_lead.verification_status,
+            quote_lead.supporting_claim_ids,
+        )
+        quote_claim, _ = joined[UUID(str(quote_lead.quote.claim_id))]
+        if quote_lead.quote.status.value == "VERIFIED":
+            if (
+                quote_claim.quote_fact is None
+                or quote_claim.verification is not VerificationState.PRIMARY_VERIFIED
+                or _normalized(quote_claim.quote_fact.exact_text)
+                != _normalized(quote_lead.quote.text)
+            ):
+                raise ValueError("dossier verified quote lacks authoritative exact evidence")
+
+    for connection in draft.franchise_connections:
+        validate_status(
+            "franchise connection",
+            connection.verification_status,
+            connection.supporting_claim_ids,
+        )
+        connection_pairs = selected_pairs(connection.supporting_claim_ids)
+        corpus = _normalized(
+            " ".join(
+                [
+                    *(claim.text for claim, _ in connection_pairs),
+                    *(source.title for _, source in connection_pairs),
+                    *(
+                        json.dumps(fact.model_dump(mode="json"), ensure_ascii=False)
+                        for claim, _ in connection_pairs
+                        for fact in (
+                            claim.episode_locator,
+                            claim.quote_fact,
+                            claim.why_now_event,
+                            claim.scene_fact,
+                            claim.cast_fact,
+                        )
+                        if fact is not None
+                    ),
+                ]
+            )
+        )
+        if _normalized(connection.connected_title) not in corpus:
+            raise ValueError("dossier franchise connection lacks the connected title in evidence")
+        if connection.connection_type in {
+            LegacyConnectionType.SAME_CHARACTER,
+            LegacyConnectionType.SAME_CANONICAL_UNIVERSE,
+            LegacyConnectionType.EXPLICIT_CALLBACK,
+        } and not re.search(
+            r"\b(?:spinoff|spin\s*off|sequel|prequel|same\s+universe|returns?|"
+            r"returning|reunion|callback|continuation|parent\s+series|repris(?:e|es|ing))\b",
+            corpus,
+            re.IGNORECASE,
+        ):
+            raise ValueError("dossier asserted an unsupported canonical connection")
+
+    values = draft.model_dump(mode="python", exclude={"evidence"})
+    return FandomStoryDossierV1(
+        **values,
+        dossier_id=dossier_id,
+        opportunity_id=opportunity_id,
+        evidence=trusted,
+    )
+
+
+def _validate_editorial_concept_against_dossier(
+    draft: EditorialConceptDraftV1,
+    dossier: FandomStoryDossierV1,
+) -> None:
+    if draft.dossier_key != dossier.dossier_key:
+        raise ValueError("concept does not reference its fandom/story dossier")
+    dossier_claim_ids = {UUID(str(item.claim_id)) for item in dossier.evidence}
+    concept_claim_ids = {UUID(str(item.claim_id)) for item in draft.evidence}
+    if not concept_claim_ids.issubset(dossier_claim_ids):
+        raise ValueError("concept selected evidence outside its dossier")
+    dossier_copy = " ".join(
+        [
+            dossier.show_or_title,
+            dossier.current_event_or_hook.text,
+            dossier.current_source.source_title,
+            *(item.character_name for item in dossier.named_characters),
+            dossier.central_relationship.text
+            if dossier.central_relationship is not None
+            else "",
+            *(item.text for item in dossier.relationship_or_character_history),
+            *(item.text for item in dossier.why_fans_currently_care),
+            *(item.text for item in dossier.audience_and_fandom_evidence),
+            *(item.description for item in dossier.franchise_connections),
+        ]
+    )
+    anchor_tokens = {
+        token
+        for token in _normalized(dossier_copy).split()
+        if len(token) >= 4
+        and token
+        not in {"this", "that", "with", "from", "current", "episode", "series"}
+    }
+    concept_tokens = set(
+        _normalized(
+            " ".join(
+                [
+                    draft.central_subject,
+                    draft.central_relationship or "",
+                    draft.current_event,
+                    draft.viewer_hook,
+                    draft.why_fans_may_care,
+                    *draft.montage_arc,
+                    draft.ending_or_payoff,
+                ]
+            )
+        ).split()
+    )
+    if len(anchor_tokens & concept_tokens) < 2:
+        raise ValueError("concept story is not anchored in its dossier")
+    if draft.legacy_connection_type is not LegacyConnectionType.NONE and not any(
+        item.connection_type is draft.legacy_connection_type
+        for item in dossier.franchise_connections
+    ):
+        raise ValueError("concept legacy route is absent from its dossier")
+    allowed_titles = {
+        _normalized(dossier.show_or_title),
+        *(_normalized(item.connected_title) for item in dossier.franchise_connections),
+    }
+    allowed_characters = {
+        _normalized(item.character_name) for item in dossier.named_characters
+    } | {
+        _normalized(character)
+        for item in dossier.franchise_connections
+        for character in item.characters
+    }
+    for source in (
+        *draft.footage_request.required_sources,
+        *draft.footage_request.optional_sources,
+        *draft.footage_request.alternative_sources,
+    ):
+        if _normalized(source.show_or_title) not in allowed_titles:
+            raise ValueError("concept footage title is absent from its dossier")
+        if any(_normalized(value) not in allowed_characters for value in source.characters):
+            raise ValueError("concept footage names a character absent from its dossier")
+
+
+def _canonicalize_editorial_concepts(
+    drafts: list[EditorialConceptDraftV1],
+    *,
+    recommended_concept_key: str,
+    opportunity_id: UUID,
+    selected_footage,
+    evidence_index: EvidenceIndex,
+    allowed_claim_ids: set[UUID],
+    evidence_quality: float,
+    dossier: FandomStoryDossierV1,
+    concept_ids: dict[str, UUID],
+    uuid_factory: Callable[[], UUID],
+) -> tuple[list[EditorialConceptV1], UUID]:
+    if not drafts:
+        raise ValueError("concept drafts are required")
+    if set(concept_ids) != {item.concept_key for item in drafts}:
+        raise ValueError("concept ID allocation does not match concept drafts")
+    canonical: list[EditorialConceptV1] = []
+    selected_id: UUID | None = None
+    for draft in drafts:
+        _validate_editorial_concept_against_dossier(draft, dossier)
+        trusted_evidence: list[TrustedOpportunityEvidenceReferenceV2] = []
+        selected_claims: list[EvidenceClaimRecordV2] = []
+        selected_sources: list[EvidenceSourceRecordV2] = []
+        for selection in draft.evidence:
+            claim_id = UUID(str(selection.claim_id))
+            if claim_id not in allowed_claim_ids:
+                raise ValueError("concept selected a claim outside the request allow-list")
+            claim, source = evidence_index.joined(claim_id)
+            if selection.supports_why_now != claim.supports_why_now:
+                raise ValueError("concept cannot change a claim's why-now support")
+            selected_claims.append(claim)
+            selected_sources.append(source)
+            trusted_evidence.append(
+                TrustedOpportunityEvidenceReferenceV2(
+                    claim_id=selection.claim_id,
+                    role=selection.role,
+                    supports_why_now=claim.supports_why_now,
+                    independence_group=source.independence_group,
+                )
+            )
+        _validate_editorial_concept_copy(
+            draft,
+            claims=selected_claims,
+            sources=selected_sources,
+        )
+        is_selected = draft.concept_key == recommended_concept_key
+        concept_id = concept_ids[draft.concept_key]
+        footage = (
+            selected_footage
+            if is_selected
+            else canonicalize_footage_request(
+                draft=draft.footage_request,
+                footage_request_id=uuid_factory(),
+                opportunity_id=opportunity_id,
+                concept_id=concept_id,
+                evidence_index=evidence_index,
+                allowed_claim_ids=allowed_claim_ids,
+                uuid_factory=uuid_factory,
+            )
+        )
+        if not footage.intro_leads:
+            raise ValueError("concept:missing-specific-intro")
+        if draft.verification_status is FootageVerificationLevel.VERIFIED and any(
+            item.verification_level is not FootageVerificationLevel.VERIFIED
+            for item in footage.intro_leads
+        ):
+            raise ValueError("concept cannot claim VERIFIED with an unverified intro")
+        score = score_editorial_concept(
+            draft=draft,
+            footage=footage,
+            evidence_quality=evidence_quality,
+        )
+        if score.concept_specificity < 0.50 or score.total < 0.45:
+            raise ValueError("concept:quality-gate")
+        if footage.concept_id != concept_id:
+            raise ValueError("concept footage request lost its concept identity")
+        canonical.append(
+            EditorialConceptV1(
+                concept_id=concept_id,
+                opportunity_id=opportunity_id,
+                dossier_id=dossier.dossier_id,
+                concept_key=draft.concept_key,
+                title=draft.title,
+                central_subject=draft.central_subject,
+                central_relationship=draft.central_relationship,
+                core_emotion=draft.core_emotion,
+                viewer_hook=draft.viewer_hook,
+                why_fans_may_care=draft.why_fans_may_care,
+                current_event=draft.current_event,
+                legacy_or_contextual_connection=draft.legacy_or_contextual_connection,
+                legacy_connection_type=draft.legacy_connection_type,
+                intro_leads=footage.intro_leads,
+                song_handoff_idea=draft.song_handoff_idea,
+                montage_arc=draft.montage_arc,
+                ending_or_payoff=draft.ending_or_payoff,
+                evidence=trusted_evidence,
+                verification_status=draft.verification_status,
+                score=score,
+                known_uncertainties=draft.known_uncertainties,
+                footage_request=footage,
+            )
+        )
+        if is_selected:
+            selected_id = concept_id
+    if selected_id is None:
+        raise ValueError("recommended concept did not survive validation")
+    canonical.sort(
+        key=lambda item: (
+            item.concept_id != selected_id,
+            -item.score.total,
+            item.title.casefold(),
+        )
+    )
+    return canonical[:4], selected_id
+
+
+def _validate_editorial_concept_copy(
+    draft: EditorialConceptDraftV1,
+    *,
+    claims: list[EvidenceClaimRecordV2],
+    sources: list[EvidenceSourceRecordV2],
+) -> None:
+    corpus = " ".join(
+        [
+            *(item.text for item in claims),
+            *(item.title for item in sources),
+            *(
+                json.dumps(fact.model_dump(mode="json"), ensure_ascii=False)
+                for item in claims
+                for fact in (
+                    item.episode_locator,
+                    item.quote_fact,
+                    item.why_now_event,
+                    item.scene_fact,
+                    item.cast_fact,
+                )
+                if fact is not None
+            ),
+        ]
+    )
+    normalized_corpus = _normalized(corpus)
+    concept_copy = " ".join(
+        (
+            draft.title,
+            draft.central_subject,
+            draft.central_relationship or "",
+            draft.viewer_hook,
+            draft.why_fans_may_care,
+            draft.current_event,
+            draft.legacy_or_contextual_connection,
+            draft.song_handoff_idea,
+            *draft.montage_arc,
+            draft.ending_or_payoff,
+            *draft.known_uncertainties,
+        )
+    )
+    for quoted in re.findall(r'["“]([^"”]{4,})["”]', concept_copy):
+        if _normalized(quoted) not in normalized_corpus:
+            raise ValueError("concept asserted an unsupported quote")
+    allowed_episode_labels: set[str] = set()
+    for claim in claims:
+        locators = [claim.episode_locator]
+        if claim.quote_fact is not None:
+            locators.append(claim.quote_fact.episode_locator)
+        if claim.scene_fact is not None:
+            locators.append(claim.scene_fact.episode_locator)
+        for locator in locators:
+            if locator is None:
+                continue
+            allowed_episode_labels.update(
+                {
+                    f"s{locator.season_number}e{locator.episode_number}",
+                    f"s{locator.season_number:02d}e{locator.episode_number:02d}",
+                    f"season {locator.season_number} episode {locator.episode_number}",
+                }
+            )
+    episode_mentions = {
+        match.group(0).casefold()
+        for match in re.finditer(
+            r"\bs\d{1,4}e\d{1,4}\b|\bseason\s+\d{1,4}\s+episode\s+\d{1,4}\b",
+            concept_copy,
+            re.IGNORECASE,
+        )
+    }
+    if not episode_mentions.issubset(allowed_episode_labels):
+        raise ValueError("concept asserted an unsupported episode locator")
+    connection = draft.legacy_connection_type.value
+    if connection == "UNSUPPORTED_SPECULATION":
+        raise ValueError("unsupported franchise speculation cannot become a concept")
+    if connection in {
+        "SAME_CHARACTER",
+        "SAME_CANONICAL_UNIVERSE",
+        "EXPLICIT_CALLBACK",
+    } and not re.search(
+        r"\b(?:spinoff|spin[\s-]?off|sequel|prequel|same\s+universe|returns?|"
+        r"returning|reunion|callback|continuation|parent\s+series|repris(?:e|es|ing))\b",
+        corpus,
+        re.IGNORECASE,
+    ):
+        raise ValueError("concept asserted an unsupported canonical/franchise connection")
 
 
 def _deterministic_primary_scene_pack_fallback(
@@ -2386,6 +3679,7 @@ def _validate_pair_against_intent(
     footage: FootageRequestDraftV2,
     *,
     evidence_index: EvidenceIndex | None = None,
+    allow_cross_title_sources: bool = False,
 ) -> None:
     if opportunity.media_kind not in intent.media_kinds:
         raise ValueError("synthesized media kind is outside the intent")
@@ -2403,14 +3697,14 @@ def _validate_pair_against_intent(
             evidence_index.joined(UUID(str(item.claim_id)))[0]
             for item in opportunity.evidence
         ]
-        if not _required_focus_is_supported(
+        if not _requested_audience_has_minimum_support(
             intent,
             opportunity.media_identity.show_or_title,
             selected_claims,
             evidence_index.sources,
         ):
             raise ValueError(
-                "opportunity evidence does not support a required audience focus"
+                "opportunity evidence does not meet the requested audience-fit evidence floor"
             )
     source_title = _normalized(opportunity.media_identity.show_or_title)
     all_sources = [
@@ -2418,8 +3712,21 @@ def _validate_pair_against_intent(
         *footage.optional_sources,
         *footage.alternative_sources,
     ]
-    if any(_normalized(item.show_or_title) != source_title for item in all_sources):
+    cross_title_sources = [
+        item
+        for item in all_sources
+        if _normalized(item.show_or_title) != source_title
+    ]
+    if cross_title_sources and not allow_cross_title_sources:
         raise ValueError("footage request belongs to a different title than its opportunity")
+    if cross_title_sources and any(
+        item.verification_level is FootageVerificationLevel.UNKNOWN
+        or not item.supporting_claim_ids
+        for item in cross_title_sources
+    ):
+        raise ValueError(
+            "cross-title concept footage requires evidence-bound source identities"
+        )
     requested_characters = {
         _normalized(character)
         for item in all_sources

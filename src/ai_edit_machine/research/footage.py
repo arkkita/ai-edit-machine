@@ -590,6 +590,7 @@ def canonicalize_footage_request(
     draft: FootageRequestDraftV2,
     footage_request_id: UUID,
     opportunity_id: UUID,
+    concept_id: UUID | None = None,
     evidence_index: EvidenceIndex,
     allowed_claim_ids: set[UUID],
     uuid_factory: Callable[[], UUID] = uuid4,
@@ -665,6 +666,12 @@ def canonicalize_footage_request(
                     source_draft, claim
                 )
                 or (
+                    claim.claim_kind is EvidenceClaimKind.OFFICIAL_CLIP
+                    and _asset_identity_matches(source_draft, claim)
+                    and _normalized(claim.text)
+                    == _normalized(lead.moment_description)
+                )
+                or (
                     source_draft.asset_kind is not SourceAcquisitionKind.EPISODE
                     and
                     claim.claim_kind is EvidenceClaimKind.VIEWER_DISCUSSION
@@ -719,6 +726,7 @@ def canonicalize_footage_request(
     return FootageRequestV2(
         footage_request_id=footage_request_id,
         opportunity_id=opportunity_id,
+        concept_id=concept_id,
         summary="Smallest evidence-bound footage request for this research opportunity.",
         natural_request=natural_request,
         required_sources=[by_key[item.source_key] for item in draft.required_sources],

@@ -1,4 +1,4 @@
-import type { OpportunityView } from "../domain/contracts";
+import type { EditorialConceptView, OpportunityView, ResearchRunView } from "../domain/contracts";
 import { verificationLabel } from "../domain/contracts";
 import { FootageSourceGroup } from "../components/FootageSourceGroup";
 import { EvidenceList } from "../components/EvidenceList";
@@ -6,23 +6,48 @@ import { QuoteDetails } from "../components/QuoteDetails";
 
 interface FootageRequestScreenProps {
   readonly opportunity: OpportunityView;
+  readonly concept?: EditorialConceptView | null;
+  readonly provenance: ResearchRunView["provenance"];
   readonly onBack: () => void;
   readonly onStartOver: () => void;
   readonly onOpenEvidence: (linkHandle: string) => void;
 }
 
-export function FootageRequestScreen({ opportunity, onBack, onStartOver, onOpenEvidence }: FootageRequestScreenProps) {
-  const request = opportunity.footageRequest;
+export function FootageRequestScreen({ concept = null, provenance, onBack, onStartOver, onOpenEvidence }: FootageRequestScreenProps) {
+  if (concept === null || concept.footageRequest.conceptId !== concept.conceptId) {
+    return (
+      <main className="screen centered-state" id="main-content">
+        <p className="eyebrow">Screen C · Footage request</p>
+        <h1>No supported concept is selected.</h1>
+        <p>A footage request is unavailable until an evidence-backed editorial concept passes validation and owns this request.</p>
+        <button type="button" className="button primary" onClick={onBack}>Back to edit ideas</button>
+      </main>
+    );
+  }
+  const request = concept.footageRequest;
   return (
     <main className="screen" id="main-content">
       <header className="screen-heading footage-heading">
         <div>
           <p className="eyebrow">Screen C · Footage request</p>
           <h1>Here’s the smallest useful set I’d ask you for.</h1>
-          <p>{request.summary}</p>
+          <p>{concept === null ? request.summary : `${concept.title} — ${request.summary}`}</p>
         </div>
         <button type="button" className="button quiet" onClick={onBack}>Back to ideas</button>
       </header>
+      <aside className={`run-provenance ${provenance.legacyResult ? "legacy-result" : ""}`} aria-label="Build and research run provenance">
+        {provenance.legacyResult ? <p className="legacy-label"><strong>Legacy M1 result</strong> · not a new M1.1 concept run.</p> : null}
+        <p className="fine-print">Build <code>{provenance.buildIdentifier}</code> · pipeline <code>{provenance.pipelineVersion}</code> · run <code>{provenance.researchRunId ?? "legacy/not recorded"}</code> · {provenance.runTimestamp === null ? "run time not recorded" : new Date(provenance.runTimestamp).toLocaleString()}</p>
+      </aside>
+      <section className="selected-concept" aria-label="Selected editorial concept">
+          <p className="eyebrow">Selected edit idea</p>
+          <h2>{concept.title}</h2>
+          <p><strong>Hook:</strong> {concept.viewerHook}</p>
+          <p><strong>Song handoff:</strong> {concept.songHandoffIdea}</p>
+          <ol>{concept.montageArc.map((beat) => <li key={beat}>{beat}</li>)}</ol>
+          <p><strong>Ending:</strong> {concept.endingOrPayoff}</p>
+          <p className="fine-print">{concept.provisionalNotice}</p>
+      </section>
       <section className="request-language" aria-label="Recommended requests">
         <div><span>Best</span><p>{request.naturalRequest.best}</p></div>
         {request.naturalRequest.alternative === null ? null : <div><span>Alternative</span><p>{request.naturalRequest.alternative}</p></div>}

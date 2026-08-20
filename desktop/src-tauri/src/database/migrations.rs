@@ -16,6 +16,10 @@ const MIGRATIONS: &[Migration] = &[
         version: 2,
         sql: include_str!("../../migrations/0002_year_season_numbers.sql"),
     },
+    Migration {
+        version: 3,
+        sql: include_str!("../../migrations/0003_m1_1_feedback.sql"),
+    },
 ];
 
 pub(super) fn apply(connection: &mut Connection) -> AppResult<()> {
@@ -91,8 +95,8 @@ mod tests {
         let mut connection = Connection::open_in_memory().unwrap();
         connection.pragma_update(None, "foreign_keys", true).unwrap();
         apply(&mut connection).unwrap();
-        assert_eq!(connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(), 2);
-        assert_eq!(connection.query_row("SELECT COUNT(*) FROM schema_migration", [], |row| row.get::<_, i64>(0)).unwrap(), 2);
+        assert_eq!(connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(), 3);
+        assert_eq!(connection.query_row("SELECT COUNT(*) FROM schema_migration", [], |row| row.get::<_, i64>(0)).unwrap(), 3);
         apply(&mut connection).unwrap();
         connection.execute("UPDATE schema_migration SET content_sha256=?1 WHERE version=1", ["0".repeat(64)]).unwrap();
         assert!(apply(&mut connection).is_err());
@@ -136,7 +140,7 @@ mod tests {
 
         apply(&mut connection).unwrap();
 
-        assert_eq!(connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(), 2);
+        assert_eq!(connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(), 3);
         assert_eq!(connection.query_row("SELECT season_number FROM footage_requirement WHERE id='requirement-1'", [], |row| row.get::<_, i64>(0)).unwrap(), 12);
         assert_eq!(connection.query_row("SELECT COUNT(*) FROM footage_requirement_purpose WHERE footage_requirement_id='requirement-1'", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
         connection.execute(

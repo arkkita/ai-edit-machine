@@ -806,7 +806,7 @@ class M1WorkerTests(unittest.TestCase):
                     "messageType": "hello",
                     "protocolVersion": "1.0.0",
                     "target": "windows-x86_64",
-                    "workerVersion": "0.1.0-m1-dev",
+                    "workerVersion": "0.1.0-m1.1b-dev",
                 },
             )
             intent = _intent("x" * 4_000)

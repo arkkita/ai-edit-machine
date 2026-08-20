@@ -1,6 +1,85 @@
 {
   "$comment": "Provider baseline only; M1 adapter conformance must verify the live API.",
   "$defs": {
+    "IntentFacetCategory": {
+      "enum": [
+        "HARD_CONSTRAINT",
+        "SOFT_PREFERENCE",
+        "AUDIENCE",
+        "PLATFORM_FIT",
+        "CREATIVE_EDIT"
+      ],
+      "type": "string"
+    },
+    "IntentFacetSource": {
+      "enum": [
+        "EXPLICIT",
+        "INFERRED_PRIOR"
+      ],
+      "type": "string"
+    },
+    "IntentFacetV1": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/IntentFacetCategory"
+        },
+        "facet_id": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "rationale": {
+          "maxLength": 300,
+          "minLength": 1,
+          "type": "string"
+        },
+        "removable": {
+          "type": "boolean"
+        },
+        "source": {
+          "$ref": "#/$defs/IntentFacetSource"
+        }
+      },
+      "required": [
+        "facet_id",
+        "category",
+        "label",
+        "source",
+        "removable",
+        "rationale"
+      ],
+      "type": "object"
+    },
+    "IntentSearchQuestionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_goal": {
+          "maxLength": 300,
+          "minLength": 1,
+          "type": "string"
+        },
+        "query": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "question_id": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question_id",
+        "query",
+        "evidence_goal"
+      ],
+      "type": "object"
+    },
     "MediaKind": {
       "enum": [
         "TV_EPISODE",
@@ -18,6 +97,71 @@
         "ALLOW"
       ],
       "type": "string"
+    },
+    "UserIntentInterpretationV1": {
+      "additionalProperties": false,
+      "properties": {
+        "broad_query": {
+          "type": "boolean"
+        },
+        "clarification_needed": {
+          "type": "boolean"
+        },
+        "clarification_reason": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "direct_tiktok_data_used": {
+          "type": "boolean"
+        },
+        "facets": {
+          "items": {
+            "$ref": "#/$defs/IntentFacetV1"
+          },
+          "maxItems": 30,
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "type": "string"
+        },
+        "search_questions": {
+          "items": {
+            "$ref": "#/$defs/IntentSearchQuestionV1"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "short_form_inference_disclaimer": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "facets",
+        "search_questions",
+        "broad_query",
+        "clarification_needed",
+        "clarification_reason",
+        "direct_tiktok_data_used",
+        "short_form_inference_disclaimer"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://ai-edit-machine.local/contracts/v2/provider/xai/research-intent.schema.json",
@@ -46,6 +190,16 @@
       "maximum": 90,
       "minimum": 1,
       "type": "integer"
+    },
+    "interpretation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/UserIntentInterpretationV1"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "max_results": {
       "maximum": 10,
@@ -87,7 +241,8 @@
     "freshness_days",
     "spoiler_policy",
     "exclusions",
-    "max_results"
+    "max_results",
+    "interpretation"
   ],
   "type": "object"
 }

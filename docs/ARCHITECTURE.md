@@ -1,6 +1,6 @@
 # AI Edit Machine Architecture
 
-**Decision status:** Milestone 0 foundation accepted; Milestone 1 explicitly approved on 2026-08-15. Milestone 2 is not approved.  
+**Decision status:** Milestone 0 foundation accepted; Milestone 1 approved on 2026-08-15; the focused M1.1 relevance/editorial calibration was authorized on 2026-08-19. Milestone 2 is not approved.
 **Primary target:** signed Windows 11 x64 desktop application.
 
 ## Product boundary
@@ -115,6 +115,79 @@ Each job stores operation/schema versions, input fingerprint, reserved/actual co
 12. Attach practical discovery queries and explain likely future intro material without claiming the final intro before local media analysis.
 
 M1 caches small normalized evidence records, not an unrestricted social-content archive. Search retrieval is access, not a license to reuse the underlying page, post, image, trailer, or clip.
+
+### M1.1 relevance and editorial-concept flow
+
+M1.1 keeps the working M1 provider path and inserts explicit, typed quality
+stages around it:
+
+```text
+natural request
+  -> intent facets + editable interpretation chips + semantic research questions
+  -> broad, inexpensive release discovery
+  -> audience-prioritized shortlist (never a gender stereotype hard filter)
+  -> bounded title-specific web/fandom validation
+  -> hard factual evidence gates + source-diversity confidence signal
+  -> explainable intent/editorial ranking
+  -> one evidence-bound FandomStoryDossier per surviving opportunity
+  -> two to four distinct provisional EditorialConcept routes when supported
+  -> user selects one supported EditorialConcept
+  -> the selected concept's concept-specific FootageRequest
+  -> local feedback
+```
+
+The canonical candidate-funnel record exposes fourteen boundaries from parsed
+intent through UI display, plus bounded rejection-reason counts. Broad queries
+target roughly 15–30 raw candidates, 8–12 deeper validations, and 3–7 final
+opportunities, with five visible by default, but these are recall targets rather
+than permission to manufacture evidence. Fewer than three results trigger a
+shortage explanation and safe broadening options.
+
+Development results also carry a bounded, sanitized title-level diagnostic for
+every deeply researched candidate. It records why the title entered the slate,
+the current hook and audience/fandom/story evidence actually retained, source
+categories and evidence IDs, applicable score/threshold values, the exact gate,
+and a retrieval/evidence/threshold failure class. A stage that was never
+reached is explicitly `NOT_COMPUTED`; the report never reconstructs a fake
+ranker score. If a broad query produces zero opportunities, one bounded
+false-abstention recovery pass may use alternate semantic questions, more
+lawful fandom-source lanes, and relaxed soft-preference thresholds. Current-hook
+verification, title/source binding, factual precision, and anti-fabrication
+rules remain unchanged. A second zero exposes the title-level coverage warning
+and rejection reasons.
+
+`SHORT_FORM_EDIT_POTENTIAL` is an explainable cross-platform proxy, not a
+virality probability. It combines lawful fandom, relationship/character,
+specific-moment, visual/quote, official-video, current-release, and footage
+actionability evidence. The UI always states that direct TikTok trend data was
+not used unless a future reviewed direct source actually supplies it.
+
+The selected rank profile records `intent_fit`, `audience_fit`, `freshness`,
+`fandom_velocity`, `short_form_edit_potential`,
+`relationship_or_character_salience`, `footage_actionability`,
+`evidence_quality`, `source_diversity`, and `uncertainty_penalty`. A dated
+offline packet, not prompt intuition, proves that the selected profile keeps a
+better-fitting candidate above a newer weak-audience candidate.
+
+A `FandomStoryDossier` is the only input to editorial synthesis. It binds the
+current event to named characters/relationships, a source kind and locator,
+verified or inferred quote leads, franchise/history connections, why fans care,
+audience/fandom evidence, uncertainties, and canonical evidence references.
+An `EditorialConcept` is a research-backed proposal, never a final edit plan.
+It turns only dossier facts into a subject, intro lead, song handoff,
+three-to-six-beat montage arc, payoff, and canonical/legacy connection. Each
+supported route has a concept-bound smallest-useful-set request candidate; the
+result exposes the request belonging to the selected concept. No supported
+concept means no `FootageRequest`, and the footage-request UI remains disabled.
+Cross-series or cross-season sources are permitted only when evidence proves
+the canonical bridge. M1.1 still performs no footage ingest, quote-in-media
+verification, frame selection, timing, or rendering.
+
+The exact live-calibration CLI is debug-only. It bypasses shared result and
+evidence caches, never writes its result into shared caches, uses one immutable
+run scope, and transactionally accumulates reservations/holds/actuals against a
+$2.00 total cap. It writes only a create-new sanitized canonical replay fixture;
+release builds reject the command.
 
 ## Pre-M2 research gate and provisional media-intelligence flow
 

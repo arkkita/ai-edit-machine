@@ -6,6 +6,7 @@ import type {
   CredentialStatusView,
   DiagnosticsView,
   ResearchIntentInput,
+  RecommendationFeedback,
   ResearchRunView,
 } from "../domain/contracts";
 
@@ -20,6 +21,7 @@ export interface BackendApi {
   getResearchRun(jobId: string): Promise<ResearchRunView>;
   cancelResearch(jobId: string): Promise<ResearchRunView>;
   openEvidenceLink(linkHandle: string): Promise<void>;
+  recordRecommendationFeedback(jobId: string, opportunityId: string, conceptId: string | null, rating: RecommendationFeedback): Promise<void>;
   getCredentialStatus(provider: CredentialProvider): Promise<CredentialStatusView>;
   storeCredential(provider: CredentialProvider, secret: string): Promise<CredentialStatusView>;
   validateCredential(provider: CredentialProvider): Promise<CredentialStatusView>;
@@ -75,6 +77,14 @@ export const tauriBackend: BackendApi = {
   async openEvidenceLink(linkHandle) {
     validateIdentifier(linkHandle, "link handle");
     await invoke<void>("open_evidence_link", { linkHandle });
+  },
+  async recordRecommendationFeedback(jobId, opportunityId, conceptId, rating) {
+    validateIdentifier(jobId, "job ID");
+    validateIdentifier(opportunityId, "opportunity ID");
+    if (conceptId !== null) validateIdentifier(conceptId, "concept ID");
+    await invoke<void>("record_recommendation_feedback", {
+      input: { jobId, opportunityId, conceptId, rating },
+    });
   },
   async getCredentialStatus(provider) {
     return invoke<CredentialStatusView>("get_credential_status", { provider });

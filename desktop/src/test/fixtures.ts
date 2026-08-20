@@ -1,6 +1,7 @@
 import type {
   CostPreview,
   DiagnosticsView,
+  EditorialConceptView,
   EvidenceView,
   OpportunityView,
   PlannedResearchCall,
@@ -16,6 +17,8 @@ const IDS = {
   opportunity: "10000000-0000-4000-8000-000000000004",
   intro: "10000000-0000-4000-8000-000000000005",
   job: "10000000-0000-4000-8000-000000000006",
+  concept: "10000000-0000-4000-8000-000000000007",
+  dossier: "10000000-0000-4000-8000-000000000008",
 } as const;
 
 export const evidenceFixture: EvidenceView = {
@@ -95,10 +98,60 @@ export const opportunityFixture: OpportunityView = {
   introCaveat: "Promising research lead only; inspect the supplied footage before choosing it.",
   evidenceGate: "PASSED",
   confidence: 0.84,
+  qualityScore: null,
+  shortFormEditPotential: null,
+  fandomStoryDossier: {
+    dossierId: IDS.dossier,
+    currentEventOrHook: {
+      text: "Ada chooses Bea in the current episode, changing the meaning of their earlier doubt.",
+      verificationStatus: "VERIFIED",
+      supportingEvidence: [evidenceFixture],
+    },
+    namedCharacters: [
+      { characterName: "Ada", performerName: null, showOrTitle: "Example Show", verificationStatus: "VERIFIED", supportingEvidence: [evidenceFixture] },
+      { characterName: "Bea", performerName: null, showOrTitle: "Example Show", verificationStatus: "VERIFIED", supportingEvidence: [evidenceFixture] },
+    ],
+    centralRelationship: {
+      text: "Ada and Bea's history moves from doubt toward earned trust.",
+      verificationStatus: "STRONGLY_SUPPORTED",
+      supportingEvidence: [evidenceFixture],
+    },
+    currentSource: {
+      sourceKind: "EPISODE",
+      showOrTitle: "Example Show",
+      sourceTitle: "Episode 3",
+      seasonNumber: 3,
+      episodeNumber: 3,
+      episodeTitle: "Episode 3",
+      verificationStatus: "VERIFIED",
+      supportingEvidence: [evidenceFixture],
+    },
+    exactOrLikelyQuote: null,
+    franchiseConnections: [],
+    relationshipOrCharacterHistory: [{
+      text: "Earlier episodes establish doubt, cooperation, and rupture.",
+      verificationStatus: "STRONGLY_SUPPORTED",
+      supportingEvidence: [evidenceFixture],
+    }],
+    whyFansCurrentlyCare: [{
+      text: "The current choice pays off a relationship viewers have watched change.",
+      verificationStatus: "STRONGLY_SUPPORTED",
+      supportingEvidence: [evidenceFixture],
+    }],
+    audienceAndFandomEvidence: [{
+      text: "Current discussion focuses on the pair rebuilding trust.",
+      verificationStatus: "STRONGLY_SUPPORTED",
+      supportingEvidence: [evidenceFixture],
+    }],
+    uncertainties: ["The exact handoff timing requires local footage inspection."],
+  },
+  editorialConcepts: [],
+  recommendedConceptId: null,
   evidence: [evidenceFixture],
   caveats: ["Final scene choice belongs to the later creative video pass."],
   footageRequest: {
     requestId: IDS.request,
+    conceptId: IDS.concept,
     summary: "Smallest evidence-bound footage request for this opportunity.",
     naturalRequest: {
       best: "Give me Season 3 Episodes 3 and 5.",
@@ -133,6 +186,50 @@ export const opportunityFixture: OpportunityView = {
     searchQueries: ["Example Show season 3 episode 3 scenes", "Example Show Ada and Bea scene pack"],
     warnings: [],
   },
+};
+
+export const editorialConceptFixture: EditorialConceptView = {
+  conceptId: IDS.concept,
+  dossierId: IDS.dossier,
+  title: "Doubt becomes a choice",
+  centralSubject: "Ada learning to trust Bea",
+  centralRelationship: "Ada and Bea",
+  coreEmotion: "earned trust",
+  viewerHook: "The current choice reframes the pair's earlier doubt.",
+  whyFansMayCare: "The new scene pays off a relationship viewers have watched change.",
+  currentEvent: "Ada chooses Bea in the current episode.",
+  legacyOrContextualConnection: "Earlier episodes establish the doubt that makes the choice meaningful.",
+  legacyConnectionType: "SAME_CHARACTER",
+  introLeads: opportunityFixture.footageRequest.introLeads,
+  songHandoffIdea: "Cut from Bea's reaction into their earliest failed trust beat.",
+  montageArc: ["early doubt", "tentative cooperation", "rupture", "the current choice"],
+  endingOrPayoff: "Return to Bea's reaction after the current choice.",
+  verificationStatus: "STRONGLY_SUPPORTED",
+  score: {
+    conceptSpecificity: 0.9,
+    introStrength: 0.85,
+    emotionalArcStrength: 0.82,
+    narrativeBridgeStrength: 0.8,
+    fanRecognition: 0.75,
+    currentEventRelevance: 0.9,
+    legacyContextValue: 0.8,
+    payoffStrength: 0.85,
+    footageFeasibility: 0.8,
+    sourceActionability: 0.9,
+    originality: 0.75,
+    evidenceQuality: 0.9,
+    uncertaintyPenalty: 0.1,
+    total: 0.8,
+  },
+  knownUncertainties: ["The exact handoff timing needs local footage inspection."],
+  footageRequest: opportunityFixture.footageRequest,
+  provisionalNotice: "This concept is based on current story and fandom evidence. Once you provide the footage, the video analyzer will verify whether the proposed intro, quote, reactions, and montage material are actually present and usable.",
+};
+
+export const opportunityWithConceptFixture: OpportunityView = {
+  ...opportunityFixture,
+  editorialConcepts: [editorialConceptFixture],
+  recommendedConceptId: editorialConceptFixture.conceptId,
 };
 
 function plannedCall(overrides: Partial<PlannedResearchCall>): PlannedResearchCall {
@@ -195,9 +292,16 @@ function providerDiagnostic(overrides: Partial<ProviderDiagnosticView>): Provide
 
 export const diagnosticsFixture: DiagnosticsView = {
   appVersion: "0.1.0",
+  buildCommit: "0d46768c5d5c3fb818d1eefd1e152a13565a69a5",
+  buildIdentifier: "0d46768c5d5c-dirty-fixture",
+  buildIsDirty: true,
+  buildTimestampUnixMs: 1_787_195_400_000,
+  pipelineVersion: "m1.1b-evidence-to-concept-v1",
+  workerManifestSha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  providerConfigId: "m1.1b-2026-08-20-r75",
   protocolVersion: "1.0.0",
   workerStatus: "READY",
-  workerVersion: "0.1.0-m1-dev",
+  workerVersion: "0.1.0-m1.1b-dev",
   workerTarget: "windows-x86_64",
   sqliteVersion: "3.53.2",
   sqliteFts5: true,
@@ -219,9 +323,15 @@ export const noOpportunityRun: ResearchRunView = {
   phase: "complete",
   result: {
     outcome: "NO_STRONG_OPPORTUNITY",
+    researchRunId: IDS.job,
+    runTimestamp: "2026-08-20T08:00:00Z",
+    pipelineVersion: "m1.1b-evidence-to-concept-v1",
+    providerConfigId: "m1.1b-2026-08-20-r75",
     querySummary: "romance TV",
     freshnessCutoff: "2026-08-12T20:00:00Z",
     explanation: "The current evidence did not establish a worthwhile, actionable edit.",
+    interpretation: null,
+    candidateFunnel: null,
     evidenceReviewed: 7,
     evidenceBreakdown: {
       metadataRecords: 7,
@@ -229,6 +339,18 @@ export const noOpportunityRun: ResearchRunView = {
       currentDiscussionSignals: 0,
     },
     suggestions: ["Try a seven-day window."],
+  },
+  provenance: {
+    buildCommit: "0d46768c5d5c3fb818d1eefd1e152a13565a69a5",
+    buildIdentifier: "0d46768c5d5c-dirty-fixture",
+    buildIsDirty: true,
+    buildTimestampUnixMs: 1_787_195_400_000,
+    pipelineVersion: "m1.1b-evidence-to-concept-v1",
+    workerManifestSha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    researchRunId: IDS.job,
+    runTimestamp: "2026-08-20T08:00:00Z",
+    providerConfigId: "m1.1b-2026-08-20-r75",
+    legacyResult: false,
   },
   sanitizedError: null,
 };

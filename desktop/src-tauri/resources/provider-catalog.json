@@ -1,8 +1,8 @@
 {
   "schemaVersion": "1.0.0",
-  "registryVersion": "m1-2026-08-19-r73",
+  "registryVersion": "m1.1b-2026-08-20-r76",
   "reviewArtifactPath": "docs/RESEARCH_AUDIT.md",
-  "reviewArtifactSha256": "3f34910d2001e085d31ac9a62c27319dedc77188615f783ff2a0f004e05531c8",
+  "reviewArtifactSha256": "3d886beb16511e3e55b44ef79ecd06f7b075f1220e2e4497a2c0bce791d56272",
   "policies": [
     {
       "provider": "tvmaze",
@@ -26,7 +26,7 @@
       "expiresAtUnixMs": 1787407200000,
       "sourceUrl": "https://www.tvmaze.com/api",
       "sourceReviewArtifactPath": "docs/RESEARCH_AUDIT.md",
-      "sourceReviewArtifactSha256": "3f34910d2001e085d31ac9a62c27319dedc77188615f783ff2a0f004e05531c8"
+      "sourceReviewArtifactSha256": "3d886beb16511e3e55b44ef79ecd06f7b075f1220e2e4497a2c0bce791d56272"
     },
     {
       "provider": "openai",
@@ -38,8 +38,8 @@
       "purgeAfterSeconds": 2592000,
       "deletionAfterSeconds": null,
       "maxRequestsPerRun": 42,
-      "maxToolCallsPerRun": 14,
-      "maxInputTokensPerRun": 230000,
+      "maxToolCallsPerRun": 20,
+      "maxInputTokensPerRun": 290000,
       "maxOutputTokensPerRun": 32000,
       "retentionSummary": "up to 30 days abuse monitoring unless approved controls apply",
       "dataUseSummary": "API data is not used for training by default",
@@ -47,10 +47,10 @@
       "privacyMode": "store_false",
       "providerConfig": {
         "kind":"OPENAI_WEB",
-        "registryVersion":"m1-openai-web-2026-08-18-r60",
+        "registryVersion":"m1.1b-openai-web-2026-08-20-r62",
         "searchContextSize":"low",
         "requestBodyMaxInputTokens":120000,
-        "requestMaxToolCalls":14,
+        "requestMaxToolCalls":20,
         "officialHosts":[
           "abc.com",
           "amazon.com",
@@ -72,7 +72,7 @@
       "expiresAtUnixMs": 1787407200000,
       "sourceUrl": "https://developers.openai.com/api/docs/guides/your-data",
       "sourceReviewArtifactPath": "docs/RESEARCH_AUDIT.md",
-      "sourceReviewArtifactSha256": "3f34910d2001e085d31ac9a62c27319dedc77188615f783ff2a0f004e05531c8"
+      "sourceReviewArtifactSha256": "3d886beb16511e3e55b44ef79ecd06f7b075f1220e2e4497a2c0bce791d56272"
     },
     {
       "provider": "youtube",
@@ -110,7 +110,7 @@
       "expiresAtUnixMs": 1787641200000,
       "sourceUrl": "https://developers.google.com/youtube/v3/docs/search/list",
       "sourceReviewArtifactPath": "docs/RESEARCH_AUDIT.md",
-      "sourceReviewArtifactSha256": "3f34910d2001e085d31ac9a62c27319dedc77188615f783ff2a0f004e05531c8"
+      "sourceReviewArtifactSha256": "3d886beb16511e3e55b44ef79ecd06f7b075f1220e2e4497a2c0bce791d56272"
     },
     {
       "provider": "xai",
@@ -134,12 +134,12 @@
       "expiresAtUnixMs": 1787407200000,
       "sourceUrl": "https://docs.x.ai/developers/pricing",
       "sourceReviewArtifactPath": "docs/RESEARCH_AUDIT.md",
-      "sourceReviewArtifactSha256": "3f34910d2001e085d31ac9a62c27319dedc77188615f783ff2a0f004e05531c8"
+      "sourceReviewArtifactSha256": "3d886beb16511e3e55b44ef79ecd06f7b075f1220e2e4497a2c0bce791d56272"
     }
   ],
   "priceCards": [
     {
-      "id": "7f771320-9944-465d-98a1-924ed837fe34",
+      "id": "943ee851-51a0-4a71-b5e2-0f2be3ad345e",
       "provider": "openai",
       "model": "gpt-5.6-luna",
       "sourceUrl": "https://developers.openai.com/api/docs/pricing",
@@ -157,7 +157,7 @@
       "checkedAtUnixMs": 1787135637281,
       "expiresAtUnixMs": 1787740437287,
       "sourceReviewArtifactPath": "docs/API_COSTS.md",
-      "sourceReviewArtifactSha256": "908237dba152684cc14b313cb5cd8e2ab7823a3b14808030391a374ecd870121"
+      "sourceReviewArtifactSha256": "65cda02fc29777770252bcc4934fe127c5b2b64b534d386266eb6eaa1d3e70ee"
     }
   ]
 }

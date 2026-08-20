@@ -1,0 +1,858 @@
+{
+  "$defs": {
+    "EditorialConceptScoreV1": {
+      "additionalProperties": false,
+      "properties": {
+        "concept_specificity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Concept Specificity",
+          "type": "number"
+        },
+        "current_event_relevance": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Current Event Relevance",
+          "type": "number"
+        },
+        "emotional_arc_strength": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Emotional Arc Strength",
+          "type": "number"
+        },
+        "evidence_quality": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Evidence Quality",
+          "type": "number"
+        },
+        "fan_recognition": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Fan Recognition",
+          "type": "number"
+        },
+        "footage_feasibility": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Footage Feasibility",
+          "type": "number"
+        },
+        "intro_strength": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Intro Strength",
+          "type": "number"
+        },
+        "legacy_context_value": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Legacy Context Value",
+          "type": "number"
+        },
+        "narrative_bridge_strength": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Narrative Bridge Strength",
+          "type": "number"
+        },
+        "originality": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Originality",
+          "type": "number"
+        },
+        "payoff_strength": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Payoff Strength",
+          "type": "number"
+        },
+        "source_actionability": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Source Actionability",
+          "type": "number"
+        },
+        "total": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Total",
+          "type": "number"
+        },
+        "uncertainty_penalty": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Uncertainty Penalty",
+          "type": "number"
+        }
+      },
+      "required": [
+        "concept_specificity",
+        "intro_strength",
+        "emotional_arc_strength",
+        "narrative_bridge_strength",
+        "fan_recognition",
+        "current_event_relevance",
+        "legacy_context_value",
+        "payoff_strength",
+        "footage_feasibility",
+        "source_actionability",
+        "originality",
+        "evidence_quality",
+        "uncertainty_penalty",
+        "total"
+      ],
+      "title": "EditorialConceptScoreV1",
+      "type": "object"
+    },
+    "EvidenceRole": {
+      "enum": [
+        "PRIMARY_WHY_NOW",
+        "QUALITATIVE_SIGNAL",
+        "QUOTE_PROOF",
+        "CONTEXT"
+      ],
+      "title": "EvidenceRole",
+      "type": "string"
+    },
+    "FootageQuoteStatus": {
+      "enum": [
+        "VERIFIED",
+        "PARAPHRASE",
+        "UNVERIFIED_LEAD"
+      ],
+      "title": "FootageQuoteStatus",
+      "type": "string"
+    },
+    "FootageQuoteV2": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "format": "uuid4",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "likely_context": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Likely Context"
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speaker"
+        },
+        "status": {
+          "$ref": "#/$defs/FootageQuoteStatus"
+        },
+        "text": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "text",
+        "claim_id"
+      ],
+      "title": "FootageQuoteV2",
+      "type": "object"
+    },
+    "FootageRequestV2": {
+      "additionalProperties": false,
+      "properties": {
+        "alternative_sources": {
+          "items": {
+            "$ref": "#/$defs/RequestedSourceV2"
+          },
+          "maxItems": 30,
+          "title": "Alternative Sources",
+          "type": "array"
+        },
+        "concept_id": {
+          "anyOf": [
+            {
+              "format": "uuid4",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Concept Id"
+        },
+        "footage_request_id": {
+          "format": "uuid4",
+          "title": "Footage Request Id",
+          "type": "string"
+        },
+        "intro_leads": {
+          "items": {
+            "$ref": "#/$defs/IntroMaterialLeadV2"
+          },
+          "maxItems": 20,
+          "title": "Intro Leads",
+          "type": "array"
+        },
+        "minimum_useful_source_keys": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{1,63}$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Minimum Useful Source Keys",
+          "type": "array"
+        },
+        "natural_request": {
+          "$ref": "#/$defs/NaturalFootageRequestV2"
+        },
+        "opportunity_id": {
+          "format": "uuid4",
+          "title": "Opportunity Id",
+          "type": "string"
+        },
+        "optional_sources": {
+          "items": {
+            "$ref": "#/$defs/RequestedSourceV2"
+          },
+          "maxItems": 30,
+          "title": "Optional Sources",
+          "type": "array"
+        },
+        "required_sources": {
+          "items": {
+            "$ref": "#/$defs/RequestedSourceV2"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Required Sources",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "2.0.0",
+          "default": "2.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "search_queries": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Search Queries",
+          "type": "array"
+        },
+        "smallest_useful_set_reason": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Smallest Useful Set Reason",
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "footage_request_id",
+        "opportunity_id",
+        "summary",
+        "natural_request",
+        "required_sources",
+        "minimum_useful_source_keys",
+        "smallest_useful_set_reason",
+        "search_queries"
+      ],
+      "title": "FootageRequestV2",
+      "type": "object"
+    },
+    "FootageVerificationLevel": {
+      "enum": [
+        "VERIFIED",
+        "STRONGLY_SUPPORTED",
+        "LIKELY_INFERRED",
+        "UNKNOWN"
+      ],
+      "title": "FootageVerificationLevel",
+      "type": "string"
+    },
+    "IntroMaterialLeadV2": {
+      "additionalProperties": false,
+      "properties": {
+        "intro_lead_id": {
+          "format": "uuid4",
+          "title": "Intro Lead Id",
+          "type": "string"
+        },
+        "moment_description": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Moment Description",
+          "type": "string"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FootageQuoteV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source_key": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "title": "Source Key",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "verification_level": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        },
+        "why_it_might_lead_into_montage": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Why It Might Lead Into Montage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_key",
+        "moment_description",
+        "why_it_might_lead_into_montage",
+        "verification_level",
+        "intro_lead_id"
+      ],
+      "title": "IntroMaterialLeadV2",
+      "type": "object"
+    },
+    "LegacyConnectionType": {
+      "enum": [
+        "NONE",
+        "SAME_CHARACTER",
+        "SAME_CANONICAL_UNIVERSE",
+        "EXPLICIT_CALLBACK",
+        "THEMATIC_PARALLEL",
+        "ACTOR_CONNECTION_ONLY",
+        "FAN_INTERPRETATION",
+        "UNSUPPORTED_SPECULATION"
+      ],
+      "title": "LegacyConnectionType",
+      "type": "string"
+    },
+    "NaturalFootageRequestV2": {
+      "additionalProperties": false,
+      "properties": {
+        "alternative": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alternative"
+        },
+        "best": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Best",
+          "type": "string"
+        },
+        "minimum": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Minimum",
+          "type": "string"
+        },
+        "optional_improvement": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Optional Improvement"
+        }
+      },
+      "required": [
+        "best",
+        "minimum"
+      ],
+      "title": "NaturalFootageRequestV2",
+      "type": "object"
+    },
+    "RequestedSourceV2": {
+      "additionalProperties": false,
+      "properties": {
+        "acquisition_effort": {
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Acquisition Effort",
+          "type": "integer"
+        },
+        "asset_kind": {
+          "$ref": "#/$defs/SourceAcquisitionKind"
+        },
+        "characters": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Characters",
+          "type": "array"
+        },
+        "episode_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Number"
+        },
+        "episode_title": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Title"
+        },
+        "priority": {
+          "maximum": 30,
+          "minimum": 1,
+          "title": "Priority",
+          "type": "integer"
+        },
+        "purposes": {
+          "items": {
+            "$ref": "#/$defs/SourcePurpose"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Purposes",
+          "type": "array"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FootageQuoteV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "relationship_or_topic": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Relationship Or Topic"
+        },
+        "replaces_required_source_keys": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{1,63}$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Replaces Required Source Keys",
+          "type": "array"
+        },
+        "requested_source_id": {
+          "format": "uuid4",
+          "title": "Requested Source Id",
+          "type": "string"
+        },
+        "scene_or_moment": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Scene Or Moment",
+          "type": "string"
+        },
+        "search_queries": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Search Queries",
+          "type": "array"
+        },
+        "season_number": {
+          "anyOf": [
+            {
+              "maximum": 9999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Season Number"
+        },
+        "show_or_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Show Or Title",
+          "type": "string"
+        },
+        "source_key": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "title": "Source Key",
+          "type": "string"
+        },
+        "source_quality_summary": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Source Quality Summary",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "format": "uuid4",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "verification_level": {
+          "$ref": "#/$defs/FootageVerificationLevel"
+        },
+        "why_it_matters_emotionally": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Why It Matters Emotionally",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_key",
+        "priority",
+        "acquisition_effort",
+        "asset_kind",
+        "show_or_title",
+        "scene_or_moment",
+        "purposes",
+        "verification_level",
+        "source_quality_summary",
+        "why_it_matters_emotionally",
+        "search_queries",
+        "requested_source_id"
+      ],
+      "title": "RequestedSourceV2",
+      "type": "object"
+    },
+    "SourceAcquisitionKind": {
+      "enum": [
+        "EPISODE",
+        "OFFICIAL_TRAILER",
+        "OFFICIAL_CLIP",
+        "SCENE_PACK",
+        "INDIVIDUAL_SCENES"
+      ],
+      "title": "SourceAcquisitionKind",
+      "type": "string"
+    },
+    "SourcePurpose": {
+      "enum": [
+        "INTRO",
+        "MONTAGE",
+        "PAYOFF",
+        "OPTIONAL_CALLBACK"
+      ],
+      "title": "SourcePurpose",
+      "type": "string"
+    },
+    "TrustedOpportunityEvidenceReferenceV2": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "format": "uuid4",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "independence_group": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Independence Group",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/EvidenceRole"
+        },
+        "supports_why_now": {
+          "title": "Supports Why Now",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "claim_id",
+        "role",
+        "supports_why_now",
+        "independence_group"
+      ],
+      "title": "TrustedOpportunityEvidenceReferenceV2",
+      "type": "object"
+    }
+  },
+  "$id": "https://ai-edit-machine.local/contracts/v2/canonical/editorial-concept.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "central_relationship": {
+      "anyOf": [
+        {
+          "maxLength": 500,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Central Relationship"
+    },
+    "central_subject": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Central Subject",
+      "type": "string"
+    },
+    "concept_id": {
+      "format": "uuid4",
+      "title": "Concept Id",
+      "type": "string"
+    },
+    "concept_key": {
+      "pattern": "^[a-z][a-z0-9_]{1,63}$",
+      "title": "Concept Key",
+      "type": "string"
+    },
+    "core_emotion": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Core Emotion",
+      "type": "string"
+    },
+    "current_event": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Current Event",
+      "type": "string"
+    },
+    "dossier_id": {
+      "format": "uuid4",
+      "title": "Dossier Id",
+      "type": "string"
+    },
+    "ending_or_payoff": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Ending Or Payoff",
+      "type": "string"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/TrustedOpportunityEvidenceReferenceV2"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "title": "Evidence",
+      "type": "array"
+    },
+    "footage_request": {
+      "$ref": "#/$defs/FootageRequestV2"
+    },
+    "intro_leads": {
+      "items": {
+        "$ref": "#/$defs/IntroMaterialLeadV2"
+      },
+      "maxItems": 3,
+      "minItems": 1,
+      "title": "Intro Leads",
+      "type": "array"
+    },
+    "known_uncertainties": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Known Uncertainties",
+      "type": "array"
+    },
+    "legacy_connection_type": {
+      "$ref": "#/$defs/LegacyConnectionType"
+    },
+    "legacy_or_contextual_connection": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Legacy Or Contextual Connection",
+      "type": "string"
+    },
+    "montage_arc": {
+      "items": {
+        "maxLength": 2000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 6,
+      "minItems": 3,
+      "title": "Montage Arc",
+      "type": "array"
+    },
+    "opportunity_id": {
+      "format": "uuid4",
+      "title": "Opportunity Id",
+      "type": "string"
+    },
+    "provisional_notice": {
+      "const": "This concept is based on current story and fandom evidence. Once you provide the footage, the video analyzer will verify whether the proposed intro, quote, reactions, and montage material are actually present and usable.",
+      "default": "This concept is based on current story and fandom evidence. Once you provide the footage, the video analyzer will verify whether the proposed intro, quote, reactions, and montage material are actually present and usable.",
+      "title": "Provisional Notice",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "score": {
+      "$ref": "#/$defs/EditorialConceptScoreV1"
+    },
+    "song_handoff_idea": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Song Handoff Idea",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "verification_status": {
+      "$ref": "#/$defs/FootageVerificationLevel"
+    },
+    "viewer_hook": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Viewer Hook",
+      "type": "string"
+    },
+    "why_fans_may_care": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Why Fans May Care",
+      "type": "string"
+    }
+  },
+  "required": [
+    "concept_id",
+    "opportunity_id",
+    "dossier_id",
+    "concept_key",
+    "title",
+    "central_subject",
+    "core_emotion",
+    "viewer_hook",
+    "why_fans_may_care",
+    "current_event",
+    "legacy_or_contextual_connection",
+    "legacy_connection_type",
+    "intro_leads",
+    "song_handoff_idea",
+    "montage_arc",
+    "ending_or_payoff",
+    "evidence",
+    "verification_status",
+    "score",
+    "footage_request"
+  ],
+  "title": "EditorialConceptV1",
+  "type": "object"
+}

@@ -75,13 +75,13 @@ class ProviderDebugTests(unittest.TestCase):
                 "parsed_results": 2,
                 "normalized_evidence": 3,
                 "evidence_surviving_gates": 3,
-                "ranked_opportunities": 1,
-                "opportunities_returned_to_ui": 1,
+                "ranked_opportunities": 0,
+                "opportunities_returned_to_ui": 0,
             },
         )
         envelope = report["worker_envelope"]
         self.assertEqual(envelope["messageType"], "research.result")
-        self.assertEqual(len(envelope["payload"]["result"]["opportunities"]), 1)
+        self.assertEqual(len(envelope["payload"]["result"]["opportunities"]), 0)
 
     def test_contract_trace_prints_all_headers_and_redacts_authorization(self) -> None:
         report = run_replay(load_fixture(FIXTURE), assert_contract=True)

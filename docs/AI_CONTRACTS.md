@@ -68,9 +68,77 @@ claim_id + role + independence_group + supports_why_now
 
 A `VERIFIED` footage quote requires an authoritative `quote_claim_id`. M1 can provide wording only when that claim survives the trusted join; otherwise it emits a paraphrase or unverified lead. M2 resolves wording and timing against user-supplied subtitles/media. Episode identity, scene location, speaker, and quote wording are separate claims and cannot promote one another by association.
 
+### M1.1 interpretation, funnel, and ranking contracts
+
+`ResearchIntentV2` owns a versioned `IntentInterpretation`: strict facets for
+hard constraints, soft preferences, audience, platform fit, and creative edit;
+semantic evidence questions; editable presentation metadata; clarification
+state; and the direct-TikTok-data/inference disclosure. Deterministic parsing
+may supply useful priors for a vague request but cannot turn gender into a rigid
+genre assumption.
+
+`CandidateFunnelV1` names all fourteen requested boundaries and bounded
+rejection codes. Counts are nonnegative and must not be silently omitted from a
+development diagnostic. The final Rust mapping recomputes received/displayed
+counts from the validated opportunity array rather than trusting model prose.
+For each deeply researched title, `CandidateDiagnosticV1` adds a bounded
+shortlist reason, retained current hook, audience/fandom/story evidence, source
+categories and evidence IDs, inferred short-form note, typed score/threshold
+traces, exact rejection gate, and one of retrieval/evidence/threshold/supported
+classifications. `CandidateScoreTraceV1.status=NOT_COMPUTED` is mandatory for a
+ranker component or gate the title never reached; diagnostics cannot invent a
+numeric substitute. Recovery-attempt counts and a specific coverage warning
+are canonical funnel fields, not UI-only prose.
+
+`OpportunityQualityScoreV1` records the profile ID, every component, the
+uncertainty penalty, and the recomputed total. `ShortFormEditPotentialV1` is a
+named proxy with evidence-linked signals and a categorical band; it cannot
+represent a TikTok virality probability or imply direct data when the intent
+contract says none was used.
+
+### Editorial concept contract
+
+The canonical dependency graph is:
+
+```text
+Opportunity
+  -> exactly one FandomStoryDossier
+  -> one to four supported EditorialConcept records
+  -> exactly one selected EditorialConcept
+  -> exactly one selected concept-specific FootageRequest
+```
+
+`FandomStoryDossierV1` is the evidence-to-concept boundary. It separates
+verified facts from inferences for the current hook, named characters and
+central relationship, episode/season/trailer/clip/announcement source,
+quote leads, franchise/parent/sequel/spinoff connection, relationship or
+character history, current fan interest, audience/fandom support,
+uncertainties, and evidence references. Its `dossier_id` must match the parent
+opportunity and every child concept. Editorial synthesis receives this dossier,
+not unbounded provider prose or release metadata alone.
+
+`EditorialConceptV1` is a child of exactly one dossier/opportunity and includes a
+specific central subject, optional relationship, core emotion, viewer hook,
+why-fans-care explanation, current event, typed contextual/legacy connection,
+one-to-three intro leads, song handoff, three-to-six functional montage beats,
+ending/payoff, evidence, verification status, structure-derived score,
+uncertainties, and a concept-owned `FootageRequestV2`. The request repeats the
+exact `concept_id`; the top-level selected request must be byte-for-byte the
+request owned by `recommended_concept_id`. Unsupported or zero-concept
+opportunities are invalid, and `NO_STRONG_OPPORTUNITY` must contain no dossier,
+concept, or request.
+
+Domain validation requires a concrete current hook, intro direction, montage
+progression, payoff, actionable source request, and supporting evidence. It
+rejects generic “get clips from this show” language, unsupported exact quotes
+or episode locators, fan interpretation presented as verified fact, and a
+cross-title source without evidence of the exact canonical bridge. Different
+concepts may request different sources. Every card carries the provisional
+notice that later local footage analysis may confirm, change, or reject it.
+
 ## Multi-source footage request
 
-Every recommended opportunity has one conversational `FootageRequest`, not a prose-only afterthought. Its canonical shape includes:
+Every selected supported concept has one conversational `FootageRequest`, not a prose-only afterthought. Its canonical shape includes:
 
 ```text
 required_sources[]       smallest sources essential to the concept
@@ -79,6 +147,7 @@ alternative_sources[]    lower-effort or safer substitutions, including scene pa
 suggested_search_queries[]
 minimum_useful_set       explicit explanation of the least the user should obtain
 natural_summary          BEST / ALTERNATIVE / MINIMUM / OPTIONAL IMPROVEMENT guidance
+concept_id               exact selected EditorialConcept identity
 ```
 
 Each requested-source item can carry show/title, nullable season and episode number/title, source kind, characters/relationship/topic, scene/moment, likely context, short quote and nullable speaker, priority, estimated user effort, purpose (`INTRO`, `MONTAGE`, `PAYOFF`, `OPTIONAL_CALLBACK`), emotional rationale, evidence references/quality, and one of exactly `VERIFIED`, `STRONGLY_SUPPORTED`, `LIKELY_INFERRED`, or `UNKNOWN`; presentation renders `LIKELY_INFERRED` as “LIKELY / INFERRED.” Unknown fields remain absent/unknown; they are never filled by model repair. Quote wording and episode location each need their own supporting claim. A scene-pack alternative is valid when fan discussion establishes a moment but not its precise episode, or when it minimizes acquisition better than many episodes.

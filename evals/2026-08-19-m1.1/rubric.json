@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0.0",
+  "rubric_id": "m1.1-live-relevance-editorial-v1",
+  "dimensions": [
+    "interpretation_quality",
+    "useful_candidate_count",
+    "audience_fit",
+    "platform_fit_reasoning",
+    "currentness",
+    "evidence_strength",
+    "source_diversity",
+    "editability",
+    "footage_specificity",
+    "honesty",
+    "would_user_obtain_footage"
+  ],
+  "hard_failures": [
+    "single_unexplained_result",
+    "unsupported_direct_tiktok_claim",
+    "unsupported_quote_or_episode",
+    "generic_get_clips_concept",
+    "hard_constraint_violation"
+  ],
+  "passing_score": 80
+}

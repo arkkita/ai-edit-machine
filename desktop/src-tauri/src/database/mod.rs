@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn empty_database_runs_the_numbered_migration_and_preflights_fts() {
         let database = Database::open_in_memory().unwrap();
-        assert_eq!(database.diagnostics().migration_version, 2);
+        assert_eq!(database.diagnostics().migration_version, 3);
         assert!(database.diagnostics().fts5_enabled);
         let tables: i64 = database.connection().query_row(
             "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name IN ('job','cost_entry','opportunity','footage_requirement')",

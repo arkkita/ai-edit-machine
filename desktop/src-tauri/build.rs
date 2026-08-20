@@ -5,6 +5,8 @@ use std::fs::{self, File};
 use std::io::{self, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::fmt;
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const COMMANDS: &[&str] = &[
     "get_diagnostics",
@@ -28,8 +30,10 @@ fn main() {
 
     println!("cargo:rerun-if-env-changed=AI_EDIT_WORKER_BUNDLE_DIR");
     println!("cargo:rerun-if-env-changed=AI_EDIT_ALLOW_UNPACKAGED_WORKER");
+    println!("cargo:rerun-if-env-changed=AI_EDIT_BUILD_TIMESTAMP_UNIX_MS");
     println!("cargo:rerun-if-changed=resources/worker");
     write_embedded_worker_manifest().expect("worker manifest generation must succeed");
+    write_build_provenance().expect("build provenance generation must succeed");
 }
 
 fn configure_explicit_unpacked_development_build() {
@@ -127,9 +131,72 @@ fn write_embedded_worker_manifest() -> io::Result<()> {
         "files": files,
     });
     let rendered = serde_json::to_string(&manifest)?;
-    let generated = format!("pub const EMBEDDED_WORKER_MANIFEST_JSON: &str = {rendered:?};\n");
+    let manifest_sha256 = hex::encode(Sha256::digest(rendered.as_bytes()));
+    let generated = format!(
+        "pub const EMBEDDED_WORKER_MANIFEST_JSON: &str = {rendered:?};\n\
+         pub const EMBEDDED_WORKER_MANIFEST_SHA256: &str = {manifest_sha256:?};\n"
+    );
     let output = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR is set by Cargo"));
     fs::write(output.join("embedded_worker_manifest.rs"), generated)
+}
+
+fn write_build_provenance() -> io::Result<()> {
+    println!("cargo:rerun-if-changed=../../.git/HEAD");
+    println!("cargo:rerun-if-changed=../../.git/index");
+    let repository_root = PathBuf::from("../..");
+    let commit = git_stdout(&repository_root, &["rev-parse", "HEAD"])
+        .filter(|value| value.len() == 40 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .unwrap_or_else(|| "unknown".to_owned());
+    let dirty_state = git_stdout(
+        &repository_root,
+        &["status", "--porcelain=v1", "--untracked-files=all"],
+    );
+    let dirty = dirty_state.as_ref().is_some_and(|value| !value.is_empty());
+    let short_commit = commit.chars().take(12).collect::<String>();
+    let build_identifier = if dirty {
+        let digest = hex::encode(Sha256::digest(
+            dirty_state.as_deref().unwrap_or_default().as_bytes(),
+        ));
+        format!("{short_commit}-dirty-{}", &digest[..12])
+    } else {
+        short_commit
+    };
+    let timestamp_ms = env::var("AI_EDIT_BUILD_TIMESTAMP_UNIX_MS")
+        .ok()
+        .and_then(|value| value.parse::<u128>().ok())
+        .unwrap_or_else(|| {
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("build clock is after the Unix epoch")
+                .as_millis()
+        });
+    if timestamp_ms > i64::MAX as u128 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "build timestamp exceeds the supported range",
+        ));
+    }
+    let generated = format!(
+        "pub const BUILD_COMMIT: &str = {commit:?};\n\
+         pub const BUILD_IDENTIFIER: &str = {build_identifier:?};\n\
+         pub const BUILD_IS_DIRTY: bool = {dirty};\n\
+         pub const BUILD_TIMESTAMP_UNIX_MS: i64 = {timestamp_ms};\n"
+    );
+    let output = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR is set by Cargo"));
+    fs::write(output.join("build_provenance.rs"), generated)
+}
+
+fn git_stdout(root: &Path, arguments: &[&str]) -> Option<String> {
+    let output = Command::new("git")
+        .args(["-C"])
+        .arg(root)
+        .args(arguments)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8(output.stdout).ok().map(|value| value.trim().to_owned())
 }
 
 fn parse_worker_contract(path: &Path) -> io::Result<(String, String)> {

@@ -147,6 +147,11 @@ export function SettingsDiagnosticsScreen({ api, onClose }: SettingsDiagnosticsS
           <>
             <dl className="fact-grid">
               <div><dt>App</dt><dd>{diagnostics.appVersion}</dd></div>
+              <div><dt>Build</dt><dd><code>{diagnostics.buildIdentifier}</code>{diagnostics.buildIsDirty ? " · dirty" : " · checkpoint"}</dd></div>
+              <div><dt>Build timestamp</dt><dd>{new Date(diagnostics.buildTimestampUnixMs).toLocaleString()}</dd></div>
+              <div><dt>Pipeline</dt><dd><code>{diagnostics.pipelineVersion}</code></dd></div>
+              <div><dt>Provider configuration</dt><dd><code>{diagnostics.providerConfigId}</code></dd></div>
+              <div><dt>Worker manifest</dt><dd><code title={diagnostics.workerManifestSha256}>{diagnostics.workerManifestSha256.slice(0, 16)}…</code></dd></div>
               <div><dt>Protocol</dt><dd>{diagnostics.protocolVersion}</dd></div>
               <div><dt>Worker</dt><dd>{diagnostics.workerStatus.toLowerCase()}</dd></div>
               <div><dt>Worker build</dt><dd>{diagnostics.workerVersion ?? "not packaged"}</dd></div>

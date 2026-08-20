@@ -49,6 +49,10 @@ pub fn embedded_manifest() -> AppResult<WorkerManifest> {
         .map_err(|_| AppError::Worker("embedded worker manifest is invalid".to_owned()))
 }
 
+pub fn embedded_manifest_sha256() -> &'static str {
+    EMBEDDED_WORKER_MANIFEST_SHA256
+}
+
 pub fn verify_embedded(resource_dir: &Path) -> AppResult<VerifiedWorkerBundle> {
     let manifest = embedded_manifest()?;
     if !manifest.available {
